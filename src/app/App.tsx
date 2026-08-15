@@ -159,6 +159,19 @@ const SAVE_METHODS = [
   { label: "Según capacidad",          icon: "💡" },
 ];
 
+const NIDO_NAMES = [
+  "Nuestro Hogar",
+  "Departamento",
+  "Casa",
+  "Nido",
+  "El Refugio",
+  "Tribu",
+  "Comunidad",
+  "La Madriguera",
+  "Hogar García",
+  "Casa Ramírez",
+];
+
 // ── HELPERS ──────────────────────────────────────────────────────────────────
 const $k  = (n: number) => n >= 1000 ? `$${(n/1000).toFixed(n%1000===0?0:1)}k` : `$${n.toLocaleString("es-MX")}`;
 const pct = (a: number, b: number) => Math.min(100, Math.round((a/b)*100));
@@ -1308,7 +1321,7 @@ function ExpenseEntryModal({
   const canConfirm = numVal > 0;
 
   return (
-    <div className="absolute inset-0 z-50 flex flex-col" style={{ backgroundColor: "#FFFFFF", borderRadius: "3rem" }}>
+    <div className="absolute inset-0 z-50 flex flex-col" style={{ backgroundColor: "#FFFFFF" }}>
       {/* Header */}
       <div className="flex items-center justify-between px-6 pt-6 pb-2 flex-shrink-0">
         <div className="w-9 h-9" />
@@ -1431,13 +1444,7 @@ function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "#E8E3DC", fontFamily: "Figtree, sans-serif" }}>
-      <div className="relative w-full max-w-[390px] flex flex-col overflow-hidden"
-        style={{ height: "844px", borderRadius: "3rem", backgroundColor: P.bgL, boxShadow: "0 48px 96px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.1)" }}>
-        <div className="flex items-center justify-between px-8 pt-4 pb-0 flex-shrink-0">
-          <span className="text-[11px] font-bold" style={{ color: P.text }}>9:41</span>
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: P.text }}><span>●●●</span><span>WiFi</span><span>🔋</span></div>
-        </div>
+    <div className="relative min-h-screen flex flex-col overflow-hidden" style={{ backgroundColor: P.bgL, fontFamily: "Figtree, sans-serif" }}>
         <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden px-6 pt-4 pb-8">
 
           {step === "welcome" && (
@@ -1490,33 +1497,6 @@ function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
                   </svg>
                   Continuar con Google
                 </button>
-
-                {/* Divider */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex-1 h-px" style={{ backgroundColor: P.border }} />
-                  <span className="text-[10px] font-medium" style={{ color: P.muted }}>o con tu correo</span>
-                  <div className="flex-1 h-px" style={{ backgroundColor: P.border }} />
-                </div>
-
-                {/* Email / password */}
-                <div className="space-y-2 mb-4">
-                  <input className="w-full py-3 px-4 rounded-2xl text-sm border-2 outline-none"
-                    style={{ backgroundColor: P.card, borderColor: "rgba(47,42,40,0.15)", color: P.text }}
-                    placeholder="Correo electrónico" type="email" />
-                  <input className="w-full py-3 px-4 rounded-2xl text-sm border-2 outline-none"
-                    style={{ backgroundColor: P.card, borderColor: "rgba(47,42,40,0.15)", color: P.text }}
-                    placeholder="Contraseña" type="password" />
-                </div>
-
-                <button className="w-full py-3.5 rounded-2xl font-semibold text-sm mb-4 transition-all active:scale-[0.98]"
-                  style={{ backgroundColor: P.brnDk, color: "#fff" }}>
-                  Iniciar sesión
-                </button>
-
-                <p className="text-center text-[11px]" style={{ color: P.muted }}>
-                  ¿No tienes cuenta?{" "}
-                  <span className="font-semibold" style={{ color: P.brnDk }}>Regístrate</span>
-                </p>
               </div>
 
               {/* Legal */}
@@ -1574,7 +1554,7 @@ function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
                 style={{ backgroundColor: P.card, borderColor: data.nestName ? P.brnDk : P.sub, color: P.text }}
                 placeholder="Casa Roma, Depa 502…" value={data.nestName} onChange={e => set("nestName",e.target.value)} />
               <div className="flex flex-wrap gap-2 mb-6">
-                {["Casa Roma","Nuestro Hogar","Depa 502","Los Sardina","Road Trip"].map(n => (
+                {NIDO_NAMES.map(n => (
                   <button key={n} onClick={() => set("nestName",n)}
                     className="text-xs font-medium px-3 py-1.5 rounded-full border"
                     style={{ borderColor: P.border, backgroundColor: P.sub, color: P.muted }}>{n}</button>
@@ -1648,8 +1628,6 @@ function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
                       placeholder="$40,000" type="number"
                       value={data.salary}
                       onChange={e => set("salary", e.target.value)} />
-                  </div>
-                  <div className="mb-6 p-3 rounded-2xl" style={{ backgroundColor: P.sagePl }}>
                   </div>
                   <OBtn2 label="Continuar" onClick={() => setStep("p-savings")} disabled={!data.salary} />
                 </>
@@ -1893,7 +1871,6 @@ function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             onClose={() => setExpEditIdx(null)}
           />
         )}
-      </div>
     </div>
   );
 }
@@ -2001,18 +1978,8 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4"
-      style={{ backgroundColor: "#E8E3DC", fontFamily: "Figtree, sans-serif" }}>
-      <div className="relative w-full max-w-[390px] flex flex-col overflow-hidden"
-        style={{ height: "844px", borderRadius: "3rem", backgroundColor: P.bgL, boxShadow: "0 48px 96px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.1)" }}>
-
-        {/* Status bar */}
-        <div className="flex items-center justify-between px-8 pt-4 pb-1.5 flex-shrink-0">
-          <span className="text-[11px] font-bold" style={{ color: P.text }}>9:41</span>
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: P.text }}><span>●●●</span><span>WiFi</span><span>🔋</span></div>
-        </div>
-
-        {/* Screen */}
+    <div className="relative min-h-screen flex flex-col overflow-hidden"
+      style={{ backgroundColor: P.bgL, fontFamily: "Figtree, sans-serif" }}>
         <div className="flex-1 overflow-hidden">
           {tab === "home"      && <HomeScreen onProfileOpen={() => setProfileOpen(true)} onNavigate={t => { setTab(t); setShowSheet(false); }} />}
           {tab === "budget"    && <BudgetScreen />}
@@ -2077,8 +2044,6 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
             onLogout={onLogout}
           />
         )}
-
-      </div>
     </div>
   );
 }
