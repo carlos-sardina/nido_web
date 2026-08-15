@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   Home, BarChart2, Target, Users, Clock, Plus, X,
   ChevronRight, ChevronLeft, Sparkles, Shield,
-  AlertTriangle, Check, Link, Mail,
+  AlertTriangle, Check, Link, QrCode,
   Camera, Receipt,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
@@ -280,6 +280,41 @@ function ActionSheet({ onSelect, onClose }: { onSelect: (f: Flow) => void; onClo
             ))}
           </div>
           <PBtn label="Cancelar" onClick={onClose} variant="ghost" />
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── INVITE QR MODAL ───────────────────────────────────────────────────────────
+function InviteQrModal({ inviteUrl, nestName, onClose }: { inviteUrl: string; nestName: string; onClose: () => void }) {
+  return (
+    <>
+      <div className="fixed inset-0 z-50" style={{ backgroundColor: "rgba(47,42,40,0.40)" }} onClick={onClose} />
+      <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-[2rem] pt-3 pb-8" style={{ backgroundColor: P.card }}>
+        <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ backgroundColor: P.sub }} />
+        <div className="px-6">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-lg font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Invitar por QR</h3>
+            <button onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: P.sub }}>
+              <X size={16} style={{ color: P.text }} />
+            </button>
+          </div>
+          <p className="text-xs mb-5" style={{ color: P.muted }}>
+            Escanea para unirse a {nestName || "tu Nido"}
+          </p>
+          <div className="flex justify-center mb-5">
+            <div className="p-4 rounded-2xl border-2" style={{ backgroundColor: "#FFFFFF", borderColor: "rgba(47,42,40,0.12)" }}>
+              <QrCode size={160} strokeWidth={1.25} style={{ color: P.text }} />
+            </div>
+          </div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-center mb-1.5" style={{ color: P.muted }}>
+            Enlace de invitación
+          </p>
+          <p className="text-xs text-center font-medium break-all mb-5 px-2" style={{ color: P.text }}>
+            {inviteUrl}
+          </p>
+          <PBtn label="Cerrar" onClick={onClose} variant="ghost" />
         </div>
       </div>
     </>
@@ -1321,7 +1356,7 @@ function ExpenseEntryModal({
   const canConfirm = numVal > 0;
 
   return (
-    <div className="absolute inset-0 z-50 flex flex-col" style={{ backgroundColor: "#FFFFFF" }}>
+    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto overscroll-contain" style={{ backgroundColor: "#FFFFFF" }}>
       {/* Header */}
       <div className="flex items-center justify-between px-6 pt-6 pb-2 flex-shrink-0">
         <div className="w-9 h-9" />
@@ -1368,7 +1403,7 @@ function ExpenseEntryModal({
       </div>
 
       {/* Numpad */}
-      <div className="flex-1 px-6">
+      <div className="px-6 flex-shrink-0">
         <div className="grid grid-cols-3 gap-2">
           {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((k, i) => (
             <button key={i} onClick={() => k && tap(k)} disabled={!k}
@@ -1426,6 +1461,7 @@ function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   });
   const [joinCode, setJoinCode] = useState("");
   const [expEditIdx, setExpEditIdx] = useState<number | null>(null);
+  const [showQrInvite, setShowQrInvite] = useState(false);
   const set = (k: keyof OData, v: OData[keyof OData]) => setData(p => ({ ...p, [k]: v }));
   const PERSONAL: OStep[] = ["p-name","p-income","p-savings","p-expenses","p-contrib"];
   const pIdx = PERSONAL.indexOf(step);
@@ -1445,7 +1481,7 @@ function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden" style={{ backgroundColor: P.bgL, fontFamily: "Figtree, sans-serif" }}>
-        <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden px-6 pt-4 pb-8">
+        <div className="flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden px-6 pt-4 pb-8">
 
           {step === "welcome" && (
             <div className="flex flex-col h-full">
@@ -1571,13 +1607,27 @@ function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
               <p className="text-xs mb-4" style={{ color: P.muted }}>Pueden unirse ahora o más tarde.</p>
               <div className="flex justify-center mb-6"><NidoHouse /></div>
               <div className="space-y-2 mb-6">
-                {[{ icon: Link, label: "Invitar por enlace", sub: "Comparte un link directo" }, { icon: Mail, label: "Invitar por email", sub: "Envía una invitación" }].map(({ icon: Icon, label, sub }) => (
-                  <button key={label} className="w-full flex items-center gap-3 p-4 rounded-2xl border text-left"
-                    style={{ borderColor: P.border, backgroundColor: P.card }}>
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: P.sagePl }}><Icon size={16} style={{ color: P.sageDk }}/></div>
-                    <div><p className="text-xs font-semibold" style={{ color: P.text }}>{label}</p><p className="text-[10px]" style={{ color: P.muted }}>{sub}</p></div>
-                  </button>
-                ))}
+                <button className="w-full flex items-center gap-3 p-4 rounded-2xl border text-left"
+                  style={{ borderColor: P.border, backgroundColor: P.card }}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: P.sagePl }}>
+                    <Link size={16} style={{ color: P.sageDk }} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: P.text }}>Invitar por enlace</p>
+                    <p className="text-[10px]" style={{ color: P.muted }}>Comparte un link directo</p>
+                  </div>
+                </button>
+                <button onClick={() => setShowQrInvite(true)}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl border text-left"
+                  style={{ borderColor: P.border, backgroundColor: P.card }}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: P.sagePl }}>
+                    <QrCode size={16} style={{ color: P.sageDk }} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: P.text }}>Invitar por QR</p>
+                    <p className="text-[10px]" style={{ color: P.muted }}>Escanea para unirse al Nido</p>
+                  </div>
+                </button>
               </div>
               <OBtn2 label="Crear mi Nido 🪺" onClick={() => setStep("nest-ready")} />
             </div>
@@ -1692,6 +1742,11 @@ function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
                 };
 
                 const QUICK_EMOJIS = ["💳","🎓","🏋️","🛍️","💅","🍺","🐱","🐕","🏥","✈️","📚","🎮","🧘","🚲","🎸"];
+                const isQuickEmoji = QUICK_EMOJIS.includes(customEmoji);
+                const setEmojiFromInput = (value: string) => {
+                  if (!value) { setCustomEmoji("💳"); return; }
+                  setCustomEmoji([...value].pop() ?? "💳");
+                };
 
                 return (
                   <>
@@ -1750,11 +1805,29 @@ function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
                               {e}
                             </button>
                           ))}
+                          <input
+                            type="text"
+                            aria-label="Otro emoji"
+                            placeholder="＋"
+                            className="flex-shrink-0 w-9 h-9 rounded-xl text-lg text-center outline-none border-2 transition-all"
+                            style={{
+                              backgroundColor: !isQuickEmoji ? P.brnDk + "20" : P.card,
+                              borderColor: !isQuickEmoji ? P.brnDk : "transparent",
+                              color: P.text,
+                            }}
+                            value={!isQuickEmoji ? customEmoji : ""}
+                            onChange={e => setEmojiFromInput(e.target.value)}
+                          />
                         </div>
                         <div className="flex gap-2 mb-3">
-                          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ backgroundColor: P.card }}>
-                            {customEmoji}
-                          </div>
+                          <input
+                            type="text"
+                            aria-label="Emoji del gasto"
+                            className="w-10 h-10 rounded-xl text-xl text-center outline-none border-2 flex-shrink-0"
+                            style={{ backgroundColor: P.card, borderColor: P.brnDk, color: P.text }}
+                            value={customEmoji}
+                            onChange={e => setEmojiFromInput(e.target.value)}
+                          />
                           <input
                             className="flex-1 rounded-xl px-3 py-2 text-xs font-medium outline-none border-2"
                             style={{ backgroundColor: P.card, borderColor: customName ? P.brnDk : P.border, color: P.text }}
@@ -1869,6 +1942,14 @@ function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             exp={data.expenses[expEditIdx]}
             onConfirm={handleExpConfirm}
             onClose={() => setExpEditIdx(null)}
+          />
+        )}
+
+        {showQrInvite && (
+          <InviteQrModal
+            inviteUrl={`https://nido.app/join/${(data.nestName || "nido").toLowerCase().replace(/\s+/g, "-")}`}
+            nestName={data.nestName}
+            onClose={() => setShowQrInvite(false)}
           />
         )}
     </div>
