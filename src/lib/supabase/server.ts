@@ -13,7 +13,8 @@ import type { Database } from "./types";
  * Uses the public anon key — not the service role — so RLS still applies.
  * Create a new client per request. Do not reuse it across requests.
  *
- * Session-refresh middleware is deferred until Phase 7 (Authentication).
+ * Session cookies are refreshed by `src/middleware.ts`. Server Components
+ * cannot always write cookies; that catch is expected there.
  */
 export async function createClient() {
   const { url, anonKey } = getPublicSupabaseConfig();
@@ -24,14 +25,14 @@ export async function createClient() {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet, _headers) {
         try {
           cookiesToSet.forEach(({ name, value, options }) => {
             cookieStore.set(name, value, options);
           });
         } catch {
-          // Server Components cannot always write cookies. Session refresh
-          // middleware is intentionally not added in this phase.
+          // Server Components cannot always write cookies. The middleware
+          // in src/middleware.ts refreshes the session instead.
         }
       },
     },

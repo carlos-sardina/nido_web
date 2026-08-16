@@ -1,11 +1,12 @@
 import { Shield } from "lucide-react";
+import type { AuthIdentity } from "@/lib/auth/identity";
 import { CATS, FEED, GOALS, TOT_B, TOT_S } from "@/lib/constants";
 import { $k, pct } from "@/lib/helpers";
 import { P } from "@/lib/palette";
 import type { Tab } from "@/lib/types";
 import { HealthGauge } from "@/components/home/HealthGauge";
 
-export function HomeScreen({ onProfileOpen, onNavigate }: { onProfileOpen: () => void; onNavigate: (tab: Tab) => void }) {
+export function HomeScreen({ identity, onProfileOpen, onNavigate }: { identity: AuthIdentity | null; onProfileOpen: () => void; onNavigate: (tab: Tab) => void }) {
   const over = TOT_S > TOT_B;
   const diff = Math.abs(TOT_S - TOT_B);
   return (
@@ -13,10 +14,14 @@ export function HomeScreen({ onProfileOpen, onNavigate }: { onProfileOpen: () =>
       <div className="px-6 pt-3 pb-1 flex items-center justify-between">
         <div>
           <p className="text-xs font-medium" style={{ color: P.muted }}>Buenos días</p>
-          <h1 className="text-[22px] font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Diana 👋</h1>
+          <h1 className="text-[22px] font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{identity ? `${identity.firstName} 👋` : "Hola 👋"}</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={onProfileOpen} className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm active:scale-95 transition-transform" style={{ backgroundColor: P.sage }}>DV</button>
+          <button onClick={onProfileOpen} className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm active:scale-95 transition-transform overflow-hidden" style={{ backgroundColor: P.sage }}>
+            {identity?.avatarUrl
+              ? <img src={identity.avatarUrl} alt="" className="w-full h-full object-cover" />
+              : (identity?.initials ?? "?")}
+          </button>
         </div>
       </div>
       {/* Health score */}

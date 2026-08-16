@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Check, ChevronLeft, Link, QrCode, Sparkles,
 } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
+import { identityFromUser } from "@/lib/auth/identity";
+import { savePendingOnboardingFlow, takePendingOnboardingFlow } from "@/lib/auth/pending-flow";
+import { signInWithGoogle } from "@/lib/auth/session";
 import { EXP_SUGG, NEST_TYPES, NIDO_NAMES } from "@/lib/constants";
 import { P } from "@/lib/palette";
 import type { Model, OStep, OData } from "@/lib/types";
@@ -13,7 +17,7 @@ import { ExpenseEntryModal } from "@/components/onboarding/ExpenseEntryModal";
 import { OBtn2 } from "@/components/onboarding/OBtn2";
 import { OProgress2 } from "@/components/onboarding/OProgress2";
 
-export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
+export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; user: User | null }) {
   const [step, setStep] = useState<OStep>("welcome");
   const [data, setData] = useState<OData>({
     flow: null, nestType: "", nestEmoji: "🏠", nestName: "",
@@ -24,7 +28,85 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   const [joinCode, setJoinCode] = useState("");
   const [expEditIdx, setExpEditIdx] = useState<number | null>(null);
   const [showQrInvite, setShowQrInvite] = useState(false);
+  const [oauthStarting, setOauthStarting] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const identity = identityFromUser(user);
   const set = (k: keyof OData, v: OData[keyof OData]) => setData(p => ({ ...p, [k]: v }));
+
+  const applyAuthenticatedIdentity = (flow: "create" | "join") => {
+    setData(p => ({
+      ...p,
+      flow,
+      // Local onboarding draft only. Not written to profiles in this phase.
+      userName: p.userName || identity?.displayName || "",
+    }));
+    setStep(flow === "join" ? "join" : "c-name");
+  };
+
+  const startCreate = () => {
+    if (user) {
+      applyAuthenticatedIdentity("create");
+      return;
+    }
+    set("flow", "create");
+    setStep("auth");
+  };
+
+  const startJoin = () => {
+    if (user) {
+      applyAuthenticatedIdentity("join");
+      return;
+    }
+    set("flow", "join");
+    setStep("auth");
+  };
+
+  const handleGoogle = async () => {
+    setAuthError(null);
+    setOauthStarting(true);
+    try {
+      savePendingOnboardingFlow(data.flow === "join" ? "join" : "create");
+      const { error } = await signInWithGoogle();
+      if (error) {
+        console.error("Google OAuth failed", error);
+        setAuthError("No pudimos iniciar sesión con Google. Inténtalo de nuevo.");
+        setOauthStarting(false);
+      }
+    } catch (error) {
+      console.error("Google OAuth failed", error);
+      setAuthError("No pudimos iniciar sesión con Google. Inténtalo de nuevo.");
+      setOauthStarting(false);
+    }
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hadAuthError = params.get("auth") === "error";
+    if (hadAuthError) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
+    if (!user) {
+      if (hadAuthError) {
+        setAuthError("No pudimos iniciar sesión con Google. Inténtalo de nuevo.");
+        setStep("auth");
+      }
+      return;
+    }
+
+    const pending = takePendingOnboardingFlow();
+    if (pending) {
+      applyAuthenticatedIdentity(pending);
+      return;
+    }
+
+    if (step === "auth") {
+      applyAuthenticatedIdentity(data.flow === "join" ? "join" : "create");
+    }
+    // Resume after OAuth or skip Google when a session already exists.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   const PERSONAL: OStep[] = ["p-name","p-income","p-savings","p-expenses","p-contrib"];
   const pIdx = PERSONAL.indexOf(step);
   const isPers = pIdx >= 0;
@@ -55,8 +137,8 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
                 </div>
               </div>
               <div className="space-y-3">
-                <OBtn2 label="🪺 Crear un nuevo Nido" onClick={() => { set("flow","create"); setStep("auth"); }} />
-                <OBtn2 label="👋 Unirme a un Nido"   onClick={() => { set("flow","join");   setStep("auth"); }} variant="secondary" />
+                <OBtn2 label="🪺 Crear un nuevo Nido" onClick={startCreate} />
+                <OBtn2 label="👋 Unirme a un Nido"   onClick={startJoin} variant="secondary" />
                 <p className="text-center text-[11px] leading-relaxed pt-1" style={{ color: P.muted }}>Puedes pertenecer a múltiples Nidos.<br />Ideal para parejas, roommates, familias y más.</p>
               </div>
             </div>
@@ -79,12 +161,10 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
 
                 {/* Google button */}
                 <button
-                  onClick={() => {
-                    setData(p => ({ ...p, userName: "Diana Valdés" }));
-                    setStep(data.flow === "create" ? "c-name" : "join");
-                  }}
+                  onClick={oauthStarting ? undefined : handleGoogle}
+                  disabled={oauthStarting}
                   className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl border-2 mb-4 transition-all active:scale-[0.98] font-semibold text-sm"
-                  style={{ backgroundColor: "#FFFFFF", borderColor: "rgba(47,42,40,0.15)", color: P.text }}>
+                  style={{ backgroundColor: "#FFFFFF", borderColor: "rgba(47,42,40,0.15)", color: P.text, opacity: oauthStarting ? 0.7 : 1, cursor: oauthStarting ? "not-allowed" : "pointer" }}>
                   {/* Google G */}
                   <svg width="20" height="20" viewBox="0 0 48 48">
                     <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -93,8 +173,13 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
                     <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
                     <path fill="none" d="M0 0h48v48H0z"/>
                   </svg>
-                  Continuar con Google
+                  {oauthStarting ? "Conectando…" : "Continuar con Google"}
                 </button>
+                {authError && (
+                  <p className="text-center text-[11px] mb-4 leading-relaxed" style={{ color: P.danger }}>
+                    {authError}
+                  </p>
+                )}
               </div>
 
               {/* Legal */}
@@ -108,7 +193,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
 
           {step === "join" && (
             <div>
-              <button onClick={() => setStep("auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              <button onClick={() => setStep(user ? "welcome" : "auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
               <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Únete a un Nido</h2>
               <p className="text-xs mb-6" style={{ color: P.muted }}>Alguien ya creó un Nido para ti.</p>
               <label className="text-xs font-semibold mb-2 block" style={{ color: P.muted }}>Código de invitación</label>
@@ -144,7 +229,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
 
           {step === "c-name" && (
             <div>
-              <button onClick={() => setStep("auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              <button onClick={() => setStep(user ? "welcome" : "auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
               <OProgress2 step={1} total={6} />
               <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Dale nombre a tu Nido</h2>
               <p className="text-xs mb-6" style={{ color: P.muted }}>Algo que lo haga sentir especial.</p>
@@ -214,13 +299,15 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
                       <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
                     </svg>
                     <p className="text-[11px]" style={{ color: P.muted }}>
-                      Conectado como <span className="font-semibold" style={{ color: P.text }}>diana.valdes@gmail.com</span>
+                      Conectado como <span className="font-semibold" style={{ color: P.text }}>{identity?.email ?? "tu cuenta de Google"}</span>
                     </p>
                   </div>
                   <div className="flex justify-center mb-5">
-                    <div className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-md"
+                    <div className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-md overflow-hidden"
                       style={{ backgroundColor: P.brnDk }}>
-                      {data.userName ? data.userName[0].toUpperCase() : "D"}
+                      {identity?.avatarUrl
+                        ? <img src={identity.avatarUrl} alt="" className="w-full h-full object-cover" />
+                        : (data.userName ? data.userName[0].toUpperCase() : "?")}
                     </div>
                   </div>
                   <input className="w-full py-4 px-4 rounded-2xl text-base font-semibold border-2 outline-none mb-6"

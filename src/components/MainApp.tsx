@@ -14,10 +14,21 @@ import { ProfilePanel } from "@/components/flows/ProfilePanel";
 import { GoalsScreen } from "@/components/goals/GoalsScreen";
 import { HomeScreen } from "@/components/home/HomeScreen";
 import { HouseholdScreen } from "@/components/household/HouseholdScreen";
+import { identityFromUser } from "@/lib/auth/identity";
 import { P } from "@/lib/palette";
 import type { Flow, Model, Tab } from "@/lib/types";
+import type { User } from "@supabase/supabase-js";
 
-export function MainApp({ onLogout }: { onLogout: () => void }) {
+export function MainApp({
+  user,
+  onLogout,
+  signingOut = false,
+}: {
+  user: User | null;
+  onLogout: () => void;
+  signingOut?: boolean;
+}) {
+  const identity = identityFromUser(user);
   const [tab, setTab]           = useState<Tab>("home");
   const [model, setModel]       = useState<Model>("capacity");
   const [showSheet, setShowSheet] = useState(false);
@@ -40,7 +51,7 @@ export function MainApp({ onLogout }: { onLogout: () => void }) {
     <div className="relative min-h-screen flex flex-col overflow-hidden"
       style={{ backgroundColor: P.bgL, fontFamily: "Figtree, sans-serif" }}>
         <div className="flex-1 overflow-hidden">
-          {tab === "home"      && <HomeScreen onProfileOpen={() => setProfileOpen(true)} onNavigate={t => { setTab(t); setShowSheet(false); }} />}
+          {tab === "home"      && <HomeScreen identity={identity} onProfileOpen={() => setProfileOpen(true)} onNavigate={t => { setTab(t); setShowSheet(false); }} />}
           {tab === "budget"    && <BudgetScreen />}
           {tab === "goals"     && <GoalsScreen />}
           {tab === "household" && <HouseholdScreen model={model} setModel={setModel} />}
@@ -99,6 +110,8 @@ export function MainApp({ onLogout }: { onLogout: () => void }) {
         {/* Profile panel */}
         {profileOpen && (
           <ProfilePanel
+            identity={identity}
+            signingOut={signingOut}
             onClose={() => setProfileOpen(false)}
             onLogout={onLogout}
           />

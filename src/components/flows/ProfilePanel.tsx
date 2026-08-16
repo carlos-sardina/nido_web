@@ -1,9 +1,20 @@
 import { ChevronLeft } from "lucide-react";
+import type { AuthIdentity } from "@/lib/auth/identity";
 import { DIANA_EXTRAS, DIANA_ITEMS } from "@/lib/constants";
 import { $k } from "@/lib/helpers";
 import { P } from "@/lib/palette";
 
-export function ProfilePanel({ onClose, onLogout }: { onClose: () => void; onLogout: () => void }) {
+export function ProfilePanel({
+  identity,
+  onClose,
+  onLogout,
+  signingOut = false,
+}: {
+  identity: AuthIdentity | null;
+  onClose: () => void;
+  onLogout: () => void;
+  signingOut?: boolean;
+}) {
   const fixedTotal = DIANA_ITEMS.reduce((s, i) => s + i.amount, 0);
   const extraTotal = DIANA_EXTRAS.reduce((s, i) => s + i.amount, 0);
   return (
@@ -20,9 +31,13 @@ export function ProfilePanel({ onClose, onLogout }: { onClose: () => void; onLog
       <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden pb-6">
         {/* User identity */}
         <div className="flex flex-col items-center py-6 px-6">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-bold mb-3 shadow-md" style={{ backgroundColor: P.sage }}>DV</div>
-          <p className="text-base font-bold mb-0.5" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Diana Valdés</p>
-          <p className="text-xs" style={{ color: P.muted }}>diana.valdes@gmail.com</p>
+          <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-bold mb-3 shadow-md overflow-hidden" style={{ backgroundColor: P.sage }}>
+            {identity?.avatarUrl
+              ? <img src={identity.avatarUrl} alt="" className="w-full h-full object-cover" />
+              : (identity?.initials ?? "?")}
+          </div>
+          <p className="text-base font-bold mb-0.5" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{identity?.displayName ?? "Usuario"}</p>
+          <p className="text-xs" style={{ color: P.muted }}>{identity?.email ?? ""}</p>
           <div className="mt-2 px-3 py-1 rounded-full text-[10px] font-semibold" style={{ backgroundColor: P.sagePl, color: P.brnDp }}>Nido: Departamento 🏠</div>
         </div>
 
@@ -67,10 +82,11 @@ export function ProfilePanel({ onClose, onLogout }: { onClose: () => void; onLog
 
         {/* Logout */}
         <div className="px-6">
-          <button onClick={onLogout}
+          <button onClick={signingOut ? undefined : onLogout}
+            disabled={signingOut}
             className="w-full py-3.5 rounded-2xl text-sm font-semibold border transition-all active:scale-[0.98]"
-            style={{ color: P.danger, borderColor: `${P.danger}30`, backgroundColor: P.dangerBg }}>
-            Cerrar sesión
+            style={{ color: P.danger, borderColor: `${P.danger}30`, backgroundColor: P.dangerBg, opacity: signingOut ? 0.7 : 1, cursor: signingOut ? "not-allowed" : "pointer" }}>
+            {signingOut ? "Cerrando sesión…" : "Cerrar sesión"}
           </button>
         </div>
       </div>
