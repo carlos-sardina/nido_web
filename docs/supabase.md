@@ -300,6 +300,32 @@ Do not commit `.env.local`.
 
 ---
 
+## Development data reset
+
+`supabase/tests/reset_dev_data.sql` is a manual, **development-only** script for `nido_dev` (`pxfdvhavcddqmhuljxlf`). It deletes all Nido application rows and all Auth users so the hosted development project can be returned to an empty-data state.
+
+It does **not** modify schema, migrations, RLS, functions, triggers, indexes, enums, storage, or Auth configuration.
+
+It must **never** be used against production. PostgreSQL does not expose the Supabase project ref as a reliable database identifier, so the script fails closed unless the same session first sets:
+
+```sql
+SELECT set_config(
+  'nido.reset_dev_data_confirm',
+  'pxfdvhavcddqmhuljxlf',
+  false
+);
+```
+
+The script is intentionally **not** executed automatically. It is not wired to `npm` scripts, CI, migrations, or app startup. Do not run `supabase db reset` as a substitute.
+
+Static shape check only (does not connect to Supabase and does not run the reset):
+
+```bash
+node supabase/tests/validate_reset_dev_data.mjs
+```
+
+---
+
 ## RLS
 
 All database access is expected to operate under the RLS policies already defined in `supabase/migrations/20260817000000_nido_rls.sql`.
