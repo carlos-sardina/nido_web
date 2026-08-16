@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   isValidEmail,
+  MAX_EMAIL_LENGTH,
+  MIN_PASSWORD_LENGTH,
   normalizeEmail,
   publicAuthErrorMessage,
   RECOVERY_SENT_MESSAGE,
+  SIGNUP_EXISTS_MESSAGE,
   validateLoginInput,
   validateNewPassword,
   validateRecoveryEmail,
@@ -20,17 +23,34 @@ describe("normalizeEmail / isValidEmail", () => {
     assert.equal(isValidEmail("alex@example.com"), true);
   });
 
-  it("rejects empty or incomplete values", () => {
+  it("rejects empty email", () => {
     assert.equal(isValidEmail(""), false);
+    assert.equal(isValidEmail("   "), false);
+  });
+
+  it("rejects malformed email", () => {
     assert.equal(isValidEmail("alex"), false);
     assert.equal(isValidEmail("alex@"), false);
+    assert.equal(isValidEmail("alex@example"), false);
+  });
+
+  it("rejects excessive email length", () => {
+    const local = "a".repeat(MAX_EMAIL_LENGTH);
+    assert.equal(isValidEmail(`${local}@example.com`), false);
   });
 });
 
 describe("validateSignupInput", () => {
-  it("requires a valid email", () => {
+  it("rejects empty email", () => {
     assert.equal(
-      validateSignupInput({ email: "nope", password: "secret", confirmPassword: "secret" }),
+      validateSignupInput({ email: "", password: "secret1", confirmPassword: "secret1" }),
+      "Ingresa un correo válido.",
+    );
+  });
+
+  it("rejects malformed email", () => {
+    assert.equal(
+      validateSignupInput({ email: "nope", password: "secret1", confirmPassword: "secret1" }),
       "Ingresa un correo válido.",
     );
   });
@@ -42,12 +62,19 @@ describe("validateSignupInput", () => {
     );
   });
 
+  it("rejects a password below the current minimum", () => {
+    assert.equal(
+      validateSignupInput({ email: "alex@example.com", password: "12345", confirmPassword: "12345" }),
+      `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`,
+    );
+  });
+
   it("requires matching confirmation", () => {
     assert.equal(
       validateSignupInput({
         email: "alex@example.com",
-        password: "secret",
-        confirmPassword: "other",
+        password: "secret1",
+        confirmPassword: "other12",
       }),
       "Las contraseñas no coinciden.",
     );
@@ -57,8 +84,8 @@ describe("validateSignupInput", () => {
     assert.equal(
       validateSignupInput({
         email: "alex@example.com",
-        password: "secret",
-        confirmPassword: "secret",
+        password: "secret1",
+        confirmPassword: "secret1",
       }),
       null,
     );
@@ -78,20 +105,27 @@ describe("validateRecoveryEmail / validateNewPassword", () => {
     assert.equal(validateRecoveryEmail("alex@example.com"), null);
   });
 
-  it("validates the new password pair", () => {
+  it("rejects an empty password", () => {
     assert.equal(validateNewPassword({ password: "", confirmPassword: "" }), "Ingresa una contraseña.");
+  });
+
+  it("rejects a confirmation mismatch", () => {
     assert.equal(
-      validateNewPassword({ password: "a", confirmPassword: "b" }),
+      validateNewPassword({ password: "secret1", confirmPassword: "secret2" }),
       "Las contraseñas no coinciden.",
     );
-    assert.equal(validateNewPassword({ password: "a", confirmPassword: "a" }), null);
+  });
+
+  it("accepts a matching new password", () => {
+    assert.equal(validateNewPassword({ password: "secret1", confirmPassword: "secret1" }), null);
   });
 });
 
 describe("publicAuthErrorMessage", () => {
   it("does not expose provider or database details", () => {
     assert.equal(publicAuthErrorMessage("login"), "Email o contraseña incorrectos.");
-    assert.match(publicAuthErrorMessage("signup"), /cuenta/);
+    assert.equal(publicAuthErrorMessage("signup"), SIGNUP_EXISTS_MESSAGE);
     assert.match(RECOVERY_SENT_MESSAGE, /Si el correo está registrado/);
+    assert.equal(SIGNUP_EXISTS_MESSAGE.includes("ya está registrado"), false);
   });
 });

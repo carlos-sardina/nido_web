@@ -95,6 +95,35 @@ describe("classifyAuthError", () => {
     assert.equal(classified.code, "invalid_credentials");
     assert.equal(classified.message, publicMessageForAuthFailure("invalid_credentials", "login"));
   });
+
+  it("maps an existing-account signup without enumeration", () => {
+    const classified = classifyAuthError(
+      authError({ message: "User already registered", code: "user_already_exists", status: 422 }),
+      "signup",
+    );
+    assert.equal(classified.code, "already_registered");
+    assert.match(classified.message, /Si ya tienes una cuenta/i);
+    assert.doesNotMatch(classified.message, /ya está registrado/i);
+    assert.doesNotMatch(classified.message, /AuthApiError/i);
+    assert.equal(isTechnicalAuthLeak(classified.message), false);
+  });
+
+  it("maps a weak password without leaking provider text", () => {
+    const classified = classifyAuthError(
+      authError({ message: "Password is known to be weak", code: "weak_password", status: 422 }),
+      "signup",
+    );
+    assert.equal(classified.code, "weak_password");
+    assert.doesNotMatch(classified.message, /known to be weak/i);
+  });
+
+  it("maps a network failure", () => {
+    const classified = classifyAuthError(
+      authError({ name: "AuthRetryableFetchError", message: "Failed to fetch", status: 0 }),
+      "login",
+    );
+    assert.equal(classified.code, "network");
+  });
 });
 
 describe("interpretSignupResponse", () => {
@@ -129,6 +158,17 @@ describe("interpretSignupResponse", () => {
       error: null,
     });
     assert.equal(outcome.kind, "confirm_email");
+  });
+
+  it("treats an existing account as a failed signup, not confirm-email", () => {
+    const outcome = interpretSignupResponse({
+      data: { session: null },
+      error: authError({ message: "User already registered", code: "user_already_exists" }),
+    });
+    assert.equal(outcome.kind, "error");
+    if (outcome.kind !== "error") return;
+    assert.equal(outcome.error.code, "already_registered");
+    assert.equal(isTechnicalAuthLeak(outcome.error.message), false);
   });
 });
 

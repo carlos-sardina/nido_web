@@ -33,6 +33,20 @@ export async function requestPasswordReset(email: string) {
   });
 }
 
+export async function resendSignupConfirmation(
+  email: string,
+  options?: { next?: string },
+) {
+  const supabase = createClient();
+  return supabase.auth.resend({
+    type: "signup",
+    email: normalizeEmail(email),
+    options: {
+      emailRedirectTo: getAuthRedirectTo(window.location.origin, options?.next),
+    },
+  });
+}
+
 export async function updatePassword(password: string) {
   const supabase = createClient();
   const result = await supabase.auth.updateUser({ password });

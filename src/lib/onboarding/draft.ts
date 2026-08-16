@@ -3,10 +3,11 @@
  *
  * Stored in sessionStorage so a refresh can restore the current step.
  * Cleared on logout and after the household is created. Never used for
- * access tokens, refresh tokens, or passwords.
+ * access tokens, refresh tokens, or passwords. Unknown or secret-looking
+ * keys are dropped on load so corrupt data cannot become a valid draft.
  */
 
-import type { OData, OStep, OnboardingExpense } from "../types";
+import type { ExpenseKind, Model, OData, OStep, OnboardingExpense } from "../types";
 
 export const ONBOARDING_DRAFT_KEY = "nido.onboardingDraft";
 
@@ -22,6 +23,8 @@ const DRAFT_STEPS = new Set<OStep>([
   "p-expenses",
   "p-contrib",
 ]);
+
+const SECRET_KEYS = /password|passwd|secret|token|refresh|access_token|api[_-]?key/i;
 
 export type OnboardingDraft = {
   step: OStep;
@@ -55,19 +58,82 @@ function readStorage(): Storage | null {
   return sessionStorage;
 }
 
+function asString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function asExpenseType(value: unknown): "personal" | "shared" | null {
+  return value === "shared" || value === "personal" ? value : null;
+}
+
+function asExpenseKind(value: unknown): ExpenseKind {
+  return value === "variable" ? "variable" : "recurring";
+}
+
+function asFlow(value: unknown): OData["flow"] {
+  return value === "join" || value === "create" ? value : null;
+}
+
+function asSavingsType(value: unknown): OData["savingsType"] {
+  return value === "shared" || value === "both" || value === "personal" ? value : "personal";
+}
+
+function asContrib(value: unknown): Model {
+  return value === "equal" || value === "proportional" || value === "capacity" ? value : "capacity";
+}
+
+function objectHasSecretKey(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  return Object.keys(value as object).some((key) => SECRET_KEYS.test(key));
+}
+
 function asExpenses(value: unknown): OnboardingExpense[] {
-  if (!Array.isArray(value) || value.length === 0) return [];
-  return value.map((item) => {
-    const row = item as Partial<OnboardingExpense>;
-    return {
-      name: typeof row.name === "string" ? row.name : "Gasto",
-      icon: typeof row.icon === "string" ? row.icon : "💳",
+  if (!Array.isArray(value)) return [];
+  const expenses: OnboardingExpense[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    if (objectHasSecretKey(row)) continue;
+    if (typeof row.name !== "string") continue;
+    const type = asExpenseType(row.type);
+    if (!type) continue;
+    expenses.push({
+      name: row.name,
+      icon: typeof row.icon === "string" && row.icon ? row.icon : "💳",
       selected: Boolean(row.selected),
       amount: typeof row.amount === "string" ? row.amount : "",
-      type: row.type === "shared" ? "shared" : "personal",
-      kind: row.kind === "variable" ? "variable" : "recurring",
-    };
-  });
+      type,
+      kind: asExpenseKind(row.kind),
+    });
+  }
+  return expenses;
+}
+
+export function sanitizeOnboardingData(raw: unknown): OData | null {
+  if (!raw || typeof raw !== "object") return null;
+  if (objectHasSecretKey(raw)) return null;
+  const src = raw as Record<string, unknown>;
+  if (typeof src.nestName !== "string") return null;
+
+  return {
+    ...emptyOnboardingData(),
+    flow: asFlow(src.flow),
+    nestType: asString(src.nestType),
+    nestEmoji: asString(src.nestEmoji, "🏠") || "🏠",
+    nestName: src.nestName,
+    userName: asString(src.userName),
+    salary: asString(src.salary),
+    freelance: asString(src.freelance),
+    savings: asString(src.savings),
+    savingsType: asSavingsType(src.savingsType),
+    savingsShared: asString(src.savingsShared),
+    expenses: asExpenses(src.expenses),
+    contrib: asContrib(src.contrib),
+    _showAdd: typeof src._showAdd === "boolean" ? src._showAdd : undefined,
+    _emoji: typeof src._emoji === "string" ? src._emoji : undefined,
+    _cname: typeof src._cname === "string" ? src._cname : undefined,
+    _etype: asExpenseType(src._etype) ?? undefined,
+  };
 }
 
 export function loadOnboardingDraft(): OnboardingDraft | null {
@@ -77,18 +143,21 @@ export function loadOnboardingDraft(): OnboardingDraft | null {
   try {
     const raw = storage.getItem(ONBOARDING_DRAFT_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<OnboardingDraft> & { data?: Partial<OData> };
-    if (!parsed.step || !isOnboardingDraftStep(parsed.step) || !parsed.data || typeof parsed.data.nestName !== "string") {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return null;
+    if (objectHasSecretKey(parsed)) return null;
+
+    const record = parsed as Record<string, unknown>;
+    if (typeof record.step !== "string" || !isOnboardingDraftStep(record.step as OStep)) {
       return null;
     }
+    const data = sanitizeOnboardingData(record.data);
+    if (!data) return null;
+
     return {
-      step: parsed.step,
-      data: {
-        ...emptyOnboardingData(),
-        ...parsed.data,
-        expenses: asExpenses(parsed.data.expenses),
-      },
-      joinCode: typeof parsed.joinCode === "string" ? parsed.joinCode : "",
+      step: record.step as OStep,
+      data,
+      joinCode: asString(record.joinCode),
     };
   } catch {
     return null;
@@ -102,13 +171,18 @@ export function saveOnboardingDraft(draft: OnboardingDraft) {
     storage.removeItem(ONBOARDING_DRAFT_KEY);
     return;
   }
+  const data = sanitizeOnboardingData(draft.data) ?? emptyOnboardingData();
   storage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify({
     step: draft.step,
-    data: draft.data,
-    joinCode: draft.joinCode,
+    data,
+    joinCode: typeof draft.joinCode === "string" ? draft.joinCode : "",
   }));
 }
 
 export function clearOnboardingDraft() {
   readStorage()?.removeItem(ONBOARDING_DRAFT_KEY);
+}
+
+export function draftAfterHouseholdCreateAttempt(success: boolean): "clear" | "keep" {
+  return success ? "clear" : "keep";
 }

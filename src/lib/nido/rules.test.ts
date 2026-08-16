@@ -10,6 +10,8 @@ import {
   extractInvitationToken,
   generateInvitationToken,
   hasActiveMembership,
+  HOUSEHOLD_NAME_MAX,
+  invitationEmailIssue,
   isInvitationTokenFormat,
   isInviteEmailValid,
   normalizeHouseholdName,
@@ -175,11 +177,57 @@ describe("normalization helpers", () => {
     assert.equal(normalizeHouseholdName("   "), null);
   });
 
+  it("accepts unicode household names and rejects excessive length", () => {
+    assert.equal(normalizeHouseholdName("Nido 🪺"), "Nido 🪺");
+    assert.equal(normalizeHouseholdName("N".repeat(HOUSEHOLD_NAME_MAX + 1)), null);
+  });
+
+  it("does not make household names globally unique", () => {
+    assert.equal(normalizeHouseholdName("Nido"), "Nido");
+    assert.equal(normalizeHouseholdName("Casa"), "Casa");
+    assert.equal(normalizeHouseholdName("Departamento"), "Departamento");
+  });
+
   it("normalizes invitation emails consistently", () => {
     assert.equal(normalizeInviteEmail("  Alex@Example.COM "), "alex@example.com");
     assert.equal(normalizeInviteEmail("   "), null);
     assert.equal(normalizeInviteEmail(null), null);
     assert.equal(isInviteEmailValid("alex@example.com"), true);
     assert.equal(isInviteEmailValid("not-an-email"), false);
+  });
+
+  it("rejects an invalid invitation email", () => {
+    assert.equal(
+      invitationEmailIssue({ email: "nope", currentUserEmail: "me@example.com" }),
+      "invalid_email",
+    );
+  });
+
+  it("rejects inviting the current user", () => {
+    assert.equal(
+      invitationEmailIssue({
+        email: "  Me@Example.com ",
+        currentUserEmail: "me@example.com",
+      }),
+      "self_invite",
+    );
+  });
+
+  it("rejects inviting an already-active member when that email is known", () => {
+    assert.equal(
+      invitationEmailIssue({
+        email: "alex@example.com",
+        currentUserEmail: "me@example.com",
+        activeMemberEmails: ["alex@example.com"],
+      }),
+      "already_member",
+    );
+  });
+
+  it("allows a link-only invitation without an email", () => {
+    assert.equal(
+      invitationEmailIssue({ email: null, currentUserEmail: "me@example.com" }),
+      null,
+    );
   });
 });

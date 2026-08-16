@@ -1,6 +1,6 @@
 # Nido membership and invitations
 
-This document describes household (Nido) creation, membership, leaving, invitations, and the pre-dashboard flow closed in Phase 8.9.
+This document describes household (Nido) creation, membership, leaving, invitations, and the pre-dashboard flow. Phase 8.10 hardens validation on the existing auth, onboarding, invitation, and draft paths.
 
 The schema in [database.md](./database.md) remains the source of truth. RLS in [security.md](./security.md) is unchanged. Application services and four Postgres functions live in this phase. It does not change tables or weaken policies.
 
@@ -13,8 +13,8 @@ Phase 9 (real financial data and a live dashboard) has **not** started.
 Unauthenticated visitors see only authentication:
 
 1. Landing: **Crear cuenta** / **Iniciar sesión**. It does not offer “Crear un Nido” or “Unirme a un Nido”.
-2. Signup with email, password, and confirmation. If Supabase requires email confirmation, the UI shows **Revisa tu correo** and does not treat the user as authenticated. A Nido is not created.
-3. Login with email and password. Invalid credentials stay generic. Unconfirmed email, rate limits, and network errors have their own Spanish copy. Raw Supabase errors are never shown.
+2. Signup with email, password, and confirmation. Email is trimmed and lowercased. If Supabase requires email confirmation, the UI shows **Revisa tu correo** and does not treat the user as authenticated. A Nido is not created. Duplicate-account signup uses a generic message and **Iniciar sesión** — it does not say the email is already registered. **Reenviar correo** uses a cooldown and the same auth error classifier; success copy does not reveal whether the address exists.
+3. Login with email and password. Invalid credentials stay generic. Unconfirmed email offers **Reenviar correo de confirmación**. Rate limits and network errors have their own Spanish copy. Raw Supabase errors are never shown.
 4. Recovery: forgot password → email → `/auth/callback` → `/auth/update-password`. The callback marks the session as password recovery so other tabs do not treat it as a normal login. `next` is sanitized with `safeNextPath`. Tokens stay in cookies, not URLs or `localStorage`. After `updateUser({ password })`, routing is the normal authenticated destination (MainApp or Nido selection).
 5. Logout: `signOut()`, clear the invitation token and the onboarding draft, return to the auth landing. It does not delete Supabase rows.
 
@@ -82,6 +82,8 @@ Active membership is a `household_members` row with `left_at IS NULL`. The uniqu
 A Nido may have one person, two people, or many people. There is no couple assumption and no member cap.
 
 The UI must never imply that multiple active Nidos are supported.
+
+Household **names** are not unique. `households.id` is the identity. `profiles.display_name` is not unique. Invitation `token` is unique. Pending invitation email is unique per Nido while `accepted_at` is null. Auth email uniqueness stays with Supabase Auth.
 
 ---
 

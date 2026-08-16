@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { X } from "lucide-react";
 import { DEFAULT_QUICK, QUICK_AMOUNTS } from "@/lib/constants";
+import { canStartExclusiveAction, parseMoneyInput, validateExpenseEntry } from "@/lib/onboarding/validation";
 import { P } from "@/lib/palette";
 import type { OnboardingExpense } from "@/lib/types";
 
@@ -15,10 +16,14 @@ export function ExpenseEntryModal({
 }) {
   const [digits, setDigits] = useState(exp.amount || "");
   const [type, setType]     = useState<"personal" | "shared">(exp.type);
+  const [error, setError]   = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   const quickAmounts = QUICK_AMOUNTS[exp.name] ?? DEFAULT_QUICK;
 
-  const numVal  = parseInt(digits, 10) || 0;
+  const parsed = parseMoneyInput(digits);
+  const numVal = parsed ?? 0;
   const display = numVal > 0 ? numVal.toLocaleString("es-MX") : "0";
   const kindLabel = exp.kind === "variable" ? "Variable" : "Recurrente";
 
@@ -28,7 +33,17 @@ export function ExpenseEntryModal({
     setDigits(d => (d === "0" ? k : d + k));
   };
 
-  const canConfirm = numVal > 0;
+  const handleSave = () => {
+    if (!canStartExclusiveAction(saving) || savingRef.current) return;
+    const invalid = validateExpenseEntry({ amount: digits, type });
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    savingRef.current = true;
+    setSaving(true);
+    onConfirm(String(parsed), type);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto overscroll-contain" style={{ backgroundColor: "#FFFFFF" }}>
@@ -70,7 +85,7 @@ export function ExpenseEntryModal({
             const s = String(v);
             const label = v >= 1000 ? `$${v / 1000}k` : `$${v}`;
             return (
-              <button key={v} type="button" onClick={() => setDigits(s)}
+              <button key={v} type="button" onClick={() => { setDigits(s); setError(null); }}
                 className="flex-1 py-2.5 rounded-2xl text-xs font-bold border-2 transition-all"
                 style={{ borderColor: digits === s ? P.brnDk : "rgba(47,42,40,0.15)", backgroundColor: "#FFFFFF", color: P.text }}>
                 {label}
@@ -83,7 +98,7 @@ export function ExpenseEntryModal({
       <div className="px-6 flex-shrink-0">
         <div className="grid grid-cols-3 gap-2">
           {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((k, i) => (
-            <button key={i} type="button" onClick={() => k && tap(k)} disabled={!k}
+            <button key={i} type="button" onClick={() => { if (k) { tap(k); setError(null); } }} disabled={!k}
               className="h-14 rounded-2xl flex items-center justify-center text-xl font-semibold transition-all active:scale-95"
               style={{
                 backgroundColor: k === "⌫" ? P.warnBg : k === "" ? "transparent" : P.sub,
@@ -97,9 +112,12 @@ export function ExpenseEntryModal({
       </div>
 
       <div className="px-6 pb-8 pt-4 flex-shrink-0">
-        <button type="button" onClick={() => canConfirm && onConfirm(String(numVal), type)}
+        {error && (
+          <p className="text-[11px] mb-3 text-center" style={{ color: P.danger }}>{error}</p>
+        )}
+        <button type="button" onClick={handleSave}
           className="w-full py-4 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98]"
-          style={{ backgroundColor: canConfirm ? P.brnDk : P.sub, color: canConfirm ? "#fff" : P.muted }}>
+          style={{ backgroundColor: numVal > 0 && !saving ? P.brnDk : P.sub, color: numVal > 0 && !saving ? "#fff" : P.muted }}>
           Guardar
         </button>
       </div>

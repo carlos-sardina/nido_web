@@ -33,8 +33,15 @@ export type SignupOutcome =
   | { kind: "confirm_email" }
   | { kind: "error"; error: ClassifiedAuthError };
 
+export type ResendOutcome =
+  | { kind: "success"; message: string }
+  | { kind: "error"; error: ClassifiedAuthError };
+
+export const RESEND_SUCCESS_MESSAGE =
+  "Si podemos enviar un correo a esta dirección, recibirás uno en breve.";
+
 const RATE_LIMIT_MESSAGE =
-  "Has solicitado demasiados correos recientemente.\nEspera unos minutos antes de volver a intentarlo.";
+  "Has solicitado demasiados correos recientemente. Espera unos minutos antes de volver a intentarlo.";
 
 const NETWORK_MESSAGE = "No pudimos conectar. Revisa tu conexión e inténtalo de nuevo.";
 
@@ -48,9 +55,11 @@ const EMAIL_NOT_CONFIRMED_MESSAGE =
 const LOGIN_INVALID_MESSAGE = "Email o contraseña incorrectos.";
 
 const SIGNUP_EXISTS_MESSAGE =
-  "No pudimos crear la cuenta. Si ya tienes una, inicia sesión.";
+  "No pudimos crear la cuenta con ese correo. Si ya tienes una cuenta, intenta iniciar sesión.";
 
 const SIGNUP_GENERIC_MESSAGE = "No pudimos completar el registro. Inténtalo de nuevo.";
+
+const RESEND_GENERIC_MESSAGE = "No pudimos enviar el correo. Inténtalo de nuevo.";
 
 const RECOVERY_GENERIC_MESSAGE = "No pudimos enviar el enlace. Inténtalo de nuevo.";
 
@@ -120,6 +129,7 @@ export function publicMessageForAuthFailure(
       if (context === "login") return LOGIN_INVALID_MESSAGE;
       if (context === "signup") return SIGNUP_GENERIC_MESSAGE;
       if (context === "recovery") return RECOVERY_GENERIC_MESSAGE;
+      if (context === "resend") return RESEND_GENERIC_MESSAGE;
       return UPDATE_PASSWORD_GENERIC_MESSAGE;
   }
 }
@@ -230,6 +240,23 @@ export function interpretSignupResponse(result: {
     return { kind: "authenticated" };
   }
   return { kind: "confirm_email" };
+}
+
+/**
+ * Rate-limit and network failures are shown. Every other provider result
+ * is treated as success so the UI cannot be used to enumerate accounts.
+ */
+export function interpretResendResponse(error: unknown): ResendOutcome {
+  if (!error) {
+    return { kind: "success", message: RESEND_SUCCESS_MESSAGE };
+  }
+
+  const classified = classifyAuthError(error, "resend");
+  if (classified.code === "rate_limit" || classified.code === "network") {
+    return { kind: "error", error: classified };
+  }
+
+  return { kind: "success", message: RESEND_SUCCESS_MESSAGE };
 }
 
 export function logAuthFailure(error: ClassifiedAuthError): void {

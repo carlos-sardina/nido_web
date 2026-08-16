@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   clearOnboardingDraft,
+  draftAfterHouseholdCreateAttempt,
   emptyOnboardingData,
   isOnboardingDraftStep,
   loadOnboardingDraft,
   ONBOARDING_DRAFT_KEY,
   saveOnboardingDraft,
+  sanitizeOnboardingData,
 } from "./draft.ts";
+import { parseMoneyInput, validateIncome } from "./validation.ts";
 
 const memory = new Map<string, string>();
 
@@ -74,7 +77,7 @@ describe("onboarding draft", () => {
     assert.equal(memory.get(ONBOARDING_DRAFT_KEY), undefined);
   });
 
-  it("clears the draft without touching an invitation token", () => {
+  it("clears the draft on logout without touching an invitation token", () => {
     installSessionStorage();
     memory.clear();
     sessionStorage.setItem("nido.pendingInvitationToken", "invite-token-value-1");
@@ -93,5 +96,39 @@ describe("onboarding draft", () => {
     memory.clear();
     sessionStorage.setItem(ONBOARDING_DRAFT_KEY, "{not-json");
     assert.equal(loadOnboardingDraft(), null);
+  });
+
+  it("ignores a corrupt draft that contains secrets", () => {
+    installSessionStorage();
+    memory.clear();
+    sessionStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify({
+      step: "p-income",
+      data: { nestName: "Casa", password: "secret" },
+      joinCode: "",
+    }));
+    assert.equal(loadOnboardingDraft(), null);
+  });
+
+  it("does not turn invalid draft amounts into valid numbers", () => {
+    const data = sanitizeOnboardingData({
+      nestName: "Casa",
+      salary: "abc",
+      savings: "-10",
+      expenses: [{ name: "Renta", amount: "NaN", type: "shared", selected: true }],
+    });
+    assert.equal(data?.salary, "abc");
+    assert.equal(parseMoneyInput(data?.salary ?? ""), null);
+    assert.equal(validateIncome(data?.salary ?? ""), "Ingresa un monto válido.");
+    assert.equal(data?.savings, "-10");
+    assert.equal(data?.expenses[0]?.amount, "NaN");
+    assert.equal(parseMoneyInput(data?.expenses[0]?.amount ?? ""), null);
+  });
+
+  it("preserves the draft after a failed household create", () => {
+    assert.equal(draftAfterHouseholdCreateAttempt(false), "keep");
+  });
+
+  it("clears the draft after a successful household create", () => {
+    assert.equal(draftAfterHouseholdCreateAttempt(true), "clear");
   });
 });

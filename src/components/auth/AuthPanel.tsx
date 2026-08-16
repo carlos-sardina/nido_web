@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   RECOVERY_SENT_MESSAGE,
   validateLoginInput,
@@ -9,11 +9,18 @@ import {
 } from "@/lib/auth/credentials";
 import {
   classifyAuthError,
+  interpretResendResponse,
   interpretSignupResponse,
   logAuthFailure,
+  type AuthFailureCode,
 } from "@/lib/auth/errors";
 import {
+  canResendConfirmation,
+  RESEND_COOLDOWN_MS,
+} from "@/lib/auth/resend";
+import {
   requestPasswordReset,
+  resendSignupConfirmation,
   signInWithPassword,
   signUpWithPassword,
 } from "@/lib/auth/session";
@@ -38,6 +45,10 @@ export function AuthPanel({
   onViewChange?: (view: AuthView) => void;
 }) {
   const [view, setView] = useState<AuthView>(initialView);
+  const busyRef = useRef(false);
+  const [lastResendAt, setLastResendAt] = useState<number | null>(null);
+  const [, setCooldownTick] = useState(0);
+  const [failureCode, setFailureCode] = useState<AuthFailureCode | null>(null);
 
   const showView = (next: AuthView) => {
     setView(next);
@@ -53,7 +64,33 @@ export function AuthPanel({
   const resetMessages = () => {
     setError(null);
     setInfo(null);
+    setFailureCode(null);
   };
+
+  const clearPasswords = () => {
+    setPassword("");
+    setConfirmPassword("");
+  };
+
+  const beginExclusive = () => {
+    if (busyRef.current) return false;
+    busyRef.current = true;
+    setBusy(true);
+    return true;
+  };
+
+  const endExclusive = () => {
+    busyRef.current = false;
+    setBusy(false);
+  };
+
+  useEffect(() => {
+    if (lastResendAt == null) return;
+    const remaining = lastResendAt + RESEND_COOLDOWN_MS - Date.now();
+    if (remaining <= 0) return;
+    const timer = window.setTimeout(() => setCooldownTick((tick) => tick + 1), remaining);
+    return () => window.clearTimeout(timer);
+  }, [lastResendAt]);
 
   const handleSignup = async () => {
     resetMessages();
@@ -62,8 +99,8 @@ export function AuthPanel({
       setError(invalid);
       return;
     }
+    if (!beginExclusive()) return;
     onAttempt?.();
-    setBusy(true);
     try {
       const result = await signUpWithPassword(email, password, {
         next: nextPath,
@@ -71,23 +108,25 @@ export function AuthPanel({
       const outcome = interpretSignupResponse(result);
       if (outcome.kind === "error") {
         logAuthFailure(outcome.error);
+        setFailureCode(outcome.error.code);
         setError(outcome.error.message);
         return;
       }
       if (outcome.kind === "authenticated") {
-        setPassword("");
-        setConfirmPassword("");
+        clearPasswords();
         onAuthenticated();
         return;
       }
+      clearPasswords();
       onEmailConfirmationPending?.();
       showView("confirm-email");
     } catch (error) {
       const classified = classifyAuthError(error, "signup");
       logAuthFailure(classified);
+      setFailureCode(classified.code);
       setError(classified.message);
     } finally {
-      setBusy(false);
+      endExclusive();
     }
   };
 
@@ -98,24 +137,26 @@ export function AuthPanel({
       setError(invalid);
       return;
     }
+    if (!beginExclusive()) return;
     onAttempt?.();
-    setBusy(true);
     try {
       const { error: signInError } = await signInWithPassword(email, password);
       if (signInError) {
         const classified = classifyAuthError(signInError, "login");
         logAuthFailure(classified);
+        setFailureCode(classified.code);
         setError(classified.message);
         return;
       }
-      setPassword("");
+      clearPasswords();
       onAuthenticated();
     } catch (error) {
       const classified = classifyAuthError(error, "login");
       logAuthFailure(classified);
+      setFailureCode(classified.code);
       setError(classified.message);
     } finally {
-      setBusy(false);
+      endExclusive();
     }
   };
 
@@ -126,13 +167,14 @@ export function AuthPanel({
       setError(invalid);
       return;
     }
-    setBusy(true);
+    if (!beginExclusive()) return;
     try {
       const { error: resetError } = await requestPasswordReset(email);
       if (resetError) {
         const classified = classifyAuthError(resetError, "recovery");
         if (classified.code === "rate_limit" || classified.code === "network") {
           logAuthFailure(classified);
+          setFailureCode(classified.code);
           setError(classified.message);
           return;
         }
@@ -141,21 +183,62 @@ export function AuthPanel({
     } catch (error) {
       const classified = classifyAuthError(error, "recovery");
       logAuthFailure(classified);
+      setFailureCode(classified.code);
       setError(classified.message);
     } finally {
-      setBusy(false);
+      endExclusive();
     }
   };
+
+  const handleResendConfirmation = async () => {
+    resetMessages();
+    const now = Date.now();
+    if (!canResendConfirmation(lastResendAt, now)) return;
+    if (!beginExclusive()) return;
+    try {
+      const { error: resendError } = await resendSignupConfirmation(email, {
+        next: nextPath,
+      });
+      const outcome = interpretResendResponse(resendError);
+      setLastResendAt(Date.now());
+      if (outcome.kind === "error") {
+        logAuthFailure(outcome.error);
+        setFailureCode(outcome.error.code);
+        setError(outcome.error.message);
+        return;
+      }
+      setInfo(outcome.message);
+    } catch (error) {
+      const outcome = interpretResendResponse(error);
+      setLastResendAt(Date.now());
+      if (outcome.kind === "error") {
+        logAuthFailure(outcome.error);
+        setFailureCode(outcome.error.code);
+        setError(outcome.error.message);
+        return;
+      }
+      setInfo(outcome.message);
+    } finally {
+      endExclusive();
+    }
+  };
+
+  const resendAllowed = canResendConfirmation(lastResendAt, Date.now());
+  const showSignupExistsAction = view === "signup" && failureCode === "already_registered";
+  const showLoginResendAction = view === "login" && failureCode === "email_not_confirmed";
 
   return (
     <form
       className="w-full text-left"
       onSubmit={(event) => {
         event.preventDefault();
-        if (busy) return;
+        if (busy || busyRef.current) return;
         if (view === "signup") void handleSignup();
         else if (view === "login") void handleLogin();
         else if (view === "forgot") void handleRecovery();
+        else if (view === "confirm-email" && canResendConfirmation(lastResendAt, Date.now())) {
+          void handleResendConfirmation();
+        }
       }}
     >
       {view !== "confirm-email" && (
@@ -224,6 +307,9 @@ export function AuthPanel({
           <p className="text-sm leading-relaxed mb-4" style={{ color: P.muted }}>
             Confirma tu correo para continuar con Nido.
           </p>
+          <p className="text-xs mb-3" style={{ color: P.muted }}>
+            ¿No recibiste el correo?
+          </p>
         </div>
       )}
 
@@ -247,9 +333,43 @@ export function AuthPanel({
       {view === "forgot" && (
         <OBtn2 label={busy ? "Enviando…" : "Enviar enlace"} onClick={() => undefined} disabled={busy} />
       )}
+      {view === "confirm-email" && (
+        <OBtn2
+          label={busy ? "Enviando…" : "Reenviar correo"}
+          onClick={() => undefined}
+          disabled={busy || !resendAllowed}
+        />
+      )}
 
       <div className="mt-4 space-y-2 text-center">
-        {view === "signup" && (
+        {showSignupExistsAction && (
+          <button
+            type="button"
+            className="block w-full text-xs font-semibold"
+            style={{ color: P.brnDk }}
+            onClick={() => {
+              resetMessages();
+              clearPasswords();
+              showView("login");
+            }}
+          >
+            Iniciar sesión
+          </button>
+        )}
+        {showLoginResendAction && (
+          <button
+            type="button"
+            className="block w-full text-xs font-semibold"
+            style={{ color: P.brnDk }}
+            disabled={busy || !resendAllowed}
+            onClick={() => {
+              if (!busy && resendAllowed) void handleResendConfirmation();
+            }}
+          >
+            {busy ? "Enviando…" : "Reenviar correo de confirmación"}
+          </button>
+        )}
+        {view === "signup" && !showSignupExistsAction && (
           <button
             type="button"
             className="text-xs font-semibold"

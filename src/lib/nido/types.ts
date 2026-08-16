@@ -45,6 +45,7 @@ export type NidoErrorCode =
   | "already_member"
   | "invalid_name"
   | "invalid_email"
+  | "self_invite"
   | "invitation_invalid"
   | "invitation_expired"
   | "invitation_accepted"

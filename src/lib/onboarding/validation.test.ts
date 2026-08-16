@@ -3,15 +3,20 @@ import { describe, it } from "node:test";
 import { emptyOnboardingData } from "./draft.ts";
 import {
   canStartExclusiveAction,
+  DISPLAY_NAME_MAX,
   divisionMethodHint,
   hasSelectedExpense,
+  HOUSEHOLD_NAME_MAX,
   personalExpenseTotal,
+  validateCustomExpenseName,
   validateDisplayName,
+  validateExpenseEntry,
   validateHouseholdName,
   validateIncome,
   validateOnboardingFinalize,
   validateSavings,
 } from "./validation.ts";
+import { normalizeHouseholdName } from "../nido/rules.ts";
 
 function sampleData() {
   const data = emptyOnboardingData();
@@ -23,16 +28,59 @@ function sampleData() {
 }
 
 describe("onboarding field validation", () => {
-  it("requires a household name and display name", () => {
+  it("rejects an empty household name", () => {
+    assert.equal(validateHouseholdName(""), "Dale un nombre a tu Nido.");
+  });
+
+  it("rejects a whitespace-only household name", () => {
     assert.equal(validateHouseholdName("  "), "Dale un nombre a tu Nido.");
-    assert.equal(validateHouseholdName("Casa Roma"), null);
+  });
+
+  it("trims a household name", () => {
+    assert.equal(validateHouseholdName("  Casa Roma  "), null);
+    assert.equal(normalizeHouseholdName("  Casa Roma  "), "Casa Roma");
+  });
+
+  it("accepts a unicode household name", () => {
+    assert.equal(validateHouseholdName("Nido 🪺"), null);
+    assert.equal(validateHouseholdName("家"), null);
+    assert.equal(normalizeHouseholdName("José"), "José");
+  });
+
+  it("rejects an excessively long household name", () => {
+    assert.match(validateHouseholdName("N".repeat(HOUSEHOLD_NAME_MAX + 1)) ?? "", /caracteres/);
+  });
+
+  it("allows the same household name for independent Nidos", () => {
+    assert.equal(normalizeHouseholdName("Nido"), "Nido");
+    assert.equal(normalizeHouseholdName("Casa"), "Casa");
+    assert.equal(normalizeHouseholdName("Nido"), normalizeHouseholdName("  Nido  "));
+  });
+
+  it("rejects an empty display name", () => {
     assert.equal(validateDisplayName(""), "Ingresa el nombre que verán los demás miembros.");
-    assert.equal(validateDisplayName("Carlos"), null);
+  });
+
+  it("rejects a whitespace-only display name", () => {
+    assert.equal(validateDisplayName("   "), "Ingresa el nombre que verán los demás miembros.");
+  });
+
+  it("trims a display name", () => {
+    assert.equal(validateDisplayName("  Carlos  "), null);
+  });
+
+  it("accepts a unicode display name", () => {
+    assert.equal(validateDisplayName("José María"), null);
+    assert.equal(validateDisplayName("李"), null);
+  });
+
+  it("rejects an excessively long display name", () => {
+    assert.match(validateDisplayName("A".repeat(DISPLAY_NAME_MAX + 1)) ?? "", /caracteres/);
   });
 
   it("rejects an invalid or negative income", () => {
     assert.equal(validateIncome(""), "Ingresa un monto válido.");
-    assert.equal(validateIncome("-10"), "Ingresa un monto válido.");
+    assert.equal(validateIncome("-10"), "El monto no puede ser negativo.");
     assert.equal(validateIncome("40000"), null);
   });
 
@@ -42,11 +90,40 @@ describe("onboarding field validation", () => {
     assert.equal(validateSavings("", "abc"), "Ingresa un monto válido.");
   });
 
-  it("requires at least one selected expense with an amount", () => {
+  it("requires at least one selected expense with a valid amount", () => {
     const data = sampleData();
     assert.equal(hasSelectedExpense(data), false);
     data.expenses[0] = { ...data.expenses[0], selected: true, amount: "8000" };
     assert.equal(hasSelectedExpense(data), true);
+    data.expenses[0] = { ...data.expenses[0], selected: true, amount: "0" };
+    assert.equal(hasSelectedExpense(data), false);
+  });
+});
+
+describe("expense validation", () => {
+  it("rejects an empty custom name", () => {
+    assert.equal(validateCustomExpenseName(""), "Ingresa el nombre del gasto.");
+    assert.equal(validateCustomExpenseName("   "), "Ingresa el nombre del gasto.");
+  });
+
+  it("rejects an invalid expense amount", () => {
+    assert.equal(validateExpenseEntry({ amount: "abc", type: "personal" }), "Ingresa un monto válido.");
+  });
+
+  it("rejects a zero amount when adding an expense", () => {
+    assert.equal(validateExpenseEntry({ amount: "0", type: "shared" }), "Ingresa un monto válido.");
+  });
+
+  it("rejects a negative expense amount", () => {
+    assert.equal(validateExpenseEntry({ amount: "-5", type: "personal" }), "El monto no puede ser negativo.");
+  });
+
+  it("requires a personal or shared classification", () => {
+    assert.equal(
+      validateExpenseEntry({ amount: "100", type: "other" }),
+      "Elige si el gasto es personal o compartido.",
+    );
+    assert.equal(validateExpenseEntry({ amount: "100", type: "personal" }), null);
   });
 });
 

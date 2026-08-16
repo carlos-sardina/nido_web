@@ -55,30 +55,41 @@ describe("joinBlockReason", () => {
     assert.equal(
       joinBlockReason({
         alreadyInNido: false,
-        activeHouseholdName: null,
-        invitationHouseholdName: "Casa Roma",
+        activeHouseholdId: null,
+        invitationHouseholdId: "hh-1",
       }),
       "none",
     );
   });
 
-  it("detects membership in the inviting Nido by name", () => {
+  it("detects membership in the inviting Nido by household id, not name", () => {
     assert.equal(
       joinBlockReason({
         alreadyInNido: true,
-        activeHouseholdName: "Casa Roma",
-        invitationHouseholdName: "Casa Roma",
+        activeHouseholdId: "hh-1",
+        invitationHouseholdId: "hh-1",
       }),
       "already_in_this",
     );
   });
 
-  it("treats a different active Nido as incompatible", () => {
+  it("treats a different active Nido as incompatible even when names could collide", () => {
     assert.equal(
       joinBlockReason({
         alreadyInNido: true,
-        activeHouseholdName: "Otro Nido",
-        invitationHouseholdName: "Casa Roma",
+        activeHouseholdId: "hh-other",
+        invitationHouseholdId: "hh-1",
+      }),
+      "already_in_other",
+    );
+  });
+
+  it("does not treat two households with the same name as the same Nido", () => {
+    assert.equal(
+      joinBlockReason({
+        alreadyInNido: true,
+        activeHouseholdId: "hh-a",
+        invitationHouseholdId: "hh-b",
       }),
       "already_in_other",
     );

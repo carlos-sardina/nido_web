@@ -1,4 +1,5 @@
 import { nidoErrorFromUnknown, nidoFail, nidoOk, type NidoResult } from "./errors";
+import { normalizeDisplayName } from "./rules";
 import { nidoClient, requireUser, type NidoClient } from "./session";
 import type { Profile } from "./types";
 
@@ -25,7 +26,7 @@ export async function updateMyDisplayName(
   const auth = await requireUser(supabase);
   if (auth.ok === false) return nidoFail(auth.error.code);
 
-  const trimmed = displayName.trim();
+  const trimmed = normalizeDisplayName(displayName);
   if (!trimmed) return nidoFail("invalid_name", "El nombre no puede estar vacío.");
 
   const { data, error } = await auth.data.supabase

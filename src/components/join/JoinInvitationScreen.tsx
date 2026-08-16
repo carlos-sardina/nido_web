@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthPanel } from "@/components/auth/AuthPanel";
 import { identityFromUser } from "@/lib/auth/identity";
@@ -24,8 +24,9 @@ export function JoinInvitationScreen({ token }: { token: string }) {
   const [preview, setPreview] = useState<InvitationPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [alreadyInNido, setAlreadyInNido] = useState(false);
-  const [activeHouseholdName, setActiveHouseholdName] = useState<string | null>(null);
+  const [activeHouseholdId, setActiveHouseholdId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -61,13 +62,13 @@ export function JoinInvitationScreen({ token }: { token: string }) {
         if (hasActive) {
           const household = await getMyActiveHousehold();
           if (cancelled) return;
-          setActiveHouseholdName(household.ok ? household.data?.name ?? null : null);
+          setActiveHouseholdId(household.ok ? household.data?.id ?? null : null);
         } else {
-          setActiveHouseholdName(null);
+          setActiveHouseholdId(null);
         }
       } else {
         setAlreadyInNido(false);
-        setActiveHouseholdName(null);
+        setActiveHouseholdId(null);
       }
 
       setLoading(false);
@@ -84,20 +85,22 @@ export function JoinInvitationScreen({ token }: { token: string }) {
 
   const block = joinBlockReason({
     alreadyInNido,
-    activeHouseholdName,
-    invitationHouseholdName: preview?.householdName ?? null,
+    activeHouseholdId,
+    invitationHouseholdId: null,
   });
   const copy = joinInvitationCopy({ preview, block });
   const canAccept = Boolean(sessionUser && preview?.status === "valid" && block === "none");
   const joinPath = `/join/${encodeURIComponent(token)}`;
 
   const handleAccept = async () => {
-    if (!canStartExclusiveAction(busy)) return;
+    if (!canStartExclusiveAction(busy) || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     const result = await acceptInvitation(token);
     if (result.ok === false) {
       setError(result.error.message);
+      busyRef.current = false;
       setBusy(false);
       return;
     }

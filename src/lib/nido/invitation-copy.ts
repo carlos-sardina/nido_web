@@ -52,12 +52,12 @@ export function joinInvitationCopy(input: {
 
 export function joinBlockReason(input: {
   alreadyInNido: boolean;
-  activeHouseholdName: string | null;
-  invitationHouseholdName: string | null;
+  activeHouseholdId?: string | null;
+  invitationHouseholdId?: string | null;
 }): JoinBlockReason {
   if (!input.alreadyInNido) return "none";
-  const active = input.activeHouseholdName?.trim().toLowerCase() ?? "";
-  const invited = input.invitationHouseholdName?.trim().toLowerCase() ?? "";
+  const active = input.activeHouseholdId?.trim() ?? "";
+  const invited = input.invitationHouseholdId?.trim() ?? "";
   if (active && invited && active === invited) return "already_in_this";
   return "already_in_other";
 }

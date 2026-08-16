@@ -1,146 +1,164 @@
-# Manual test checklist (Phase 8.9)
+# Manual test checklist (Phase 8.10)
 
 Use this against a real Vercel + Supabase + SMTP environment. Automated unit tests do not replace these flows.
 
-Confirm email stays enabled. Google OAuth stays disabled. Do not use the service-role key in the browser.
+Confirm email stays enabled. Google OAuth stays disabled. Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
+
+Phase 9 has **not** started. Dashboard financial data remains mock.
 
 ---
 
-## A. Nuevo usuario
+## A. New signup
 
-1. Abrir la app sin sesión → **Auth Landing** (solo Crear cuenta / Iniciar sesión).
-2. Crear cuenta con email y contraseña.
-3. Ver **Revisa tu correo** con el email usado. No debe aparecer un Nido.
-4. Confirmar el correo.
-5. Llegar a **Nido Selection** (no al dashboard, no a crear Nido automáticamente).
-6. Elegir **Crear un nuevo Nido**.
-7. Completar onboarding (nombre, nombre personal, ingreso, ahorros, gastos, división, invitaciones).
-8. Tocar **Crear mi Nido**.
-9. Ver el dashboard mock.
+1. Abrir la app sin sesión → **Auth Landing**.
+2. **Crear cuenta** with a new email and a valid password (confirmation matching).
+3. Email is trimmed and lowercased on submit.
+4. Empty, malformed, or excessively long email is rejected in Spanish.
+5. See **Revisa tu correo** with the email used. No Nido is created.
 
-Refresh a mitad del onboarding no debe crear un household. Abandonar antes de **Crear mi Nido** no debe dejar un Nido en Supabase.
+## B. Duplicate signup attempt
 
----
+1. Sign up again with an email that already exists.
+2. See: **No pudimos crear la cuenta con ese correo. Si ya tienes una cuenta, intenta iniciar sesión.**
+3. Do **not** see “Este correo ya está registrado”.
+4. **Iniciar sesión** is offered and switches to login without enumerating the account.
 
-## B. Usuario existente sin Nido
+## C. Confirm email
 
-1. Iniciar sesión.
-2. Ver **Nido Selection**.
+1. Open the confirmation link.
+2. Arrive at **Nido Selection** (no Nido) or **MainApp** (already has an active Nido).
+3. Confirmation does not open password recovery.
 
-Incluye usuarios con membresía histórica (`left_at` distinto de null).
+## D. Resend confirmation email
 
----
+1. On **Revisa tu correo**, see **¿No recibiste el correo?** and **Reenviar correo**.
+2. Request a resend → **Si podemos enviar un correo a esta dirección, recibirás uno en breve.**
+3. Immediate second tap is blocked by cooldown.
+4. If rate limited: **Has solicitado demasiados correos recientemente. Espera unos minutos antes de volver a intentarlo.**
+5. Raw `AuthApiError` is never shown.
+6. **Volver a iniciar sesión** keeps the email in the form.
 
-## C. Usuario existente con Nido
+## E. Login
 
-1. Iniciar sesión.
-2. Ver el dashboard mock (MainApp).
+1. Log in with a confirmed account.
+2. Active Nido → dashboard mock. No Nido → Nido Selection.
 
----
+## F. Wrong password
 
-## D. Invitación
+1. Log in with a wrong password.
+2. Generic: **Email o contraseña incorrectos.**
+3. Does not say whether the email exists.
 
-1. Abrir `/join/<token>` válido.
-2. Ver el nombre del Nido (sin datos financieros).
-3. Crear cuenta o iniciar sesión.
-4. Volver a `/join/<token>`.
-5. Confirmar email si aplica.
-6. Aceptar la invitación.
-7. Ver el dashboard mock.
+## G. Forgot password
 
-Probar también:
+1. **¿Olvidaste tu contraseña?**
+2. Submit a valid email → generic “if registered” copy.
+3. Invalid email is rejected client-side.
+4. Open the link → `/auth/callback` → `/auth/update-password`.
 
-- token inválido
-- invitación expirada
-- invitación ya aceptada
-- usuario que ya pertenece a otro Nido
-- usuario que ya pertenece al Nido invitante
+## H. Recovery in another tab
 
----
+1. Tab A: request recovery.
+2. Tab B: open the recovery link → **Nueva contraseña**.
+3. Tab A must **not** jump to MainApp or Nido Selection.
+4. Save the new password in Tab B → Selection or Dashboard according to membership.
+5. URL has no access/refresh tokens.
 
-## E. Recovery
+## I. Create Nido
 
-1. ¿Olvidaste tu contraseña?
-2. Enviar el email.
-3. Abrir el enlace → `/auth/callback` → `/auth/update-password`.
-4. Guardar una contraseña nueva.
-5. Llegar a la app (Selection o Dashboard según membresía).
-6. Confirmar que la URL final no incluye access/refresh tokens.
+1. From Nido Selection, **Crear un nuevo Nido**.
+2. Empty / whitespace-only Nido name is rejected. Unicode names are accepted. Names are not globally unique.
+3. Display name is required, trimmed, and written to `profiles.display_name` only at finalization.
+4. **Crear mi Nido** creates one household. A second tap does not create a duplicate.
 
-Sin sesión, `/auth/update-password` no debe permitir cambiar la contraseña.
+## J. Refresh during onboarding
 
-### Password recovery — multi-tab
+1. Fill several onboarding steps.
+2. Refresh → draft restores. No household exists until final submit.
+3. Invalid money in the draft stays invalid (not coerced to 0).
 
-1. Open production Vercel app in Tab A.
-2. Start "Olvidé mi contraseña".
-3. Request recovery email.
-4. Open the recovery email.
-5. Click the recovery link so it opens Tab B.
-6. Tab B should show "Nueva contraseña".
-7. Tab A must NOT automatically navigate to Dashboard/MainApp/NidoSelection because of the recovery session.
-8. Enter a new password in Tab B.
-9. Submit.
-10. Tab B should resolve:
-    - active Nido → Dashboard
-    - no active Nido → NidoSelection
-11. Refresh Tab B.
-12. Session should remain valid.
-13. Log out.
-14. App returns to Auth Landing.
+## K. Invalid money
 
-Also test:
+1. Income, savings, and expense amounts reject negative, NaN, Infinity, malformed, too-large, and too-many-decimal values.
+2. Empty optional savings remain empty.
+3. Spanish messages: **Ingresa un monto válido.** / **El monto no puede ser negativo.** / **El monto es demasiado grande.**
 
-- recovery link expired
-- recovery link reused
-- recovery from production Vercel
-- recovery from localhost if configured
+## L. Custom expense
 
----
+1. Custom name is required (trim, reject whitespace-only, max length).
+2. Amount must be greater than zero.
+3. Personal/shared classification is required.
+4. Duplicate taps do not add the expense twice while saving.
 
-## F. Logout
+## M. Invite another user
 
-1. Desde el dashboard, cerrar sesión.
-2. Ver **Cerrando sesión…**
-3. Llegar a **Auth Landing**.
-4. No volver a Nido Selection ni al dashboard.
-5. Confirmar que el Nido sigue existiendo en Supabase.
+1. After creating a Nido, generate a link/QR.
+2. `/join/<token>` shows the Nido name, not financial data.
 
----
+## N. Duplicate invitation
 
-## G. Refresh / back
+1. If inviting by email is used, a second pending invite for the same Nido/email maps to **Ya existe una invitación pendiente para ese correo.**
+2. Link/QR invites remain token-unique.
 
-Probar refresh en:
+## O. Join invitation
 
-- Auth landing
-- Signup / login / confirm-email
-- Nido Selection
-- Cada paso del onboarding
-- Invitaciones
-- Join
-- Dashboard
+1. Unauthenticated `/join/<token>` → sign in or sign up, then return to the invite.
+2. Accept → dashboard mock.
+3. Malformed / invalid token → **Invitación no válida** without raw database errors.
 
-Probar browser back y forward en el onboarding. Un refresh no debe crear un Nido.
+## P. Already-member invitation
 
----
+1. A member of that Nido who opens the invite sees that they already belong (or **Ya tienes un Nido** if the household id is not in the public preview).
+2. Accept RPC still returns **Ya perteneces a este Nido.**
 
-## H. Errores
+## Q. Already-in-another-Nido invitation
 
-- Fallo de red en login, signup, create household, accept invitation
-- Credenciales inválidas → mensaje genérico
-- Rate limit de email → mensaje amigable en español
-- Email no confirmado → pedir confirmación
-- Invitación inválida / expirada
-- Doble tap en **Crear mi Nido** y **Aceptar invitación** (no debe duplicar writes)
+1. A user with a different active Nido cannot join.
+2. Copy: only one active Nido at a time.
 
-Los usuarios no deben ver errores crudos de Supabase, Postgres, ni stack traces.
+## R. Logout
+
+1. From the dashboard, log out.
+2. **Cerrando sesión…** → Auth Landing.
+3. Onboarding draft is cleared. The Nido remains in Supabase.
+
+## S. Re-login
+
+1. Log in again → same destination as membership (MainApp or Selection).
+2. Draft does not resurrect after logout.
+
+## T. Duplicate household name
+
+1. Create a Nido named **Casa** (or **Nido**).
+2. Another independent account can also create **Casa**.
+3. Household id remains the identity. No unique error on `households.name`.
 
 ---
 
-## I. Seguridad rápida
+## Unconfirmed login
 
-- No hay `service_role` en el frontend
-- No hay tokens de auth en `localStorage`
-- No hay passwords en URLs
-- `?next=` rechaza URLs absolutas
-- RLS sigue activa
-- Confirmación de email sigue requerida
+If Supabase reports email-not-confirmed on login:
+
+- Show the confirmation copy.
+- Offer **Reenviar correo de confirmación**.
+- Do not auto-resend.
+
+---
+
+## Security quick check
+
+- No `service_role` in the frontend
+- No auth tokens in `localStorage`
+- No passwords in URLs, logs, or the onboarding draft
+- No sensitive auth data in `sessionStorage` (draft is onboarding fields only; pending invite is a join token, not an access token)
+- `?next=` rejects absolute URLs (`safeNextPath`)
+- Recovery marker still distinguishes recovery from login
+- RLS unchanged
+- No account enumeration on signup, resend, or recovery
+- Raw Supabase / Postgres errors are never shown
+
+---
+
+## Manual runs actually executed
+
+None in this phase. Do not record production results here unless they were performed.

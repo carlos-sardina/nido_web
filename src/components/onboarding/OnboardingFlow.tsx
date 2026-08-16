@@ -12,9 +12,10 @@ import { identityFromUser } from "@/lib/auth/identity";
 import { createHousehold } from "@/lib/nido/household";
 import { createInvitation } from "@/lib/nido/invitations";
 import { updateMyDisplayName } from "@/lib/nido/profile";
-import { extractInvitationToken } from "@/lib/nido/rules";
+import { extractInvitationToken, normalizeDisplayName, normalizeHouseholdName } from "@/lib/nido/rules";
 import {
   clearOnboardingDraft,
+  draftAfterHouseholdCreateAttempt,
   emptyOnboardingData,
   isOnboardingDraftStep,
   loadOnboardingDraft,
@@ -25,8 +26,12 @@ import {
   divisionMethodHint,
   formatMoneyInput,
   hasSelectedExpense,
+  normalizeCustomExpenseName,
+  parseMoneyInput,
   personalExpenseTotal,
+  validateCustomExpenseName,
   validateDisplayName,
+  validateExpenseEntry,
   validateHouseholdName,
   validateIncome,
   validateOnboardingFinalize,
@@ -68,6 +73,7 @@ export function OnboardingFlow({
   const [nidoError, setNidoError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [createdHouseholdId, setCreatedHouseholdId] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -168,8 +174,10 @@ export function OnboardingFlow({
   });
 
   const persistDisplayName = async () => {
-    const displayName = (data.userName || identity?.displayName || "").trim();
-    if (!displayName) return { ok: true as const, data: { id: "", display_name: "" } };
+    const displayName = normalizeDisplayName(data.userName || identity?.displayName || "");
+    if (!displayName) {
+      return { ok: false as const, error: { message: "Ingresa el nombre que verán los demás miembros." } };
+    }
     return updateMyDisplayName(displayName);
   };
 
@@ -182,13 +190,18 @@ export function OnboardingFlow({
       return null;
     }
 
+    const normalizedNestName = normalizeHouseholdName(data.nestName);
+    if (normalizedNestName && normalizedNestName !== data.nestName) {
+      setData((prev) => ({ ...prev, nestName: normalizedNestName }));
+    }
+
     const nameResult = await persistDisplayName();
     if (nameResult.ok === false) {
       setNidoError(nameResult.error.message);
       return null;
     }
 
-    const result = await createHousehold({ name: data.nestName });
+    const result = await createHousehold({ name: normalizedNestName ?? data.nestName });
     if (result.ok === false) {
       setNidoError(result.error.message);
       if (result.error.code === "already_in_nido") onComplete();
@@ -196,24 +209,29 @@ export function OnboardingFlow({
     }
 
     setCreatedHouseholdId(result.data.id);
-    clearOnboardingDraft();
+    if (draftAfterHouseholdCreateAttempt(true) === "clear") {
+      clearOnboardingDraft();
+    }
     return result.data.id;
   };
 
   const handleCreateNido = async () => {
-    if (!canStartExclusiveAction(submitting)) return;
+    if (!canStartExclusiveAction(submitting) || submittingRef.current) return;
+    submittingRef.current = true;
     setNidoError(null);
     setSubmitting(true);
     try {
       const householdId = await ensureHouseholdCreated();
       if (householdId) onComplete();
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
 
   const handleCreateInvite = async () => {
-    if (!canStartExclusiveAction(submitting)) return null;
+    if (!canStartExclusiveAction(submitting) || submittingRef.current) return null;
+    submittingRef.current = true;
     setNidoError(null);
     setInviteCopied(false);
     setSubmitting(true);
@@ -234,12 +252,15 @@ export function OnboardingFlow({
       }
       return result.data.url;
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
 
   const handleExpConfirm = (amount: string, type: "personal" | "shared") => {
     if (expEditIdx === null) return;
+    const invalid = validateExpenseEntry({ amount, type });
+    if (invalid) return;
     setData(p => {
       const expenses = [...p.expenses];
       expenses[expEditIdx] = { ...expenses[expEditIdx], selected: true, amount, type };
@@ -379,8 +400,10 @@ export function OnboardingFlow({
               <OBtn2 label="Continuar" onClick={() => {
                 const invalid = validateHouseholdName(data.nestName);
                 if (invalid) { setFieldError(invalid); return; }
+                const normalized = normalizeHouseholdName(data.nestName);
+                if (normalized) set("nestName", normalized);
                 goTo("p-name");
-              }} disabled={!data.nestName} />
+              }} disabled={!data.nestName.trim()} />
             </div>
           )}
 
@@ -473,8 +496,10 @@ export function OnboardingFlow({
                   <OBtn2 label="Continuar" onClick={() => {
                     const invalid = validateDisplayName(data.userName);
                     if (invalid) { setFieldError(invalid); return; }
+                    const normalized = normalizeDisplayName(data.userName);
+                    if (normalized) set("userName", normalized);
                     goTo("p-income");
-                  }} disabled={!data.userName} />
+                  }} disabled={!data.userName.trim()} />
                 </>
               )}
               {step === "p-income" && (
@@ -548,8 +573,16 @@ export function OnboardingFlow({
                 const setCustomEtype = (v: "personal"|"shared") => setData(p => ({ ...p, _etype: v }));
 
                 const addCustom = () => {
-                  if (!customName.trim()) return;
-                  const n = [...data.expenses, { name: customName.trim(), icon: customEmoji, selected: false, amount: "", type: customEtype, kind: "variable" as const }];
+                  const nameError = validateCustomExpenseName(customName);
+                  if (nameError) { setFieldError(nameError); return; }
+                  if (customEtype !== "personal" && customEtype !== "shared") {
+                    setFieldError("Elige si el gasto es personal o compartido.");
+                    return;
+                  }
+                  const name = normalizeCustomExpenseName(customName);
+                  if (!name) return;
+                  setFieldError(null);
+                  const n = [...data.expenses, { name, icon: customEmoji, selected: false, amount: "", type: customEtype, kind: "variable" as const }];
                   setData(p => ({ ...p, expenses: n, _showAdd: false, _cname: "", _emoji: "💳", _etype: "personal" } as OData));
                 };
 
@@ -579,7 +612,7 @@ export function OnboardingFlow({
                       {done && (
                         <>
                           <span className="text-xs font-bold flex-shrink-0" style={{ color: P.text }}>
-                            ${parseInt(exp.amount, 10).toLocaleString("es-MX")}
+                            ${(parseMoneyInput(exp.amount) ?? 0).toLocaleString("es-MX")}
                           </span>
                           <span className="text-sm flex-shrink-0 ml-1">
                             {exp.type === "personal" ? "👤" : "🏠"}
@@ -671,7 +704,7 @@ export function OnboardingFlow({
                           ))}
                         </div>
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => setShowAddCustom(false)}
+                          <button type="button" onClick={() => { setShowAddCustom(false); setFieldError(null); }}
                             className="flex-1 py-2.5 rounded-xl text-xs font-semibold border"
                             style={{ borderColor: P.border, backgroundColor: P.card, color: P.muted }}>
                             Cancelar
@@ -682,6 +715,7 @@ export function OnboardingFlow({
                             Agregar
                           </button>
                         </div>
+                        {fieldError && <p className="text-[11px] mt-2" style={{ color: P.danger }}>{fieldError}</p>}
                       </div>
                     )}
 

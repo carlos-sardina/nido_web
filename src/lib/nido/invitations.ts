@@ -2,8 +2,8 @@ import { nidoErrorFromUnknown, nidoFail, nidoOk, type NidoResult } from "./error
 import {
   buildInvitationUrl,
   generateInvitationToken,
+  invitationEmailIssue,
   isInvitationTokenFormat,
-  isInviteEmailValid,
   normalizeInviteEmail,
 } from "./rules";
 import { nidoClient, requireUser, type NidoClient } from "./session";
@@ -31,12 +31,11 @@ export async function createInvitation(
   if (auth.ok === false) return nidoFail(auth.error.code);
 
   const email = normalizeInviteEmail(input.email);
-  if (input.email != null && input.email.trim() && !email) {
-    return nidoFail("invalid_email");
-  }
-  if (email && !isInviteEmailValid(email)) {
-    return nidoFail("invalid_email");
-  }
+  const emailIssue = invitationEmailIssue({
+    email: input.email,
+    currentUserEmail: auth.data.user.email,
+  });
+  if (emailIssue) return nidoFail(emailIssue);
 
   const token = generateInvitationToken();
   const expiresAt = new Date(Date.now() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();

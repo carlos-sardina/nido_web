@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 import {
   formatMoneyInput,
   isPositiveAmount,
+  MAX_MONEY_AMOUNT,
   parseMoneyInput,
+  validateExpenseAmount,
   validateOptionalAmount,
   validateRequiredAmount,
 } from "./validation.ts";
@@ -18,11 +20,33 @@ describe("parseMoneyInput", () => {
     assert.equal(parseMoneyInput("1,250.50"), 1250.5);
   });
 
-  it("rejects empty, negative, and non-numeric values", () => {
+  it("treats empty optional input as empty, not zero", () => {
     assert.equal(parseMoneyInput(""), null);
     assert.equal(parseMoneyInput("   "), null);
+    assert.equal(parseMoneyInput(null), null);
+  });
+
+  it("rejects negative values", () => {
     assert.equal(parseMoneyInput("-100"), null);
+    assert.equal(parseMoneyInput(" -1"), null);
+  });
+
+  it("rejects NaN and Infinity", () => {
+    assert.equal(parseMoneyInput("NaN"), null);
+    assert.equal(parseMoneyInput("Infinity"), null);
+    assert.equal(parseMoneyInput("-Infinity"), null);
+    assert.equal(parseMoneyInput("1e308"), null);
+  });
+
+  it("rejects malformed numeric strings without coercing them to zero", () => {
     assert.equal(parseMoneyInput("abc"), null);
+    assert.equal(parseMoneyInput("12abc"), null);
+    assert.notEqual(parseMoneyInput("abc"), 0);
+  });
+
+  it("rejects excessive decimals instead of rounding them", () => {
+    assert.equal(parseMoneyInput("1.234"), null);
+    assert.equal(parseMoneyInput("10.50"), 10.5);
   });
 
   it("treats zero as a valid number", () => {
@@ -31,11 +55,18 @@ describe("parseMoneyInput", () => {
 });
 
 describe("validateRequiredAmount / validateOptionalAmount", () => {
-  it("requires a valid non-negative amount", () => {
+  it("requires a valid amount", () => {
     assert.equal(validateRequiredAmount(""), "Ingresa un monto válido.");
-    assert.equal(validateRequiredAmount("-1"), "Ingresa un monto válido.");
     assert.equal(validateRequiredAmount("100"), null);
     assert.equal(validateRequiredAmount("0"), null);
+  });
+
+  it("rejects a negative amount with a dedicated message", () => {
+    assert.equal(validateRequiredAmount("-1"), "El monto no puede ser negativo.");
+  });
+
+  it("rejects an excessive amount", () => {
+    assert.equal(validateRequiredAmount(String(MAX_MONEY_AMOUNT + 1)), "El monto es demasiado grande.");
   });
 
   it("allows an empty optional amount", () => {
@@ -54,5 +85,11 @@ describe("validateRequiredAmount / validateOptionalAmount", () => {
     assert.equal(isPositiveAmount("0"), false);
     assert.equal(isPositiveAmount("1"), true);
     assert.equal(isPositiveAmount(""), false);
+  });
+
+  it("rejects zero when adding an expense", () => {
+    assert.equal(validateExpenseAmount("0"), "Ingresa un monto válido.");
+    assert.equal(validateExpenseAmount("25"), null);
+    assert.equal(validateExpenseAmount("-3"), "El monto no puede ser negativo.");
   });
 });
