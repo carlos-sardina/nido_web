@@ -4,15 +4,19 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MainApp } from "@/components/MainApp";
 import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
+import { resolveAppEntry } from "@/lib/auth/destination";
 import {
   clearPendingInvitationToken,
   clearPendingOnboardingFlow,
+  peekPendingInvitationToken,
+  peekPendingOnboardingFlow,
   takePendingInvitationToken,
+  takePendingOnboardingFlow,
 } from "@/lib/auth/pending-flow";
 import { signOut } from "@/lib/auth/session";
 import { useAuth } from "@/lib/auth/use-auth";
-import { useMyNido } from "@/lib/nido/use-my-nido";
 import { isInvitationTokenFormat } from "@/lib/nido/rules";
+import { useMyNido } from "@/lib/nido/use-my-nido";
 import { P } from "@/lib/palette";
 
 function BootScreen({ message = "Cargando…" }: { message?: string }) {
@@ -26,25 +30,50 @@ function BootScreen({ message = "Cargando…" }: { message?: string }) {
   );
 }
 
+function readPending() {
+  if (typeof window === "undefined") {
+    return { flow: null, token: null };
+  }
+  const token = peekPendingInvitationToken();
+  return {
+    flow: peekPendingOnboardingFlow(),
+    token: token && isInvitationTokenFormat(token) ? token : null,
+  };
+}
+
 export default function App() {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
   const { user, isLoading: authLoading } = useAuth();
   const nido = useMyNido(user, authLoading);
+  const pending = readPending();
+  const entry = resolveAppEntry({
+    authenticated: Boolean(user),
+    membershipStatus: nido.status,
+    pendingFlow: pending.flow,
+    pendingInviteToken: pending.token,
+  });
 
   useEffect(() => {
     if (authLoading || nido.isLoading || !user) return;
 
-    const token = takePendingInvitationToken();
-    if (!token || !isInvitationTokenFormat(token)) return;
-
-    if (nido.status === "active") {
-      clearPendingInvitationToken();
+    if (entry.kind === "join_invite") {
+      takePendingInvitationToken();
+      takePendingOnboardingFlow();
+      router.replace(`/join/${encodeURIComponent(entry.token)}`);
       return;
     }
 
-    router.replace(`/join/${encodeURIComponent(token)}`);
-  }, [authLoading, nido.isLoading, nido.status, user, router]);
+    if (entry.kind === "main_app") {
+      clearPendingInvitationToken();
+      clearPendingOnboardingFlow();
+      return;
+    }
+
+    if (entry.kind === "create_nido" || entry.kind === "join_code") {
+      takePendingOnboardingFlow();
+    }
+  }, [authLoading, nido.isLoading, user, entry, router]);
 
   const handleLogout = async () => {
     setSigningOut(true);
@@ -87,10 +116,14 @@ export default function App() {
     );
   }
 
-  if (user && nido.status === "active" && nido.household && nido.membership) {
+  if (entry.kind === "join_invite") {
+    return <BootScreen />;
+  }
+
+  if (entry.kind === "main_app" && nido.household && nido.membership) {
     return (
       <MainApp
-        user={user}
+        user={user!}
         household={nido.household}
         membership={nido.membership}
         members={nido.members}
@@ -105,6 +138,9 @@ export default function App() {
   return (
     <OnboardingFlow
       user={user}
+      entry={
+        entry.kind === "join_code" ? "join" : entry.kind === "create_nido" ? "create" : "welcome"
+      }
       onComplete={() => {
         void nido.refresh();
       }}

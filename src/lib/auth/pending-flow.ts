@@ -16,11 +16,16 @@ export function savePendingOnboardingFlow(flow: PendingOnboardingFlow) {
   sessionStorage.setItem(PENDING_FLOW_KEY, flow);
 }
 
-export function takePendingOnboardingFlow(): PendingOnboardingFlow | null {
+export function peekPendingOnboardingFlow(): PendingOnboardingFlow | null {
   const value = sessionStorage.getItem(PENDING_FLOW_KEY);
-  sessionStorage.removeItem(PENDING_FLOW_KEY);
   if (value === "create" || value === "join") return value;
   return null;
+}
+
+export function takePendingOnboardingFlow(): PendingOnboardingFlow | null {
+  const value = peekPendingOnboardingFlow();
+  sessionStorage.removeItem(PENDING_FLOW_KEY);
+  return value;
 }
 
 export function clearPendingOnboardingFlow() {
@@ -31,10 +36,15 @@ export function savePendingInvitationToken(token: string) {
   sessionStorage.setItem(PENDING_INVITE_KEY, token);
 }
 
-export function takePendingInvitationToken(): string | null {
+export function peekPendingInvitationToken(): string | null {
   const value = sessionStorage.getItem(PENDING_INVITE_KEY);
-  sessionStorage.removeItem(PENDING_INVITE_KEY);
   return value && value.trim() ? value : null;
+}
+
+export function takePendingInvitationToken(): string | null {
+  const value = peekPendingInvitationToken();
+  sessionStorage.removeItem(PENDING_INVITE_KEY);
+  return value;
 }
 
 export function clearPendingInvitationToken() {

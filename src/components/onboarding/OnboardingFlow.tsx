@@ -22,11 +22,22 @@ import { ExpenseEntryModal } from "@/components/onboarding/ExpenseEntryModal";
 import { OBtn2 } from "@/components/onboarding/OBtn2";
 import { OProgress2 } from "@/components/onboarding/OProgress2";
 
-export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; user: User | null }) {
+export function OnboardingFlow({
+  onComplete,
+  user,
+  entry = "welcome",
+}: {
+  onComplete: () => void;
+  user: User | null;
+  entry?: "welcome" | "create" | "join";
+}) {
   const router = useRouter();
-  const [step, setStep] = useState<OStep>("welcome");
+  const [step, setStep] = useState<OStep>(
+    entry === "create" ? "c-name" : entry === "join" ? "join" : "welcome",
+  );
   const [data, setData] = useState<OData>({
-    flow: null, nestType: "", nestEmoji: "🏠", nestName: "",
+    flow: entry === "join" ? "join" : entry === "create" ? "create" : null,
+    nestType: "", nestEmoji: "🏠", nestName: "",
     userName: "", salary: "", freelance: "", savings: "",
     savingsType: "personal", savingsShared: "",
     expenses: EXP_SUGG.map(e => ({ ...e })), contrib: "capacity",
@@ -85,16 +96,12 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
       return;
     }
 
-    const pending = takePendingOnboardingFlow();
-    if (pending) {
-      applyAuthenticatedIdentity(pending);
-      return;
+    if (step === "welcome" || step === "auth") {
+      const pending = takePendingOnboardingFlow();
+      const flow = pending ?? (data.flow === "join" ? "join" : "create");
+      applyAuthenticatedIdentity(flow);
     }
-
-    if (step === "auth") {
-      applyAuthenticatedIdentity(data.flow === "join" ? "join" : "create");
-    }
-    // Resume after email confirmation or skip auth when a session already exists.
+    // Resume after email confirmation or skip landing/auth when a session exists.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -223,7 +230,9 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
 
           {step === "join" && (
             <div>
-              <button onClick={() => setStep(user ? "welcome" : "auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              {!user && (
+                <button onClick={() => setStep("auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              )}
               <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Únete a un Nido</h2>
               <p className="text-xs mb-6" style={{ color: P.muted }}>Pega el enlace o el token de invitación. Solo puedes pertenecer a un Nido.</p>
               <label className="text-xs font-semibold mb-2 block" style={{ color: P.muted }}>Enlace o token de invitación</label>
@@ -262,7 +271,9 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
 
           {step === "c-name" && (
             <div>
-              <button onClick={() => setStep(user ? "welcome" : "auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              {!user && (
+                <button onClick={() => setStep("auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              )}
               <OProgress2 step={1} total={6} />
               <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Dale nombre a tu Nido</h2>
               <p className="text-xs mb-6" style={{ color: P.muted }}>Algo que lo haga sentir especial.</p>

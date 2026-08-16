@@ -55,6 +55,7 @@ export function AuthPanel({
         next: nextPath,
       });
       if (signUpError) {
+        console.log(signUpError);
         setError(publicAuthErrorMessage("signup"));
         return;
       }
@@ -66,7 +67,8 @@ export function AuthPanel({
       }
       onEmailConfirmationPending?.();
       setView("confirm-email");
-    } catch {
+    } catch(error) {
+      console.error(error);
       setError(publicAuthErrorMessage("signup"));
     } finally {
       setBusy(false);

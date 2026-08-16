@@ -16,7 +16,10 @@ function redirectWithNoStore(url: string) {
  * Supabase Auth callback for email confirmation and password recovery.
  *
  * Exchanges the `code` for a session and writes it to cookies through the
- * server Supabase client. Then returns the user to a safe same-origin path.
+ * server Supabase client. Then returns the user into the application.
+ * A safe explicit `next` path is preserved (join or password update).
+ * This route does not inspect household membership; the app shell decides
+ * landing vs create-Nido vs MainApp.
  */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
