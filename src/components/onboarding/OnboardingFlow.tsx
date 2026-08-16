@@ -212,6 +212,9 @@ export function OnboardingFlow({
                   </p>
                 )}
                 <AuthPanel
+                  onAttempt={() => {
+                    savePendingOnboardingFlow(data.flow === "join" ? "join" : "create");
+                  }}
                   onAuthenticated={() => applyAuthenticatedIdentity(data.flow === "join" ? "join" : "create")}
                   onEmailConfirmationPending={() => {
                     savePendingOnboardingFlow(data.flow === "join" ? "join" : "create");

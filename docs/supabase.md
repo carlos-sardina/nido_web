@@ -138,13 +138,27 @@ The session is owned by `@supabase/ssr` cookies. React state only holds the curr
 
 **Login:** `supabase.auth.signInWithPassword({ email, password })`
 
-Failed login shows a generic “Email o contraseña incorrectos.” The UI does not expose raw Supabase or Postgres errors.
+Failed login shows a generic “Email o contraseña incorrectos.” Rate limits and unconfirmed-email errors use their own copy. The UI does not expose raw Supabase or Postgres errors (`AuthApiError` is never shown).
 
 **Logout:** `supabase.auth.signOut()` on the browser client. It clears the session and returns to the landing state. It does not delete the profile, membership, or any database rows.
 
 **Recuperación:** `supabase.auth.resetPasswordForEmail()` sends a link to `/auth/callback?next=/auth/update-password`. After the callback exchanges the code, `/auth/update-password` calls `supabase.auth.updateUser({ password })`.
 
-The recovery request always shows: “Si el correo está registrado, te enviaremos un enlace…”
+The recovery request always shows: “Si el correo está registrado, te enviaremos un enlace…” Rate limits on recovery show the wait-and-retry copy instead of pretending the email was sent.
+
+### Email rate limits
+
+Supabase Auth limits how many confirmation and recovery emails a project can send. That is expected during local testing and in production until a custom SMTP provider is configured.
+
+The app treats `over_email_send_rate_limit` / HTTP 429 as a **UX error**, not a crash:
+
+- The user sees a Spanish wait-and-retry message.
+- Raw `AuthApiError` text is never shown.
+- There are **no automatic retries**.
+- Create/join pending state and invitation tokens are preserved so the user can try again on the same screen.
+- A Nido is not created and an invitation is not accepted until a confirmed session exists.
+
+Raising or removing the limit is a **Supabase dashboard / SMTP** concern, not a UI workaround.
 
 `handle_new_user` still creates `public.profiles` when Auth creates a user. Display name comes from email local part until onboarding persists `profiles.display_name`. There is no Google avatar; the UI uses initials when `avatar_url` is missing.
 

@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 import {
-  publicAuthErrorMessage,
   RECOVERY_SENT_MESSAGE,
   validateLoginInput,
   validateRecoveryEmail,
   validateSignupInput,
 } from "@/lib/auth/credentials";
+import {
+  classifyAuthError,
+  interpretSignupResponse,
+  logAuthFailure,
+} from "@/lib/auth/errors";
 import {
   requestPasswordReset,
   signInWithPassword,
@@ -23,11 +27,13 @@ export function AuthPanel({
   nextPath,
   onAuthenticated,
   onEmailConfirmationPending,
+  onAttempt,
 }: {
   initialView?: Exclude<AuthView, "confirm-email">;
   nextPath?: string;
   onAuthenticated: () => void;
   onEmailConfirmationPending?: () => void;
+  onAttempt?: () => void;
 }) {
   const [view, setView] = useState<AuthView>(initialView);
   const [email, setEmail] = useState("");
@@ -49,17 +55,19 @@ export function AuthPanel({
       setError(invalid);
       return;
     }
+    onAttempt?.();
     setBusy(true);
     try {
-      const { data, error: signUpError } = await signUpWithPassword(email, password, {
+      const result = await signUpWithPassword(email, password, {
         next: nextPath,
       });
-      if (signUpError) {
-        console.log(signUpError);
-        setError(publicAuthErrorMessage("signup"));
+      const outcome = interpretSignupResponse(result);
+      if (outcome.kind === "error") {
+        logAuthFailure(outcome.error);
+        setError(outcome.error.message);
         return;
       }
-      if (data.session) {
+      if (outcome.kind === "authenticated") {
         setPassword("");
         setConfirmPassword("");
         onAuthenticated();
@@ -67,9 +75,10 @@ export function AuthPanel({
       }
       onEmailConfirmationPending?.();
       setView("confirm-email");
-    } catch(error) {
-      console.error(error);
-      setError(publicAuthErrorMessage("signup"));
+    } catch (error) {
+      const classified = classifyAuthError(error, "signup");
+      logAuthFailure(classified);
+      setError(classified.message);
     } finally {
       setBusy(false);
     }
@@ -82,17 +91,22 @@ export function AuthPanel({
       setError(invalid);
       return;
     }
+    onAttempt?.();
     setBusy(true);
     try {
       const { error: signInError } = await signInWithPassword(email, password);
       if (signInError) {
-        setError(publicAuthErrorMessage("login"));
+        const classified = classifyAuthError(signInError, "login");
+        logAuthFailure(classified);
+        setError(classified.message);
         return;
       }
       setPassword("");
       onAuthenticated();
-    } catch {
-      setError(publicAuthErrorMessage("login"));
+    } catch (error) {
+      const classified = classifyAuthError(error, "login");
+      logAuthFailure(classified);
+      setError(classified.message);
     } finally {
       setBusy(false);
     }
@@ -107,10 +121,20 @@ export function AuthPanel({
     }
     setBusy(true);
     try {
-      await requestPasswordReset(email);
+      const { error: resetError } = await requestPasswordReset(email);
+      if (resetError) {
+        const classified = classifyAuthError(resetError, "recovery");
+        if (classified.code === "rate_limit" || classified.code === "network") {
+          logAuthFailure(classified);
+          setError(classified.message);
+          return;
+        }
+      }
       setInfo(RECOVERY_SENT_MESSAGE);
-    } catch {
-      setError(publicAuthErrorMessage("recovery"));
+    } catch (error) {
+      const classified = classifyAuthError(error, "recovery");
+      logAuthFailure(classified);
+      setError(classified.message);
     } finally {
       setBusy(false);
     }
@@ -190,7 +214,7 @@ export function AuthPanel({
       )}
 
       {error && (
-        <p className="text-[11px] mb-3 leading-relaxed" style={{ color: P.danger }}>
+        <p className="text-[11px] mb-3 leading-relaxed whitespace-pre-line" style={{ color: P.danger }}>
           {error}
         </p>
       )}

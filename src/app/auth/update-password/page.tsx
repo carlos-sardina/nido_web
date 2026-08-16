@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { publicAuthErrorMessage, validateNewPassword } from "@/lib/auth/credentials";
+import { validateNewPassword } from "@/lib/auth/credentials";
+import { classifyAuthError, logAuthFailure } from "@/lib/auth/errors";
 import { updatePassword } from "@/lib/auth/session";
 import { useAuth } from "@/lib/auth/use-auth";
 import { P } from "@/lib/palette";
@@ -27,14 +28,18 @@ export default function UpdatePasswordPage() {
     try {
       const { error: updateError } = await updatePassword(password);
       if (updateError) {
-        setError(publicAuthErrorMessage("update-password"));
+        const classified = classifyAuthError(updateError, "update-password");
+        logAuthFailure(classified);
+        setError(classified.message);
         return;
       }
       setPassword("");
       setConfirmPassword("");
       router.replace("/");
-    } catch {
-      setError(publicAuthErrorMessage("update-password"));
+    } catch (error) {
+      const classified = classifyAuthError(error, "update-password");
+      logAuthFailure(classified);
+      setError(classified.message);
     } finally {
       setBusy(false);
     }
