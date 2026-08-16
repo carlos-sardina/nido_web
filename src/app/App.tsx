@@ -14,6 +14,7 @@ import { signOut } from "@/lib/auth/session";
 import { useAuth } from "@/lib/auth/use-auth";
 import { isInvitationTokenFormat } from "@/lib/nido/rules";
 import { useMyNido } from "@/lib/nido/use-my-nido";
+import { clearOnboardingDraft } from "@/lib/onboarding/draft";
 import { P } from "@/lib/palette";
 
 function BootScreen({ message = "Cargando…" }: { message?: string }) {
@@ -59,6 +60,7 @@ export default function App() {
   }, [authLoading, nido.isLoading, user, entry, router]);
 
   const handleLogout = async () => {
+    if (signingOut) return;
     setSigningOut(true);
     try {
       const { error } = await signOut();
@@ -67,12 +69,17 @@ export default function App() {
         return;
       }
       clearPendingInvitationToken();
+      clearOnboardingDraft();
     } catch (error) {
       console.error("Sign out failed", error);
     } finally {
       setSigningOut(false);
     }
   };
+
+  if (signingOut) {
+    return <BootScreen message="Cerrando sesión…" />;
+  }
 
   if (authLoading || (user && nido.isLoading)) {
     return <BootScreen />;

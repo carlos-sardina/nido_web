@@ -133,8 +133,8 @@ The session is owned by `@supabase/ssr` cookies. React state only holds the curr
 
 **Registro:** `supabase.auth.signUp({ email, password })`
 
-- If Supabase returns a session immediately, onboarding continues (create or join).
-- If email confirmation is required, the app shows a “revisa tu correo” message and does **not** treat the user as authenticated. The Nido is not created yet.
+- If Supabase returns a session immediately, the app continues to **Nido selection** (or MainApp if the user already has an active Nido). Registration never skips selection into create-Nido.
+- If email confirmation is required, the app shows **Revisa tu correo** and does **not** treat the user as authenticated. The Nido is not created yet.
 
 **Login:** `supabase.auth.signInWithPassword({ email, password })`
 
@@ -189,11 +189,12 @@ The session survives:
 
 An already authenticated user is not sent through signup/login again. Routing uses the active membership:
 
-- no active Nido → create/join onboarding
+- no active Nido → Nido selection
+- historical-only membership → Nido selection
 - active Nido → main app
 - pending invitation token → `/join/<token>`
 
-Logout calls `supabase.auth.signOut()` on the browser client. It clears the session and returns to the unauthenticated landing state. It does not delete the profile, membership, or any database rows.
+Logout calls `supabase.auth.signOut()` on the browser client. It clears the session, the pending invitation token, and the local onboarding draft, then returns to the unauthenticated landing. It does not delete the profile, membership, or any database rows.
 
 ### Middleware / proxy
 
@@ -223,11 +224,11 @@ If `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` are missing, th
 
 The UI must not insert a profile during login. Onboarding may update `profiles.display_name` for the signed-in user. That is an UPDATE under RLS, not an INSERT.
 
-The onboarding name field is persisted to `profiles.display_name` when the Nido is created. If the user does not edit it, the email-derived name is used.
+The onboarding name field is persisted to `profiles.display_name` when the Nido is finalized (not when the name step is shown). If the user does not edit it, the email-derived name is used.
 
 ### Current-phase limitations
 
-Household identity is real. Financial onboarding fields are still local drafts.
+Household identity is real after the user finishes onboarding. Financial onboarding fields remain a local draft until Phase 9.
 
 This phase does **not**:
 
@@ -238,7 +239,7 @@ This phase does **not**:
 - use a service-role client
 - enable Google OAuth (explicitly out of this iteration)
 
-Create, join, leave, and invitation accept are documented in [nido.md](./nido.md).
+Create, join, leave, and invitation accept are documented in [nido.md](./nido.md). The manual end-to-end checklist is in [testing.md](./testing.md).
 
 ---
 

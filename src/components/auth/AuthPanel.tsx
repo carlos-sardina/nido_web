@@ -28,14 +28,21 @@ export function AuthPanel({
   onAuthenticated,
   onEmailConfirmationPending,
   onAttempt,
+  onViewChange,
 }: {
   initialView?: Exclude<AuthView, "confirm-email">;
   nextPath?: string;
   onAuthenticated: () => void;
   onEmailConfirmationPending?: () => void;
   onAttempt?: () => void;
+  onViewChange?: (view: AuthView) => void;
 }) {
   const [view, setView] = useState<AuthView>(initialView);
+
+  const showView = (next: AuthView) => {
+    setView(next);
+    onViewChange?.(next);
+  };
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -74,7 +81,7 @@ export function AuthPanel({
         return;
       }
       onEmailConfirmationPending?.();
-      setView("confirm-email");
+      showView("confirm-email");
     } catch (error) {
       const classified = classifyAuthError(error, "signup");
       logAuthFailure(classified);
@@ -207,10 +214,17 @@ export function AuthPanel({
       )}
 
       {view === "confirm-email" && (
-        <p className="text-sm leading-relaxed mb-4" style={{ color: P.muted }}>
-          Revisa tu correo y confirma la cuenta antes de continuar. No estás
-          autenticado todavía y no se creó un Nido.
-        </p>
+        <div className="text-center mb-2">
+          <p className="text-sm leading-relaxed mb-3" style={{ color: P.muted }}>
+            Te enviamos un enlace de confirmación a:
+          </p>
+          <p className="text-sm font-semibold mb-3" style={{ color: P.text }}>
+            {email || "tu correo"}
+          </p>
+          <p className="text-sm leading-relaxed mb-4" style={{ color: P.muted }}>
+            Confirma tu correo para continuar con Nido.
+          </p>
+        </div>
       )}
 
       {error && (
@@ -242,7 +256,7 @@ export function AuthPanel({
             style={{ color: P.brnDk }}
             onClick={() => {
               resetMessages();
-              setView("login");
+              showView("login");
             }}
           >
             Ya tengo una cuenta
@@ -256,7 +270,7 @@ export function AuthPanel({
               style={{ color: P.brnDk }}
               onClick={() => {
                 resetMessages();
-                setView("signup");
+                showView("signup");
               }}
             >
               Crear cuenta
@@ -267,21 +281,21 @@ export function AuthPanel({
               style={{ color: P.muted }}
               onClick={() => {
                 resetMessages();
-                setView("forgot");
+                showView("forgot");
               }}
             >
               ¿Olvidaste tu contraseña?
             </button>
           </>
         )}
-        {view === "forgot" && (
+        {(view === "forgot" || view === "confirm-email") && (
           <button
             type="button"
             className="text-xs font-semibold"
             style={{ color: P.brnDk }}
             onClick={() => {
               resetMessages();
-              setView("login");
+              showView("login");
             }}
           >
             Volver a iniciar sesión

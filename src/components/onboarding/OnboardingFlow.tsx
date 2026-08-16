@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check, ChevronLeft, Link, QrCode, Sparkles,
@@ -13,6 +13,25 @@ import { createHousehold } from "@/lib/nido/household";
 import { createInvitation } from "@/lib/nido/invitations";
 import { updateMyDisplayName } from "@/lib/nido/profile";
 import { extractInvitationToken } from "@/lib/nido/rules";
+import {
+  clearOnboardingDraft,
+  emptyOnboardingData,
+  isOnboardingDraftStep,
+  loadOnboardingDraft,
+  saveOnboardingDraft,
+} from "@/lib/onboarding/draft";
+import {
+  canStartExclusiveAction,
+  divisionMethodHint,
+  formatMoneyInput,
+  hasSelectedExpense,
+  personalExpenseTotal,
+  validateDisplayName,
+  validateHouseholdName,
+  validateIncome,
+  validateOnboardingFinalize,
+  validateSavings,
+} from "@/lib/onboarding/validation";
 import { EXP_SUGG, NEST_TYPES, NIDO_NAMES } from "@/lib/constants";
 import { P } from "@/lib/palette";
 import type { Model, OStep, OData } from "@/lib/types";
@@ -22,6 +41,8 @@ import { ExpenseEntryModal } from "@/components/onboarding/ExpenseEntryModal";
 import { OBtn2 } from "@/components/onboarding/OBtn2";
 import { OProgress2 } from "@/components/onboarding/OProgress2";
 import { NidoSelectionScreen } from "@/components/onboarding/NidoSelectionScreen";
+
+const CREATE_STEPS = 7;
 
 export function OnboardingFlow({
   onComplete,
@@ -33,26 +54,34 @@ export function OnboardingFlow({
   entry?: "welcome" | "select";
 }) {
   const router = useRouter();
+  const restored = useRef(false);
   const [step, setStep] = useState<OStep>(entry === "select" ? "select" : "welcome");
-  const [authView, setAuthView] = useState<Exclude<AuthView, "confirm-email">>("signup");
-  const [data, setData] = useState<OData>({
-    flow: null,
-    nestType: "", nestEmoji: "🏠", nestName: "",
-    userName: "", salary: "", freelance: "", savings: "",
-    savingsType: "personal", savingsShared: "",
-    expenses: EXP_SUGG.map(e => ({ ...e })), contrib: "capacity",
-  });
+  const [authView, setAuthView] = useState<AuthView>("signup");
+  const [data, setData] = useState<OData>(() => ({
+    ...emptyOnboardingData(),
+    expenses: EXP_SUGG.map((expense) => ({ ...expense })),
+  }));
   const [joinCode, setJoinCode] = useState("");
   const [expEditIdx, setExpEditIdx] = useState<number | null>(null);
   const [showQrInvite, setShowQrInvite] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [nidoError, setNidoError] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [createdHouseholdId, setCreatedHouseholdId] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
   const identity = identityFromUser(user);
   const set = (k: keyof OData, v: OData[keyof OData]) => setData(p => ({ ...p, [k]: v }));
+
+  const goTo = (next: OStep) => {
+    setFieldError(null);
+    setNidoError(null);
+    setStep(next);
+    if (typeof window !== "undefined") {
+      window.history.pushState({ nidoOnboardingStep: next }, "");
+    }
+  };
 
   const applyNidoChoice = (choice: "create" | "join") => {
     const dest = resolveNidoChoice(choice);
@@ -61,13 +90,31 @@ export function OnboardingFlow({
       flow: choice,
       userName: p.userName || identity?.displayName || "",
     }));
-    setStep(dest.kind === "join_code" ? "join" : "c-name");
+    goTo(dest.kind === "join_code" ? "join" : "c-name");
   };
 
   const openAuth = (view: Exclude<AuthView, "confirm-email">) => {
     setAuthView(view);
-    setStep("auth");
+    goTo("auth");
   };
+
+  useEffect(() => {
+    const onPop = (event: PopStateEvent) => {
+      const next = event.state?.nidoOnboardingStep;
+      if (typeof next === "string") {
+        setStep(next as OStep);
+        setFieldError(null);
+        setNidoError(null);
+      }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  useEffect(() => {
+    if (!user || !isOnboardingDraftStep(step)) return;
+    saveOnboardingDraft({ step, data, joinCode });
+  }, [user, step, data, joinCode]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -77,6 +124,7 @@ export function OnboardingFlow({
     }
 
     if (!user) {
+      restored.current = false;
       if (hadAuthError) {
         setAuthError("No pudimos completar la autenticación. Inténtalo de nuevo.");
         setAuthView("login");
@@ -87,6 +135,22 @@ export function OnboardingFlow({
       return;
     }
 
+    if (!restored.current) {
+      restored.current = true;
+      const draft = loadOnboardingDraft();
+      if (draft && draft.step !== "select") {
+        setData({
+          ...draft.data,
+          expenses: draft.data.expenses.length > 0
+            ? draft.data.expenses
+            : EXP_SUGG.map((expense) => ({ ...expense })),
+        });
+        setJoinCode(draft.joinCode);
+        setStep(draft.step);
+        return;
+      }
+    }
+
     setStep((current) => (current === "welcome" || current === "auth" ? "select" : current));
     // After login/confirmation, never infer create vs join — only leave landing/auth.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,9 +159,13 @@ export function OnboardingFlow({
   const PERSONAL: OStep[] = ["p-name","p-income","p-savings","p-expenses","p-contrib"];
   const pIdx = PERSONAL.indexOf(step);
   const isPers = pIdx >= 0;
-
-  const expCanContinue = data.expenses.some(e => e.selected);
+  const expCanContinue = hasSelectedExpense(data);
   const joinToken = extractInvitationToken(joinCode);
+  const contribHint = divisionMethodHint({
+    method: data.contrib,
+    income: data.salary,
+    personalExpenseTotal: personalExpenseTotal(data),
+  });
 
   const persistDisplayName = async () => {
     const displayName = (data.userName || identity?.displayName || "").trim();
@@ -105,46 +173,69 @@ export function OnboardingFlow({
     return updateMyDisplayName(displayName);
   };
 
-  const handleCreateNido = async () => {
-    setNidoError(null);
-    setSubmitting(true);
+  const ensureHouseholdCreated = async (): Promise<string | null> => {
+    if (createdHouseholdId) return createdHouseholdId;
+
+    const invalid = validateOnboardingFinalize(data);
+    if (invalid) {
+      setNidoError(invalid);
+      return null;
+    }
+
     const nameResult = await persistDisplayName();
     if (nameResult.ok === false) {
       setNidoError(nameResult.error.message);
-      setSubmitting(false);
-      return;
+      return null;
     }
+
     const result = await createHousehold({ name: data.nestName });
-    setSubmitting(false);
     if (result.ok === false) {
       setNidoError(result.error.message);
       if (result.error.code === "already_in_nido") onComplete();
-      return;
+      return null;
     }
+
     setCreatedHouseholdId(result.data.id);
-    setStep("c-invite");
+    clearOnboardingDraft();
+    return result.data.id;
+  };
+
+  const handleCreateNido = async () => {
+    if (!canStartExclusiveAction(submitting)) return;
+    setNidoError(null);
+    setSubmitting(true);
+    try {
+      const householdId = await ensureHouseholdCreated();
+      if (householdId) onComplete();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleCreateInvite = async () => {
-    if (!createdHouseholdId) {
-      setNidoError("Primero crea tu Nido.");
-      return null;
-    }
+    if (!canStartExclusiveAction(submitting)) return null;
     setNidoError(null);
     setInviteCopied(false);
-    const result = await createInvitation({ householdId: createdHouseholdId });
-    if (result.ok === false) {
-      setNidoError(result.error.message);
-      return null;
-    }
-    setInviteUrl(result.data.url);
+    setSubmitting(true);
     try {
-      await navigator.clipboard.writeText(result.data.url);
-      setInviteCopied(true);
-    } catch {
-      setInviteCopied(false);
+      const householdId = await ensureHouseholdCreated();
+      if (!householdId) return null;
+      const result = await createInvitation({ householdId });
+      if (result.ok === false) {
+        setNidoError(result.error.message);
+        return null;
+      }
+      setInviteUrl(result.data.url);
+      try {
+        await navigator.clipboard.writeText(result.data.url);
+        setInviteCopied(true);
+      } catch {
+        setInviteCopied(false);
+      }
+      return result.data.url;
+    } finally {
+      setSubmitting(false);
     }
-    return result.data.url;
   };
 
   const handleExpConfirm = (amount: string, type: "personal" | "shared") => {
@@ -156,6 +247,15 @@ export function OnboardingFlow({
     });
     setExpEditIdx(null);
   };
+
+  const authHeading =
+    authView === "confirm-email" ? "Revisa tu correo"
+      : authView === "forgot" ? "Recupera tu acceso"
+        : "Bienvenido";
+  const authSub =
+    authView === "confirm-email" ? null
+      : authView === "forgot" ? "Te enviaremos un enlace para restablecer la contraseña."
+        : "Crea una cuenta o inicia sesión para continuar";
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden" style={{ backgroundColor: P.bgL, fontFamily: "Figtree, sans-serif" }}>
@@ -181,14 +281,16 @@ export function OnboardingFlow({
 
           {step === "auth" && (
             <div className="flex flex-col h-full">
-              <button onClick={() => setStep("welcome")} className="flex items-center gap-1 mb-2" style={{ color: P.muted }}>
+              <button type="button" onClick={() => goTo("welcome")} className="flex items-center gap-1 mb-2" style={{ color: P.muted }}>
                 <ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span>
               </button>
               <div className="flex-1 flex flex-col justify-center">
                 <div className="text-center mb-8">
                   <p className="text-xs font-semibold mb-1" style={{ color: P.muted }}>Nido</p>
-                  <h2 className="text-3xl font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Bienvenido</h2>
-                  <p className="text-xs mt-1.5 mb-6" style={{ color: P.muted }}>Crea una cuenta o inicia sesión para continuar</p>
+                  <h2 className="text-3xl font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{authHeading}</h2>
+                  {authSub && (
+                    <p className="text-xs mt-1.5 mb-6" style={{ color: P.muted }}>{authSub}</p>
+                  )}
                 </div>
 
                 {authError && (
@@ -197,8 +299,9 @@ export function OnboardingFlow({
                   </p>
                 )}
                 <AuthPanel
-                  initialView={authView}
+                  initialView={authView === "login" || authView === "forgot" ? authView : "signup"}
                   onAuthenticated={() => undefined}
+                  onViewChange={setAuthView}
                 />
               </div>
 
@@ -219,7 +322,7 @@ export function OnboardingFlow({
 
           {step === "join" && (
             <div>
-              <button onClick={() => setStep(user ? "select" : "auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              <button type="button" onClick={() => goTo(user ? "select" : "auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
               <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Únete a un Nido</h2>
               <p className="text-xs mb-6" style={{ color: P.muted }}>Pega el enlace o el token de invitación. Solo puedes pertenecer a un Nido.</p>
               <label className="text-xs font-semibold mb-2 block" style={{ color: P.muted }}>Enlace o token de invitación</label>
@@ -239,12 +342,12 @@ export function OnboardingFlow({
 
           {step === "c-type" && (
             <div>
-              <button onClick={() => setStep(user ? "select" : "welcome")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              <button type="button" onClick={() => goTo(user ? "select" : "welcome")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
               <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿Qué tipo de Nido es?</h2>
               <p className="text-xs mb-6" style={{ color: P.muted }}>Esto nos ayuda a configurarlo mejor.</p>
               <div className="grid grid-cols-4 gap-2 mb-6">
                 {NEST_TYPES.map(nt => (
-                  <button key={nt.label} onClick={() => set("nestType", nt.label)}
+                  <button key={nt.label} type="button" onClick={() => set("nestType", nt.label)}
                     className="flex flex-col items-center gap-1.5 py-4 rounded-2xl border-2 transition-all"
                     style={{ borderColor: data.nestType === nt.label ? P.brnDk : "transparent", backgroundColor: data.nestType === nt.label ? P.sagePl : P.sub }}>
                     <span className="text-2xl">{nt.emoji}</span>
@@ -252,58 +355,71 @@ export function OnboardingFlow({
                   </button>
                 ))}
               </div>
-              <OBtn2 label="Continuar" onClick={() => { if(data.nestType) setStep("c-name"); }} />
+              <OBtn2 label="Continuar" onClick={() => { if(data.nestType) goTo("c-name"); }} />
             </div>
           )}
 
           {step === "c-name" && (
             <div>
-              <button onClick={() => setStep(user ? "select" : "auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
-              <OProgress2 step={1} total={6} />
+              <button type="button" onClick={() => goTo(user ? "select" : "auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              <OProgress2 step={1} total={CREATE_STEPS} />
               <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Dale nombre a tu Nido</h2>
-              <p className="text-xs mb-6" style={{ color: P.muted }}>Algo que lo haga sentir especial.</p>
+              <p className="text-xs mb-6" style={{ color: P.muted }}>Algo que lo haga sentir especial. Todavía no se crea nada.</p>
               <input className="w-full py-4 px-4 rounded-2xl text-lg font-semibold border-2 outline-none mb-2 transition-all"
                 style={{ backgroundColor: P.card, borderColor: data.nestName ? P.brnDk : P.sub, color: P.text }}
                 placeholder="Casa Roma, Depa 502…" value={data.nestName} onChange={e => set("nestName",e.target.value)} />
               <div className="flex flex-wrap gap-2 mb-6">
                 {NIDO_NAMES.map(n => (
-                  <button key={n} onClick={() => set("nestName",n)}
+                  <button key={n} type="button" onClick={() => set("nestName",n)}
                     className="text-xs font-medium px-3 py-1.5 rounded-full border"
                     style={{ borderColor: P.border, backgroundColor: P.sub, color: P.muted }}>{n}</button>
                 ))}
               </div>
-              <OBtn2 label="Continuar" onClick={() => setStep("p-name")} disabled={!data.nestName} />
+              {fieldError && <p className="text-[11px] mb-3" style={{ color: P.danger }}>{fieldError}</p>}
+              <OBtn2 label="Continuar" onClick={() => {
+                const invalid = validateHouseholdName(data.nestName);
+                if (invalid) { setFieldError(invalid); return; }
+                goTo("p-name");
+              }} disabled={!data.nestName} />
             </div>
           )}
 
           {step === "c-invite" && (
             <div>
-              <button onClick={() => setStep("p-contrib")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              <button type="button" onClick={() => goTo("p-contrib")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              <OProgress2 step={7} total={CREATE_STEPS} />
               <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Invita a los miembros</h2>
-              <p className="text-xs mb-4" style={{ color: P.muted }}>Pueden unirse ahora o más tarde. Un Nido puede tener una o muchas personas.</p>
+              <p className="text-xs mb-4" style={{ color: P.muted }}>Puedes invitar ahora o hacerlo después. Crear tu Nido no espera a que alguien acepte.</p>
               <div className="flex justify-center mb-6"><NidoHouse /></div>
               {nidoError && (
                 <p className="text-[11px] mb-3 leading-relaxed" style={{ color: P.danger }}>{nidoError}</p>
               )}
               <div className="space-y-2 mb-6">
                 <button
+                  type="button"
+                  disabled={submitting}
                   onClick={() => { void handleCreateInvite(); }}
                   className="w-full flex items-center gap-3 p-4 rounded-2xl border text-left"
-                  style={{ borderColor: P.border, backgroundColor: P.card }}>
+                  style={{ borderColor: P.border, backgroundColor: P.card, opacity: submitting ? 0.7 : 1 }}>
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: P.sagePl }}>
                     <Link size={16} style={{ color: P.sageDk }} />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold" style={{ color: P.text }}>{inviteCopied ? "Enlace copiado" : "Invitar por enlace"}</p>
+                    <p className="text-xs font-semibold" style={{ color: P.text }}>
+                      {submitting ? "Creando tu Nido…" : inviteCopied ? "Enlace copiado" : "Invitar por enlace"}
+                    </p>
                     <p className="text-[10px]" style={{ color: P.muted }}>Genera y copia un link. No se envía correo todavía.</p>
                   </div>
                 </button>
-                <button onClick={async () => {
-                  const url = inviteUrl ?? await handleCreateInvite();
-                  if (url) setShowQrInvite(true);
-                }}
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={async () => {
+                    const url = inviteUrl ?? await handleCreateInvite();
+                    if (url) setShowQrInvite(true);
+                  }}
                   className="w-full flex items-center gap-3 p-4 rounded-2xl border text-left"
-                  style={{ borderColor: P.border, backgroundColor: P.card }}>
+                  style={{ borderColor: P.border, backgroundColor: P.card, opacity: submitting ? 0.7 : 1 }}>
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: P.sagePl }}>
                     <QrCode size={16} style={{ color: P.sageDk }} />
                   </div>
@@ -316,20 +432,24 @@ export function OnboardingFlow({
               {inviteUrl && (
                 <p className="text-[10px] break-all mb-4" style={{ color: P.muted }}>{inviteUrl}</p>
               )}
-              <OBtn2 label="Entrar a mi Nido 🪺" onClick={onComplete} />
+              <OBtn2
+                label={submitting ? "Creando tu Nido…" : createdHouseholdId ? "Entrar a mi Nido 🪺" : "Crear mi Nido 🪺"}
+                onClick={() => { void handleCreateNido(); }}
+                disabled={submitting}
+              />
             </div>
           )}
 
           {isPers && (
             <div>
-              <button onClick={() => setStep(data.flow==="join"&&step==="p-name"?"join":PERSONAL[pIdx-1]||"c-name")}
+              <button type="button" onClick={() => goTo(data.flow==="join"&&step==="p-name"?"join":PERSONAL[pIdx-1]||"c-name")}
                 className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
-              <OProgress2 step={pIdx+2} total={6} />
+              <OProgress2 step={pIdx+2} total={CREATE_STEPS} />
 
               {step === "p-name" && (
                 <>
                   <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿Cómo te llamas?</h2>
-                  <p className="text-xs mb-5" style={{ color: P.muted }}>Tu nombre aparecerá en el Nido. Puedes editarlo.</p>
+                  <p className="text-xs mb-5" style={{ color: P.muted }}>Este es el nombre que verán los demás miembros de tu Nido.</p>
                   {identity?.email && (
                     <div className="flex items-center gap-2 mb-5 px-3 py-2 rounded-2xl" style={{ backgroundColor: P.sub }}>
                       <p className="text-[11px]" style={{ color: P.muted }}>
@@ -345,68 +465,78 @@ export function OnboardingFlow({
                         : (data.userName ? data.userName[0].toUpperCase() : "?")}
                     </div>
                   </div>
-                  <input className="w-full py-4 px-4 rounded-2xl text-base font-semibold border-2 outline-none mb-6"
+                  <input className="w-full py-4 px-4 rounded-2xl text-base font-semibold border-2 outline-none mb-2"
                     style={{ backgroundColor: P.card, borderColor: data.userName ? P.brnDk : "rgba(47,42,40,0.15)", color: P.text }}
-                    placeholder="Tu nombre" value={data.userName} onChange={e => set("userName",e.target.value)} />
-                  <OBtn2 label="Continuar" onClick={() => setStep("p-income")} disabled={!data.userName} />
+                    placeholder="Carlos Sardina" value={data.userName} onChange={e => set("userName",e.target.value)} />
+                  <p className="text-[11px] mb-6" style={{ color: P.muted }}>Puedes cambiarlo después.</p>
+                  {fieldError && <p className="text-[11px] mb-3" style={{ color: P.danger }}>{fieldError}</p>}
+                  <OBtn2 label="Continuar" onClick={() => {
+                    const invalid = validateDisplayName(data.userName);
+                    if (invalid) { setFieldError(invalid); return; }
+                    goTo("p-income");
+                  }} disabled={!data.userName} />
                 </>
               )}
               {step === "p-income" && (
                 <>
-                  <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿De cuánto es tu ingreso?</h2>
-                  <p className="text-xs mb-6" style={{ color: P.muted }}>Esta información es privada y solo la usa Nido para calcular aportaciones.</p>
-                  <div className="mb-4">
-                    <label className="text-xs font-semibold mb-1.5 block" style={{ color: P.muted }}>Ingreso mensual</label>
-                    <input className="w-full py-3.5 px-4 rounded-2xl text-base border-2 outline-none"
-                      style={{ backgroundColor: P.card, borderColor: data.salary ? P.brnDk : P.sub, color: P.text }}
-                      placeholder="$40,000" type="number"
-                      value={data.salary}
-                      onChange={e => set("salary", e.target.value)} />
+                  <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿Cuánto ganas al mes?</h2>
+                  <p className="text-xs mb-6" style={{ color: P.muted }}>Esta información es privada y solo se utiliza para calcular cómo repartir los gastos del Nido.</p>
+                  <div className="mb-2">
+                    <label className="text-xs font-semibold mb-1.5 block" style={{ color: P.muted }}>Ingreso mensual neto</label>
+                    <div className="rounded-2xl border-2 px-4 py-3.5 flex items-center gap-1"
+                      style={{ backgroundColor: P.card, borderColor: data.salary ? P.brnDk : P.sub }}>
+                      <span className="text-base font-normal flex-shrink-0" style={{ color: P.muted }}>$</span>
+                      <input className="flex-1 text-base bg-transparent outline-none"
+                        style={{ color: P.text }}
+                        type="text" inputMode="decimal" placeholder="40,000"
+                        value={formatMoneyInput(data.salary)}
+                        onChange={e => set("salary", e.target.value.replace(/[^0-9.]/g,""))} />
+                    </div>
                   </div>
-                  <OBtn2 label="Continuar" onClick={() => setStep("p-savings")} disabled={!data.salary} />
+                  <p className="text-[11px] mb-6" style={{ color: P.muted }}>Puedes cambiarlo después.</p>
+                  {fieldError && <p className="text-[11px] mb-3" style={{ color: P.danger }}>{fieldError}</p>}
+                  <OBtn2 label="Continuar" onClick={() => {
+                    const invalid = validateIncome(data.salary);
+                    if (invalid) { setFieldError(invalid); return; }
+                    goTo("p-savings");
+                  }} disabled={!data.salary} />
                 </>
               )}
-              {step === "p-savings" && (() => {
-                const fmt = (v: string) => {
-                  const n = v.replace(/[^0-9.]/g,"");
-                  if (!n) return "";
-                  const [int, dec] = n.split(".");
-                  const intFmt = parseInt(int||"0").toLocaleString("es-MX");
-                  return dec !== undefined ? `${intFmt}.${dec.slice(0,2)}` : intFmt;
-                };
-                const rawPersonal = data.savings.replace(/[^0-9.]/g,"");
-                const rawShared   = data.savingsShared.replace(/[^0-9.]/g,"");
-                return (
-                  <>
-                    <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿Tienes ahorros?</h2>
-                    <p className="text-xs mb-5" style={{ color: P.muted }}>Ambos campos son opcionales — llena los que apliquen.</p>
+              {step === "p-savings" && (
+                <>
+                  <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿Cuánto tienes ahorrado?</h2>
+                  <p className="text-xs mb-5" style={{ color: P.muted }}>Puedes registrar tus ahorros personales y los que ya comparten como hogar.</p>
 
-                    <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: P.muted }}>Ahorros personales</p>
-                    <div className="rounded-2xl border-2 px-4 py-3 flex items-center gap-1 mb-3"
-                      style={{ backgroundColor: P.card, borderColor: rawPersonal ? P.brnDk : P.sub }}>
-                      <span className="text-base font-normal flex-shrink-0" style={{ color: P.muted }}>$</span>
-                      <input className="flex-1 text-base bg-transparent outline-none"
-                        style={{ color: P.text }}
-                        type="text" inputMode="decimal" placeholder="0.00"
-                        value={fmt(data.savings)}
-                        onChange={e => set("savings", e.target.value.replace(/[^0-9.]/g,""))} />
-                    </div>
+                  <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: P.muted }}>Ahorros personales</p>
+                  <div className="rounded-2xl border-2 px-4 py-3 flex items-center gap-1 mb-3"
+                    style={{ backgroundColor: P.card, borderColor: data.savings ? P.brnDk : P.sub }}>
+                    <span className="text-base font-normal flex-shrink-0" style={{ color: P.muted }}>$</span>
+                    <input className="flex-1 text-base bg-transparent outline-none"
+                      style={{ color: P.text }}
+                      type="text" inputMode="decimal" placeholder="0.00"
+                      value={formatMoneyInput(data.savings)}
+                      onChange={e => set("savings", e.target.value.replace(/[^0-9.]/g,""))} />
+                  </div>
 
-                    <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: P.muted }}>Ahorros compartidos</p>
-                    <div className="rounded-2xl border-2 px-4 py-3 flex items-center gap-1 mb-6"
-                      style={{ backgroundColor: P.card, borderColor: rawShared ? P.brnDk : P.sub }}>
-                      <span className="text-base font-normal flex-shrink-0" style={{ color: P.muted }}>$</span>
-                      <input className="flex-1 text-base bg-transparent outline-none"
-                        style={{ color: P.text }}
-                        type="text" inputMode="decimal" placeholder="0.00"
-                        value={fmt(data.savingsShared)}
-                        onChange={e => set("savingsShared", e.target.value.replace(/[^0-9.]/g,""))} />
-                    </div>
-
-                    <OBtn2 label="Continuar" onClick={() => setStep("p-expenses")} />
-                  </>
-                );
-              })()}
+                  <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: P.muted }}>Ahorros compartidos</p>
+                  <div className="rounded-2xl border-2 px-4 py-3 flex items-center gap-1 mb-2"
+                    style={{ backgroundColor: P.card, borderColor: data.savingsShared ? P.brnDk : P.sub }}>
+                    <span className="text-base font-normal flex-shrink-0" style={{ color: P.muted }}>$</span>
+                    <input className="flex-1 text-base bg-transparent outline-none"
+                      style={{ color: P.text }}
+                      type="text" inputMode="decimal" placeholder="0.00"
+                      value={formatMoneyInput(data.savingsShared)}
+                      onChange={e => set("savingsShared", e.target.value.replace(/[^0-9.]/g,""))} />
+                  </div>
+                  <p className="text-[11px] mb-6" style={{ color: P.muted }}>Ambos son opcionales.</p>
+                  {fieldError && <p className="text-[11px] mb-3" style={{ color: P.danger }}>{fieldError}</p>}
+                  <OBtn2 label="Continuar" onClick={() => {
+                    const invalid = validateSavings(data.savings, data.savingsShared);
+                    if (invalid) { setFieldError(invalid); return; }
+                    goTo("p-expenses");
+                  }} />
+                </>
+              )}
               {step === "p-expenses" && (() => {
                 const showAddCustom = data._showAdd ?? false;
                 const setShowAddCustom = (v: boolean) => setData(p => ({ ...p, _showAdd: v }));
@@ -417,11 +547,9 @@ export function OnboardingFlow({
                 const customEtype = data._etype ?? "personal";
                 const setCustomEtype = (v: "personal"|"shared") => setData(p => ({ ...p, _etype: v }));
 
-                const canContinue = data.expenses.some(e => e.selected);
-
                 const addCustom = () => {
                   if (!customName.trim()) return;
-                  const n = [...data.expenses, { name: customName.trim(), icon: customEmoji, selected: false, amount: "", type: customEtype }];
+                  const n = [...data.expenses, { name: customName.trim(), icon: customEmoji, selected: false, amount: "", type: customEtype, kind: "variable" as const }];
                   setData(p => ({ ...p, expenses: n, _showAdd: false, _cname: "", _emoji: "💳", _etype: "personal" } as OData));
                 };
 
@@ -432,47 +560,60 @@ export function OnboardingFlow({
                   setCustomEmoji([...value].pop() ?? "💳");
                 };
 
+                const renderExpense = (exp: OData["expenses"][number], i: number) => {
+                  const done = exp.selected && !!exp.amount;
+                  return (
+                    <button key={`${exp.name}-${i}`} type="button"
+                      onClick={() => setExpEditIdx(i)}
+                      className="w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all text-left"
+                      style={{
+                        borderColor: done ? P.brnDk : "rgba(47,42,40,0.15)",
+                        backgroundColor: P.card,
+                      }}>
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: done ? P.brnDk : "transparent", border: `2px solid ${done ? P.brnDk : "rgba(47,42,40,0.2)"}` }}>
+                        {done && <Check size={12} color="#fff" />}
+                      </div>
+                      <span className="text-sm flex-shrink-0">{exp.icon}</span>
+                      <span className="text-xs font-medium flex-1 text-left truncate" style={{ color: P.text }}>{exp.name}</span>
+                      {done && (
+                        <>
+                          <span className="text-xs font-bold flex-shrink-0" style={{ color: P.text }}>
+                            ${parseInt(exp.amount, 10).toLocaleString("es-MX")}
+                          </span>
+                          <span className="text-sm flex-shrink-0 ml-1">
+                            {exp.type === "personal" ? "👤" : "🏠"}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  );
+                };
+
+                const recurring = data.expenses
+                  .map((exp, i) => ({ exp, i }))
+                  .filter(({ exp }) => exp.kind !== "variable");
+                const variable = data.expenses
+                  .map((exp, i) => ({ exp, i }))
+                  .filter(({ exp }) => exp.kind === "variable");
+
                 return (
                   <>
-                    <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Gastos del nido</h2>
-                    <p className="text-xs mb-4" style={{ color: P.muted }}>Toca un gasto para agregar el monto y definir si es personal o compartido.</p>
+                    <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Gastos mensuales estimados</h2>
+                    <p className="text-xs mb-4" style={{ color: P.muted }}>Toca un gasto para agregar el monto mensual y definir si es personal o compartido.</p>
 
-                    {/* Expense rows */}
-                    <div className="space-y-2 mb-3">
-                      {data.expenses.map((exp, i) => {
-                        const done = exp.selected && !!exp.amount;
-                        return (
-                          <button key={`${exp.name}-${i}`}
-                            onClick={() => setExpEditIdx(i)}
-                            className="w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all text-left"
-                            style={{
-                              borderColor: done ? P.brnDk : "rgba(47,42,40,0.15)",
-                              backgroundColor: P.card,
-                            }}>
-                            <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
-                              style={{ backgroundColor: done ? P.brnDk : "transparent", border: `2px solid ${done ? P.brnDk : "rgba(47,42,40,0.2)"}` }}>
-                              {done && <Check size={12} color="#fff" />}
-                            </div>
-                            <span className="text-sm flex-shrink-0">{exp.icon}</span>
-                            <span className="text-xs font-medium flex-1 text-left truncate" style={{ color: P.text }}>{exp.name}</span>
-                            {done && (
-                              <>
-                                <span className="text-xs font-bold flex-shrink-0" style={{ color: P.text }}>
-                                  ${parseInt(exp.amount).toLocaleString("es-MX")}
-                                </span>
-                                <span className="text-sm flex-shrink-0 ml-1">
-                                  {exp.type === "personal" ? "👤" : "🏠"}
-                                </span>
-                              </>
-                            )}
-                          </button>
-                        );
-                      })}
+                    <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: P.muted }}>Recurrentes / fijos</p>
+                    <div className="space-y-2 mb-4">
+                      {recurring.map(({ exp, i }) => renderExpense(exp, i))}
                     </div>
 
-                    {/* Add custom expense */}
+                    <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: P.muted }}>Variables</p>
+                    <div className="space-y-2 mb-3">
+                      {variable.map(({ exp, i }) => renderExpense(exp, i))}
+                    </div>
+
                     {!showAddCustom ? (
-                      <button onClick={() => setShowAddCustom(true)}
+                      <button type="button" onClick={() => setShowAddCustom(true)}
                         className="w-full flex items-center gap-2 py-3 px-4 rounded-2xl border-2 border-dashed mb-3 transition-all"
                         style={{ borderColor: P.border, backgroundColor: "transparent", color: P.muted }}>
                         <span className="text-base">➕</span>
@@ -483,7 +624,7 @@ export function OnboardingFlow({
                         <p className="text-[9px] font-semibold uppercase tracking-widest mb-3" style={{ color: P.muted }}>Nuevo gasto personalizado</p>
                         <div className="flex gap-1.5 overflow-x-auto [&::-webkit-scrollbar]:hidden mb-3 pb-0.5">
                           {QUICK_EMOJIS.map(e => (
-                            <button key={e} onClick={() => setCustomEmoji(e)}
+                            <button key={e} type="button" onClick={() => setCustomEmoji(e)}
                               className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-lg transition-all"
                               style={{ backgroundColor: customEmoji === e ? P.brnDk + "20" : P.card, border: `2px solid ${customEmoji === e ? P.brnDk : "transparent"}` }}>
                               {e}
@@ -522,7 +663,7 @@ export function OnboardingFlow({
                         </div>
                         <div className="flex gap-1.5 mb-3">
                           {([{ val: "personal" as const, label: "Personal", emoji: "👤" }, { val: "shared" as const, label: "Compartido", emoji: "🏠" }]).map(t => (
-                            <button key={t.val} onClick={() => setCustomEtype(t.val)}
+                            <button key={t.val} type="button" onClick={() => setCustomEtype(t.val)}
                               className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all"
                               style={{ backgroundColor: customEtype === t.val ? P.brnDk : P.card, color: customEtype === t.val ? "#fff" : P.muted }}>
                               <span>{t.emoji}</span>{t.label}
@@ -530,12 +671,12 @@ export function OnboardingFlow({
                           ))}
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={() => setShowAddCustom(false)}
+                          <button type="button" onClick={() => setShowAddCustom(false)}
                             className="flex-1 py-2.5 rounded-xl text-xs font-semibold border"
                             style={{ borderColor: P.border, backgroundColor: P.card, color: P.muted }}>
                             Cancelar
                           </button>
-                          <button onClick={addCustom} disabled={!customName.trim()}
+                          <button type="button" onClick={addCustom} disabled={!customName.trim()}
                             className="flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all"
                             style={{ backgroundColor: customName.trim() ? P.brnDk : P.sub, color: customName.trim() ? "#fff" : P.muted }}>
                             Agregar
@@ -550,14 +691,14 @@ export function OnboardingFlow({
               {step === "p-contrib" && (
                 <>
                   <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿Cómo dividir los gastos?</h2>
-                  <p className="text-xs mb-5" style={{ color: P.muted }}>Puedes cambiarlo cuando quieras.</p>
-                  <div className="space-y-2 mb-6">
+                  <p className="text-xs mb-5" style={{ color: P.muted }}>Puedes cambiarlo cuando quieras. Los datos de otras personas se podrán completar después.</p>
+                  <div className="space-y-2 mb-4">
                     {([
-                      { id:"equal" as Model,        emoji:"⚖️", label:"Por partes iguales",         sub:"Los gastos se dividirán en partes iguales entre los miembros del nido" },
-                      { id:"proportional" as Model, emoji:"📊", label:"Proporcional al ingreso",     sub:"Según cuánto gana cada quien" },
-                      { id:"capacity" as Model,     emoji:"💡", label:"Capacidad de aportación",     sub:"Cada quien aporta según lo que le sobra después de cubrir sus gastos fijos personales", rec:true },
+                      { id:"equal" as Model,        emoji:"⚖️", label:"Por partes iguales",         sub:"Los gastos compartidos se dividen en partes iguales." },
+                      { id:"proportional" as Model, emoji:"📊", label:"Proporcional al ingreso",     sub:"Cada persona aporta según su porcentaje del ingreso total." },
+                      { id:"capacity" as Model,     emoji:"💡", label:"Capacidad de aportación",     sub:"Cada persona aporta según lo que le queda después de cubrir sus gastos personales.", rec:true },
                     ] as const).map(opt => (
-                      <button key={opt.id} onClick={() => set("contrib",opt.id)}
+                      <button key={opt.id} type="button" onClick={() => set("contrib",opt.id)}
                         className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all"
                         style={{ borderColor: data.contrib===opt.id ? P.brnDk : "rgba(47,42,40,0.15)", backgroundColor: P.card }}>
                         <span className="text-xl flex-shrink-0">{opt.emoji}</span>
@@ -571,13 +712,15 @@ export function OnboardingFlow({
                       </button>
                     ))}
                   </div>
+                  {contribHint && (
+                    <p className="text-[11px] mb-3 leading-relaxed" style={{ color: P.muted }}>{contribHint}</p>
+                  )}
                   {nidoError && (
                     <p className="text-[11px] mb-3 leading-relaxed" style={{ color: P.danger }}>{nidoError}</p>
                   )}
                   <OBtn2
-                    label={submitting ? "Creando tu Nido…" : "Crear mi Nido 🪺"}
-                    onClick={() => { void handleCreateNido(); }}
-                    disabled={submitting}
+                    label="Continuar"
+                    onClick={() => goTo("c-invite")}
                   />
                 </>
               )}
@@ -600,10 +743,9 @@ export function OnboardingFlow({
           )}
         </div>
 
-        {/* Fixed continue bar for p-expenses */}
         {step === "p-expenses" && (
           <div className="flex-shrink-0 px-6 pb-6 pt-3 border-t" style={{ backgroundColor: P.bgL, borderColor: P.border }}>
-            <button onClick={() => expCanContinue && setStep("p-contrib")}
+            <button type="button" onClick={() => expCanContinue && goTo("p-contrib")}
               className="w-full py-4 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98]"
               style={{ backgroundColor: expCanContinue ? P.brnDk : P.sub, color: expCanContinue ? "#fff" : P.muted, cursor: expCanContinue ? "pointer" : "not-allowed" }}>
               Continuar
@@ -611,7 +753,6 @@ export function OnboardingFlow({
           </div>
         )}
 
-        {/* Expense entry modal */}
         {expEditIdx !== null && (
           <ExpenseEntryModal
             exp={data.expenses[expEditIdx]}

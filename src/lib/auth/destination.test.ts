@@ -133,6 +133,17 @@ describe("resolveAppEntry", () => {
       { kind: "main_app" },
     );
   });
+
+  it("sends historical-only membership with a pending invite to /join/<token>", () => {
+    assert.deepEqual(
+      resolveAppEntry({
+        authenticated: true,
+        membershipStatus: "historical_only",
+        pendingInviteToken: "invite-token-value-1",
+      }),
+      { kind: "join_invite", token: "invite-token-value-1" },
+    );
+  });
 });
 
 describe("resolveNidoChoice", () => {

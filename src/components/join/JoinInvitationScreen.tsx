@@ -4,50 +4,17 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthPanel } from "@/components/auth/AuthPanel";
 import { identityFromUser } from "@/lib/auth/identity";
-import { savePendingInvitationToken } from "@/lib/auth/pending-flow";
+import { clearPendingInvitationToken, savePendingInvitationToken } from "@/lib/auth/pending-flow";
 import { useAuth } from "@/lib/auth/use-auth";
+import { joinBlockReason, joinInvitationCopy } from "@/lib/nido/invitation-copy";
 import { acceptInvitation, lookupInvitation } from "@/lib/nido/invitations";
-import { getMyMembership } from "@/lib/nido/membership";
+import { getMyActiveHousehold, getMyMembership } from "@/lib/nido/membership";
 import { isInvitationTokenFormat } from "@/lib/nido/rules";
 import type { InvitationPreview } from "@/lib/nido/types";
+import { canStartExclusiveAction } from "@/lib/onboarding/validation";
 import { P } from "@/lib/palette";
 import { NidoHouse } from "@/components/shared/NidoHouse";
 import { OBtn2 } from "@/components/onboarding/OBtn2";
-
-function statusCopy(preview: InvitationPreview | null, alreadyInNido: boolean) {
-  if (!preview || preview.status === "invalid") {
-    return {
-      title: "Invitación no válida",
-      body: "Este enlace no corresponde a una invitación activa.",
-    };
-  }
-  if (preview.status === "expired") {
-    return {
-      title: "Invitación expirada",
-      body: preview.householdName
-        ? `La invitación a ${preview.householdName} ya expiró.`
-        : "Esta invitación ya expiró.",
-    };
-  }
-  if (preview.status === "accepted") {
-    return {
-      title: "Invitación ya usada",
-      body: preview.householdName
-        ? `Alguien ya aceptó la invitación a ${preview.householdName}.`
-        : "Esta invitación ya fue aceptada.",
-    };
-  }
-  if (alreadyInNido) {
-    return {
-      title: "Ya tienes un Nido",
-      body: "Solo puedes pertenecer a un Nido a la vez. Sal de tu Nido actual antes de unirte a otro.",
-    };
-  }
-  return {
-    title: preview.householdName ? `Únete a ${preview.householdName}` : "Únete a un Nido",
-    body: "Te invitaron a compartir este Nido.",
-  };
-}
 
 export function JoinInvitationScreen({ token }: { token: string }) {
   const router = useRouter();
@@ -56,6 +23,7 @@ export function JoinInvitationScreen({ token }: { token: string }) {
   const [preview, setPreview] = useState<InvitationPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [alreadyInNido, setAlreadyInNido] = useState(false);
+  const [activeHouseholdName, setActiveHouseholdName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,9 +55,18 @@ export function JoinInvitationScreen({ token }: { token: string }) {
       if (user) {
         const membership = await getMyMembership();
         if (cancelled) return;
-        setAlreadyInNido(membership.ok && membership.data !== null);
+        const hasActive = membership.ok && membership.data !== null;
+        setAlreadyInNido(Boolean(hasActive));
+        if (hasActive) {
+          const household = await getMyActiveHousehold();
+          if (cancelled) return;
+          setActiveHouseholdName(household.ok ? household.data?.name ?? null : null);
+        } else {
+          setActiveHouseholdName(null);
+        }
       } else {
         setAlreadyInNido(false);
+        setActiveHouseholdName(null);
       }
 
       setLoading(false);
@@ -104,11 +81,17 @@ export function JoinInvitationScreen({ token }: { token: string }) {
     };
   }, [token, user, authLoading]);
 
-  const copy = statusCopy(preview, alreadyInNido);
-  const canAccept = Boolean(user && preview?.status === "valid" && !alreadyInNido);
+  const block = joinBlockReason({
+    alreadyInNido,
+    activeHouseholdName,
+    invitationHouseholdName: preview?.householdName ?? null,
+  });
+  const copy = joinInvitationCopy({ preview, block });
+  const canAccept = Boolean(user && preview?.status === "valid" && block === "none");
   const joinPath = `/join/${encodeURIComponent(token)}`;
 
   const handleAccept = async () => {
+    if (!canStartExclusiveAction(busy)) return;
     setBusy(true);
     setError(null);
     const result = await acceptInvitation(token);
@@ -117,6 +100,7 @@ export function JoinInvitationScreen({ token }: { token: string }) {
       setBusy(false);
       return;
     }
+    clearPendingInvitationToken();
     router.replace("/");
   };
 
@@ -159,11 +143,13 @@ export function JoinInvitationScreen({ token }: { token: string }) {
             )}
             {canAccept && (
               <OBtn2
-                label={busy ? "Uniéndote…" : "Aceptar invitación"}
-                onClick={busy ? () => undefined : handleAccept}
+                label={busy ? "Aceptando invitación…" : "Aceptar invitación"}
+                onClick={busy ? () => undefined : () => { void handleAccept(); }}
+                disabled={busy}
               />
             )}
             <button
+              type="button"
               onClick={() => router.replace("/")}
               className="w-full py-3 text-xs font-semibold"
               style={{ color: P.muted }}
