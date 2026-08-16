@@ -15,9 +15,12 @@ import {
   type AuthFailureCode,
 } from "@/lib/auth/errors";
 import {
-  canResendConfirmation,
-  RESEND_COOLDOWN_MS,
-} from "@/lib/auth/resend";
+  canAttemptEmailSend,
+  emailCooldownCountdownLabel,
+  emailCooldownRetryHint,
+  getRemainingCooldown,
+  startCooldown,
+} from "@/lib/auth/email-cooldown";
 import {
   requestPasswordReset,
   resendSignupConfirmation,
@@ -46,7 +49,6 @@ export function AuthPanel({
 }) {
   const [view, setView] = useState<AuthView>(initialView);
   const busyRef = useRef(false);
-  const [lastResendAt, setLastResendAt] = useState<number | null>(null);
   const [, setCooldownTick] = useState(0);
   const [failureCode, setFailureCode] = useState<AuthFailureCode | null>(null);
 
@@ -84,13 +86,25 @@ export function AuthPanel({
     setBusy(false);
   };
 
+  const beginEmailCooldown = (action: "confirmation" | "recovery", address: string) => {
+    startCooldown(action, address);
+    setCooldownTick((tick) => tick + 1);
+  };
+
+  const confirmationRemaining = getRemainingCooldown("confirmation", email);
+  const recoveryRemaining = getRemainingCooldown("recovery", email);
+  const showSignupExistsAction = view === "signup" && failureCode === "already_registered";
+  const showLoginResendAction = view === "login" && failureCode === "email_not_confirmed";
+  const confirmationCooldownActive =
+    (view === "confirm-email" || showLoginResendAction) && confirmationRemaining > 0;
+  const recoveryCooldownActive = view === "forgot" && recoveryRemaining > 0;
+  const cooldownActive = confirmationCooldownActive || recoveryCooldownActive;
+
   useEffect(() => {
-    if (lastResendAt == null) return;
-    const remaining = lastResendAt + RESEND_COOLDOWN_MS - Date.now();
-    if (remaining <= 0) return;
-    const timer = window.setTimeout(() => setCooldownTick((tick) => tick + 1), remaining);
-    return () => window.clearTimeout(timer);
-  }, [lastResendAt]);
+    if (!cooldownActive) return;
+    const timer = window.setInterval(() => setCooldownTick((tick) => tick + 1), 1_000);
+    return () => window.clearInterval(timer);
+  }, [cooldownActive]);
 
   const handleSignup = async () => {
     resetMessages();
@@ -118,6 +132,7 @@ export function AuthPanel({
         return;
       }
       clearPasswords();
+      beginEmailCooldown("confirmation", email);
       onEmailConfirmationPending?.();
       showView("confirm-email");
     } catch (error) {
@@ -161,12 +176,14 @@ export function AuthPanel({
   };
 
   const handleRecovery = async () => {
-    resetMessages();
     const invalid = validateRecoveryEmail(email);
     if (invalid) {
+      resetMessages();
       setError(invalid);
       return;
     }
+    if (!canAttemptEmailSend("recovery", email, { inFlight: busyRef.current })) return;
+    resetMessages();
     if (!beginExclusive()) return;
     try {
       const { error: resetError } = await requestPasswordReset(email);
@@ -179,6 +196,7 @@ export function AuthPanel({
           return;
         }
       }
+      beginEmailCooldown("recovery", email);
       setInfo(RECOVERY_SENT_MESSAGE);
     } catch (error) {
       const classified = classifyAuthError(error, "recovery");
@@ -191,41 +209,36 @@ export function AuthPanel({
   };
 
   const handleResendConfirmation = async () => {
+    if (!canAttemptEmailSend("confirmation", email, { inFlight: busyRef.current })) return;
     resetMessages();
-    const now = Date.now();
-    if (!canResendConfirmation(lastResendAt, now)) return;
     if (!beginExclusive()) return;
     try {
       const { error: resendError } = await resendSignupConfirmation(email, {
         next: nextPath,
       });
       const outcome = interpretResendResponse(resendError);
-      setLastResendAt(Date.now());
       if (outcome.kind === "error") {
         logAuthFailure(outcome.error);
         setFailureCode(outcome.error.code);
         setError(outcome.error.message);
         return;
       }
+      beginEmailCooldown("confirmation", email);
       setInfo(outcome.message);
     } catch (error) {
       const outcome = interpretResendResponse(error);
-      setLastResendAt(Date.now());
       if (outcome.kind === "error") {
         logAuthFailure(outcome.error);
         setFailureCode(outcome.error.code);
         setError(outcome.error.message);
         return;
       }
+      beginEmailCooldown("confirmation", email);
       setInfo(outcome.message);
     } finally {
       endExclusive();
     }
   };
-
-  const resendAllowed = canResendConfirmation(lastResendAt, Date.now());
-  const showSignupExistsAction = view === "signup" && failureCode === "already_registered";
-  const showLoginResendAction = view === "login" && failureCode === "email_not_confirmed";
 
   return (
     <form
@@ -236,9 +249,7 @@ export function AuthPanel({
         if (view === "signup") void handleSignup();
         else if (view === "login") void handleLogin();
         else if (view === "forgot") void handleRecovery();
-        else if (view === "confirm-email" && canResendConfirmation(lastResendAt, Date.now())) {
-          void handleResendConfirmation();
-        }
+        else if (view === "confirm-email") void handleResendConfirmation();
       }}
     >
       {view !== "confirm-email" && (
@@ -323,6 +334,11 @@ export function AuthPanel({
           {info}
         </p>
       )}
+      {view === "forgot" && recoveryRemaining > 0 && (
+        <p className="text-[11px] mb-3 leading-relaxed" style={{ color: P.muted }}>
+          {emailCooldownRetryHint(recoveryRemaining)}
+        </p>
+      )}
 
       {view === "signup" && (
         <OBtn2 label={busy ? "Creando cuenta…" : "Crear cuenta"} onClick={() => undefined} disabled={busy} />
@@ -331,13 +347,29 @@ export function AuthPanel({
         <OBtn2 label={busy ? "Entrando…" : "Iniciar sesión"} onClick={() => undefined} disabled={busy} />
       )}
       {view === "forgot" && (
-        <OBtn2 label={busy ? "Enviando…" : "Enviar enlace"} onClick={() => undefined} disabled={busy} />
+        <OBtn2
+          label={
+            busy
+              ? "Enviando…"
+              : recoveryRemaining > 0
+                ? emailCooldownCountdownLabel("Enviar", recoveryRemaining)
+                : "Enviar enlace"
+          }
+          onClick={() => undefined}
+          disabled={busy || recoveryRemaining > 0}
+        />
       )}
       {view === "confirm-email" && (
         <OBtn2
-          label={busy ? "Enviando…" : "Reenviar correo"}
+          label={
+            busy
+              ? "Enviando…"
+              : confirmationRemaining > 0
+                ? emailCooldownCountdownLabel("Reenviar", confirmationRemaining)
+                : "Reenviar correo"
+          }
           onClick={() => undefined}
-          disabled={busy || !resendAllowed}
+          disabled={busy || confirmationRemaining > 0}
         />
       )}
 
@@ -361,12 +393,16 @@ export function AuthPanel({
             type="button"
             className="block w-full text-xs font-semibold"
             style={{ color: P.brnDk }}
-            disabled={busy || !resendAllowed}
+            disabled={busy || confirmationRemaining > 0}
             onClick={() => {
-              if (!busy && resendAllowed) void handleResendConfirmation();
+              if (!busy && confirmationRemaining <= 0) void handleResendConfirmation();
             }}
           >
-            {busy ? "Enviando…" : "Reenviar correo de confirmación"}
+            {busy
+              ? "Enviando…"
+              : confirmationRemaining > 0
+                ? emailCooldownCountdownLabel("Reenviar", confirmationRemaining)
+                : "Reenviar correo de confirmación"}
           </button>
         )}
         {view === "signup" && !showSignupExistsAction && (

@@ -1,10 +1,12 @@
-# Manual test checklist (Phase 8.10)
+# Manual test checklist (Phase 8.10.1)
 
 Use this against a real Vercel + Supabase + SMTP environment. Automated unit tests do not replace these flows.
 
 Confirm email stays enabled. Google OAuth stays disabled. Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
 
 Phase 9 has **not** started. Dashboard financial data remains mock.
+
+The 60-second email cooldown is a **UX protection**. It prevents accidental repeat clicks and shows a countdown. The real protection against abuse remains in **Supabase Auth rate limits** and **Brevo SMTP limits**. The frontend cooldown does not replace or weaken those provider limits.
 
 ---
 
@@ -33,10 +35,59 @@ Phase 9 has **not** started. Dashboard financial data remains mock.
 
 1. On **Revisa tu correo**, see **¿No recibiste el correo?** and **Reenviar correo**.
 2. Request a resend → **Si podemos enviar un correo a esta dirección, recibirás uno en breve.**
-3. Immediate second tap is blocked by cooldown.
-4. If rate limited: **Has solicitado demasiados correos recientemente. Espera unos minutos antes de volver a intentarlo.**
+3. Immediate second tap is blocked by the 60-second UX cooldown. The button shows **Reenviar en 59 s**, then 58 s, and does not call Supabase while the countdown is active.
+4. If rate limited: **Has solicitado demasiados correos recientemente. Espera unos minutos antes de volver a intentarlo.** The 60-second UX cooldown does **not** start on a provider rate-limit rejection.
 5. Raw `AuthApiError` is never shown.
 6. **Volver a iniciar sesión** keeps the email in the form.
+
+## Email send cooldown (Phase 8.10.1)
+
+The 60-second cooldown is a UX protection. Real abuse protection remains in Supabase/Brevo.
+
+### A. Signup → confirmation
+
+1. Sign up with a new email.
+2. See **Revisa tu correo**. Confirmation email is sent.
+3. **Reenviar correo** is disabled with a 60-second countdown (`Reenviar en 59 s`).
+
+### B. Resend confirmation
+
+1. After the countdown ends, tap **Reenviar correo**.
+2. Success copy stays generic (does not reveal whether the address exists).
+3. A new 60-second countdown starts only if the request was accepted.
+4. Network / technical errors do not start a fake 60-second cooldown.
+
+### C. Recovery
+
+1. **¿Olvidaste tu contraseña?** → submit a valid email.
+2. Generic copy: **Si el correo está registrado, te enviaremos un enlace para restablecer la contraseña.**
+3. Button shows **Enviar en 59 s** and helper **Podrás solicitar otro en 59 s.**
+4. Does not reveal whether the user exists.
+5. Recovery cooldown does not block confirmation resend for the same email.
+
+### D. Refresh during cooldown
+
+1. Start a resend or recovery cooldown.
+2. Refresh the page.
+3. Countdown is restored from `sessionStorage` (`nido.emailCooldown`: action, normalized email, `sentAt` only).
+4. No password, access token, refresh token, recovery token, or confirmation token is stored.
+
+### E. Change of email
+
+1. Start cooldown for `a@example.com`.
+2. Change the field to `b@example.com`.
+3. The cooldown for A does not block B. Emails are trimmed and lowercased before the key is built.
+
+### F. Double click
+
+1. Double-click **Reenviar correo** or **Enviar enlace**, or press Enter repeatedly.
+2. Only one request is sent. The button stays disabled with the existing loading label while the request is in flight.
+
+### G. Rate limit
+
+1. If Supabase/Brevo returns a rate limit, show the existing rate-limit message.
+2. Do not start a new artificial 60-second UX cooldown on that rejection.
+3. Provider rate limits are unchanged.
 
 ## E. Login
 
@@ -54,7 +105,8 @@ Phase 9 has **not** started. Dashboard financial data remains mock.
 1. **¿Olvidaste tu contraseña?**
 2. Submit a valid email → generic “if registered” copy.
 3. Invalid email is rejected client-side.
-4. Open the link → `/auth/callback` → `/auth/update-password`.
+4. Immediate second submit is blocked by the 60-second UX cooldown.
+5. Open the link → `/auth/callback` → `/auth/update-password`.
 
 ## H. Recovery in another tab
 
@@ -150,7 +202,7 @@ If Supabase reports email-not-confirmed on login:
 - No `service_role` in the frontend
 - No auth tokens in `localStorage`
 - No passwords in URLs, logs, or the onboarding draft
-- No sensitive auth data in `sessionStorage` (draft is onboarding fields only; pending invite is a join token, not an access token)
+- No sensitive auth data in `sessionStorage` (draft is onboarding fields only; pending invite is a join token, not an access token; email cooldown stores only action, normalized email, and a timestamp)
 - `?next=` rejects absolute URLs (`safeNextPath`)
 - Recovery marker still distinguishes recovery from login
 - RLS unchanged
