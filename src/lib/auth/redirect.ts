@@ -24,3 +24,28 @@ export function safeNextPath(next: string | null | undefined): string {
   }
   return next;
 }
+
+/**
+ * Destination after `/auth/callback`. `next` is sanitized with `safeNextPath`.
+ * Error returns stay on the same origin; tokens are never placed in the URL.
+ */
+export function resolveCallbackRedirectUrl(input: {
+  origin: string;
+  next?: string | null;
+  forwardedHost: string | null;
+  isLocalEnv: boolean;
+  kind: "success" | "error";
+}): string {
+  if (input.kind === "error") {
+    return `${input.origin}/?auth=error`;
+  }
+
+  const next = safeNextPath(input.next);
+  if (input.isLocalEnv) {
+    return `${input.origin}${next}`;
+  }
+  if (input.forwardedHost) {
+    return `https://${input.forwardedHost}${next}`;
+  }
+  return `${input.origin}${next}`;
+}

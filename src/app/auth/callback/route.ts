@@ -1,6 +1,10 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { safeNextPath } from "@/lib/auth/redirect";
-import { createClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
+import { completeAuthCallback } from "@/lib/auth/callback";
+import { resolveCallbackRedirectUrl } from "@/lib/auth/redirect";
+import { getPublicSupabaseConfig } from "@/lib/supabase/env";
+import type { Database } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
 
@@ -15,34 +19,44 @@ function redirectWithNoStore(url: string) {
 /**
  * Supabase Auth callback for email confirmation and password recovery.
  *
- * Exchanges the `code` for a session and writes it to cookies through the
- * server Supabase client. Then returns the user into the application.
- * A safe explicit `next` path is preserved (join or password update).
- * This route does not inspect household membership; the app shell decides
- * landing vs create-Nido vs MainApp.
+ * Exchanges the PKCE `code` for a session and writes auth cookies onto the
+ * same redirect `NextResponse` the browser follows. Next.js 15 does not
+ * reliably copy `cookies().set()` onto a later `NextResponse.redirect()`.
+ *
+ * Uses the public anon key — not the service role. Tokens stay in cookies,
+ * never in the URL. A safe explicit `next` path is preserved (join or
+ * password update). This route does not inspect household membership; the
+ * app shell decides landing vs create-Nido vs MainApp.
  */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get("code");
-  const next = safeNextPath(searchParams.get("next"));
+  const next = searchParams.get("next");
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const isLocalEnv = process.env.NODE_ENV === "development";
+  const cookieStore = await cookies();
 
-  if (code) {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const destination = {
+    origin,
+    next,
+    forwardedHost,
+    isLocalEnv,
+  };
 
-    if (!error) {
-      const forwardedHost = request.headers.get("x-forwarded-host");
-      const isLocalEnv = process.env.NODE_ENV === "development";
-      const destination = isLocalEnv
-        ? `${origin}${next}`
-        : forwardedHost
-          ? `https://${forwardedHost}${next}`
-          : `${origin}${next}`;
-      return redirectWithNoStore(destination);
-    }
-
-    console.error("Auth code exchange failed", error.message);
-  }
-
-  return redirectWithNoStore(`${origin}/?auth=error`);
+  return completeAuthCallback({
+    code: searchParams.get("code"),
+    successUrl: resolveCallbackRedirectUrl({ ...destination, kind: "success" }),
+    errorUrl: resolveCallbackRedirectUrl({ ...destination, kind: "error" }),
+    createRedirect: redirectWithNoStore,
+    readCookies: () => cookieStore.getAll(),
+    writeRequestCookie: (name, value, options) => {
+      cookieStore.set(name, value, options);
+    },
+    exchangeCodeForSession: async (code, cookieAdapter) => {
+      const { url, anonKey } = getPublicSupabaseConfig();
+      const supabase = createServerClient<Database>(url, anonKey, {
+        cookies: cookieAdapter,
+      });
+      return supabase.auth.exchangeCodeForSession(code);
+    },
+  });
 }

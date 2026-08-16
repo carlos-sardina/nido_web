@@ -170,10 +170,10 @@ Raising or removing the limit is a **Supabase dashboard / SMTP** concern, not a 
 | --- | --- |
 | Local development | `http://localhost:3000/auth/callback` |
 | Local development | `http://localhost:3000/auth/update-password` |
-| Production | `https://<production-domain>/auth/callback` |
-| Production | `https://<production-domain>/auth/update-password` |
+| Production | `https://nido-web-chi.vercel.app/auth/callback` |
+| Production | `https://nido-web-chi.vercel.app/auth/update-password` |
 
-Do not invent the production domain. Use the origin of the deployed app.
+The `/auth/callback` route exchanges the PKCE `code` and writes session cookies onto the same redirect response. Site URL for the hosted project should be `https://nido-web-chi.vercel.app`.
 
 `next` is validated with `safeNextPath` to prevent open redirects.
 
@@ -273,12 +273,14 @@ http://localhost:3000/auth/update-password
 
 Site URL for local development is typically `http://localhost:3000`.
 
-Production (replace with the real deployed origin):
+Production:
 
 ```
-https://<production-domain>/auth/callback
-https://<production-domain>/auth/update-password
+https://nido-web-chi.vercel.app/auth/callback
+https://nido-web-chi.vercel.app/auth/update-password
 ```
+
+Hosted Site URL: `https://nido-web-chi.vercel.app`.
 
 Google remains a future optional provider. Do not configure it in this phase.
 
