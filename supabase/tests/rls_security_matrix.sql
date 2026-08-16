@@ -1,0 +1,1370 @@
+-- =============================================================================
+-- Nido RLS security matrix
+--
+-- Runtime behavioral tests. They are NOT executed in this repository's
+-- default environment (no local Postgres / Supabase CLI).
+--
+-- Required environment:
+--   1. Supabase local (`supabase start`) or a linked Supabase database
+--   2. Both migrations applied (foundation + RLS)
+--   3. Roles `authenticated` and `service_role`
+--   4. `auth.uid()` and `auth.users`
+--
+-- Run:
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_security_matrix.sql
+--
+-- or, after `supabase start`:
+--   supabase db reset
+--   psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+--     -v ON_ERROR_STOP=1 -f supabase/tests/rls_security_matrix.sql
+--
+-- The script inserts temporary auth users and rolls back at the end.
+-- It does not claim success unless every assertion passes.
+-- =============================================================================
+
+DO $$
+BEGIN
+  IF to_regprocedure('auth.uid()') IS NULL THEN
+    RAISE EXCEPTION
+      'auth.uid() is not available. Run this script against a Supabase database.';
+  END IF;
+
+  IF to_regclass('auth.users') IS NULL THEN
+    RAISE EXCEPTION
+      'auth.users is not available. Run this script against a Supabase database.';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    RAISE EXCEPTION
+      'Role authenticated is missing. Run this script against a Supabase database.';
+  END IF;
+END;
+$$;
+
+BEGIN;
+
+CREATE TEMP TABLE rls_test_results (
+  test_id text PRIMARY KEY,
+  actor text NOT NULL,
+  household text NOT NULL,
+  membership text NOT NULL,
+  operation text NOT NULL,
+  expected text NOT NULL,
+  actual text NOT NULL,
+  passed boolean NOT NULL
+);
+
+CREATE TEMP TABLE rls_ids (
+  key text PRIMARY KEY,
+  id uuid NOT NULL
+);
+
+-- -----------------------------------------------------------------------------
+-- Helpers
+-- -----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION pg_temp.record_result(
+  p_test_id text,
+  p_actor text,
+  p_household text,
+  p_membership text,
+  p_operation text,
+  p_expected text,
+  p_actual text
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  INSERT INTO rls_test_results (
+    test_id, actor, household, membership, operation, expected, actual, passed
+  ) VALUES (
+    p_test_id,
+    p_actor,
+    p_household,
+    p_membership,
+    p_operation,
+    p_expected,
+    p_actual,
+    p_expected = p_actual
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.set_auth(p_user_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RESET ROLE;
+  PERFORM set_config(
+    'request.jwt.claims',
+    json_build_object(
+      'sub', p_user_id::text,
+      'role', 'authenticated'
+    )::text,
+    true
+  );
+  PERFORM set_config('request.jwt.claim.sub', p_user_id::text, true);
+  SET LOCAL ROLE authenticated;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.clear_auth()
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claims', '', true);
+  PERFORM set_config('request.jwt.claim.sub', '', true);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.create_auth_user(
+  p_id uuid,
+  p_email text,
+  p_name text
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  INSERT INTO auth.users (
+    instance_id,
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000000',
+    p_id,
+    'authenticated',
+    'authenticated',
+    p_email,
+    crypt('nido-rls-test', gen_salt('bf')),
+    now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    jsonb_build_object('display_name', p_name),
+    now(),
+    now()
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.expect_allow(p_sql text)
+RETURNS text
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  EXECUTE p_sql;
+  RETURN 'allow';
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN 'deny';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.expect_count(p_sql text)
+RETURNS integer
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_count integer;
+BEGIN
+  EXECUTE p_sql INTO v_count;
+  RETURN v_count;
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Seed: Carlos + Diana in Nido A; Luis in Nido B
+-- Seed writes use the table owner (this session) so they are not the
+-- subject of the RLS assertions below.
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid := '11111111-1111-1111-1111-111111111111';
+  v_diana uuid := '22222222-2222-2222-2222-222222222222';
+  v_luis uuid := '33333333-3333-3333-3333-333333333333';
+  v_nido_a uuid := 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  v_nido_b uuid := 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  v_cat_income_a uuid := 'c1111111-1111-1111-1111-111111111111';
+  v_cat_expense_a uuid := 'c2222222-2222-2222-2222-222222222222';
+  v_cat_income_b uuid := 'c3333333-3333-3333-3333-333333333333';
+  v_cat_expense_b uuid := 'c4444444-4444-4444-4444-444444444444';
+  v_income_a uuid := 'd1111111-1111-1111-1111-111111111111';
+  v_expense_a uuid := 'd2222222-2222-2222-2222-222222222222';
+  v_split_a uuid := 'd3333333-3333-3333-3333-333333333333';
+  v_rec_income_a uuid := 'd4444444-4444-4444-4444-444444444444';
+  v_rec_expense_a uuid := 'd5555555-5555-5555-5555-555555555555';
+  v_rec_split_a uuid := 'd6666666-6666-6666-6666-666666666666';
+  v_budget_a uuid := 'd7777777-7777-7777-7777-777777777777';
+  v_goal_a uuid := 'd8888888-8888-8888-8888-888888888888';
+  v_contrib_a uuid := 'd9999999-9999-9999-9999-999999999999';
+  v_invite_a uuid := 'daaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  v_income_b uuid := 'dbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  v_expense_b uuid := 'dccccccc-cccc-cccc-cccc-cccccccccccc';
+BEGIN
+  PERFORM pg_temp.create_auth_user(v_carlos, 'carlos-rls@example.test', 'Carlos');
+  PERFORM pg_temp.create_auth_user(v_diana, 'diana-rls@example.test', 'Diana');
+  PERFORM pg_temp.create_auth_user(v_luis, 'luis-rls@example.test', 'Luis');
+
+  INSERT INTO public.households (id, name, created_by)
+  VALUES
+    (v_nido_a, 'Nido A', v_carlos),
+    (v_nido_b, 'Nido B', v_luis);
+
+  INSERT INTO public.household_members (
+    household_id, user_id, role, joined_at, left_at
+  ) VALUES
+    (v_nido_a, v_carlos, 'owner', timestamptz '2026-01-01 00:00:00+00', NULL),
+    (v_nido_a, v_diana, 'member', timestamptz '2026-01-01 00:00:00+00', NULL),
+    (v_nido_b, v_luis, 'owner', timestamptz '2026-01-01 00:00:00+00', NULL);
+
+  INSERT INTO public.categories (
+    id, household_id, name, type, created_by
+  ) VALUES
+    (v_cat_income_a, v_nido_a, 'Salary', 'income', v_carlos),
+    (v_cat_expense_a, v_nido_a, 'Groceries', 'expense', v_carlos),
+    (v_cat_income_b, v_nido_b, 'Salary', 'income', v_luis),
+    (v_cat_expense_b, v_nido_b, 'Rent', 'expense', v_luis);
+
+  INSERT INTO public.recurring_incomes (
+    id, household_id, member_id, category_id, amount, frequency,
+    start_date, next_occurrence, created_by
+  ) VALUES (
+    v_rec_income_a, v_nido_a, v_carlos, v_cat_income_a, 40000, 'monthly',
+    DATE '2026-01-01', DATE '2026-02-01', v_carlos
+  );
+
+  INSERT INTO public.incomes (
+    id, household_id, member_id, category_id, amount, occurred_at, created_by
+  ) VALUES (
+    v_income_a, v_nido_a, v_carlos, v_cat_income_a, 40000, DATE '2026-01-15', v_carlos
+  );
+
+  INSERT INTO public.recurring_expenses (
+    id, household_id, category_id, amount, payer_id, scope,
+    distribution_method, frequency, start_date, next_occurrence, created_by
+  ) VALUES (
+    v_rec_expense_a, v_nido_a, v_cat_expense_a, 100, v_carlos, 'shared',
+    'equal', 'monthly', DATE '2026-01-01', DATE '2026-02-01', v_carlos
+  );
+
+  INSERT INTO public.recurring_expense_splits (
+    id, recurring_expense_id, member_id, amount, percentage
+  ) VALUES (
+    v_rec_split_a, v_rec_expense_a, v_carlos, 100, 100
+  );
+
+  INSERT INTO public.expenses (
+    id, household_id, category_id, amount, occurred_at, payer_id,
+    scope, distribution_method, created_by
+  ) VALUES (
+    v_expense_a, v_nido_a, v_cat_expense_a, 80, DATE '2026-01-20', v_carlos,
+    'personal', 'fixed', v_carlos
+  );
+
+  INSERT INTO public.expense_splits (
+    id, expense_id, member_id, amount, percentage
+  ) VALUES (
+    v_split_a, v_expense_a, v_carlos, 80, 100
+  );
+
+  INSERT INTO public.budgets (
+    id, household_id, member_id, category_id, amount, period,
+    start_date, end_date, created_by
+  ) VALUES (
+    v_budget_a, v_nido_a, NULL, v_cat_expense_a, 500, 'monthly',
+    DATE '2026-01-01', DATE '2026-01-31', v_carlos
+  );
+
+  INSERT INTO public.goals (
+    id, household_id, name, goal_type, target_amount, status, created_by
+  ) VALUES (
+    v_goal_a, v_nido_a, 'Emergency fund', 'saving', 10000, 'active', v_carlos
+  );
+
+  INSERT INTO public.goal_contributions (
+    id, goal_id, member_id, amount, contributed_at, created_by
+  ) VALUES (
+    v_contrib_a, v_goal_a, v_carlos, 200, DATE '2026-01-25', v_carlos
+  );
+
+  INSERT INTO public.household_invitations (
+    id, household_id, invited_by, email, token, expires_at
+  ) VALUES (
+    v_invite_a, v_nido_a, v_carlos, 'invitee@example.test',
+    'nido-rls-invite-token-a', now() + interval '7 days'
+  );
+
+  INSERT INTO public.incomes (
+    id, household_id, member_id, category_id, amount, occurred_at, created_by
+  ) VALUES (
+    v_income_b, v_nido_b, v_luis, v_cat_income_b, 10000, DATE '2026-01-15', v_luis
+  );
+
+  INSERT INTO public.expenses (
+    id, household_id, category_id, amount, occurred_at, payer_id,
+    scope, distribution_method, created_by
+  ) VALUES (
+    v_expense_b, v_nido_b, v_cat_expense_b, 50, DATE '2026-01-20', v_luis,
+    'personal', 'fixed', v_luis
+  );
+
+  INSERT INTO rls_ids (key, id) VALUES
+    ('carlos', v_carlos),
+    ('diana', v_diana),
+    ('luis', v_luis),
+    ('nido_a', v_nido_a),
+    ('nido_b', v_nido_b),
+    ('cat_income_a', v_cat_income_a),
+    ('cat_expense_a', v_cat_expense_a),
+    ('cat_income_b', v_cat_income_b),
+    ('cat_expense_b', v_cat_expense_b),
+    ('income_a', v_income_a),
+    ('expense_a', v_expense_a),
+    ('split_a', v_split_a),
+    ('rec_income_a', v_rec_income_a),
+    ('rec_expense_a', v_rec_expense_a),
+    ('rec_split_a', v_rec_split_a),
+    ('budget_a', v_budget_a),
+    ('goal_a', v_goal_a),
+    ('contrib_a', v_contrib_a),
+    ('invite_a', v_invite_a),
+    ('income_b', v_income_b),
+    ('expense_b', v_expense_b);
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Scenario A — Carlos active in Nido A
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_cat_income_a uuid;
+  v_cat_expense_a uuid;
+  v_income_a uuid;
+  v_expense_a uuid;
+  v_budget_a uuid;
+  v_goal_a uuid;
+  v_new_income uuid := 'e1111111-1111-1111-1111-111111111111';
+  v_new_expense uuid := 'e2222222-2222-2222-2222-222222222222';
+  v_new_budget uuid := 'e3333333-3333-3333-3333-333333333333';
+  v_new_goal uuid := 'e4444444-4444-4444-4444-444444444444';
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+  SELECT id INTO v_cat_income_a FROM rls_ids WHERE key = 'cat_income_a';
+  SELECT id INTO v_cat_expense_a FROM rls_ids WHERE key = 'cat_expense_a';
+  SELECT id INTO v_income_a FROM rls_ids WHERE key = 'income_a';
+  SELECT id INTO v_expense_a FROM rls_ids WHERE key = 'expense_a';
+  SELECT id INTO v_budget_a FROM rls_ids WHERE key = 'budget_a';
+  SELECT id INTO v_goal_a FROM rls_ids WHERE key = 'goal_a';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+
+  PERFORM pg_temp.record_result(
+    'A01', 'Carlos', 'A', 'active', 'SELECT household',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.households WHERE id = %L', v_nido_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'A02', 'Carlos', 'A', 'active', 'SELECT expense',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expenses WHERE id = %L', v_expense_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'A03', 'Carlos', 'A', 'active', 'SELECT income',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.incomes WHERE id = %L', v_income_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'A04', 'Carlos', 'A', 'active', 'SELECT budget',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.budgets WHERE id = %L', v_budget_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'A05', 'Carlos', 'A', 'active', 'SELECT goal',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.goals WHERE id = %L', v_goal_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'A06', 'Carlos', 'A', 'active', 'INSERT expense',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expenses (
+          id, household_id, category_id, amount, occurred_at, payer_id,
+          scope, distribution_method, created_by
+        ) VALUES (
+          %L, %L, %L, 25, DATE '2026-01-21', %L, 'personal', 'fixed', %L
+        )
+      $sql$,
+      v_new_expense, v_nido_a, v_cat_expense_a, v_carlos, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'A07', 'Carlos', 'A', 'active', 'INSERT income',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.incomes (
+          id, household_id, member_id, category_id, amount, occurred_at, created_by
+        ) VALUES (
+          %L, %L, %L, %L, 100, DATE '2026-01-21', %L
+        )
+      $sql$,
+      v_new_income, v_nido_a, v_carlos, v_cat_income_a, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'A08', 'Carlos', 'A', 'active', 'UPDATE expense',
+    'allow',
+    pg_temp.expect_allow(format(
+      'UPDATE public.expenses SET description = %L WHERE id = %L',
+      'updated by carlos', v_expense_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'A09', 'Carlos', 'A', 'active', 'INSERT/UPDATE budget',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.budgets (
+          id, household_id, member_id, category_id, amount, period,
+          start_date, end_date, created_by
+        ) VALUES (
+          %L, %L, %L, %L, 200, 'monthly',
+          DATE '2026-02-01', DATE '2026-02-28', %L
+        )
+      $sql$,
+      v_new_budget, v_nido_a, v_carlos, v_cat_expense_a, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'A10', 'Carlos', 'A', 'active', 'INSERT/UPDATE goal',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.goals (
+          id, household_id, name, goal_type, target_amount, created_by
+        ) VALUES (
+          %L, %L, 'Vacation', 'purchase', 3000, %L
+        )
+      $sql$,
+      v_new_goal, v_nido_a, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'A11', 'Carlos', 'B', 'never member', 'SELECT household B',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.households WHERE id = %L', v_nido_b
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  INSERT INTO rls_ids (key, id) VALUES
+    ('new_income_a', v_new_income),
+    ('new_expense_a', v_new_expense),
+    ('new_budget_a', v_new_budget),
+    ('new_goal_a', v_new_goal);
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Scenario B — Luis never a member of Nido A
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_luis uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_cat_expense_a uuid;
+  v_expense_a uuid;
+  v_income_a uuid;
+  v_budget_a uuid;
+  v_goal_a uuid;
+  v_invite_a uuid;
+BEGIN
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+  SELECT id INTO v_cat_expense_a FROM rls_ids WHERE key = 'cat_expense_a';
+  SELECT id INTO v_expense_a FROM rls_ids WHERE key = 'expense_a';
+  SELECT id INTO v_income_a FROM rls_ids WHERE key = 'income_a';
+  SELECT id INTO v_budget_a FROM rls_ids WHERE key = 'budget_a';
+  SELECT id INTO v_goal_a FROM rls_ids WHERE key = 'goal_a';
+  SELECT id INTO v_invite_a FROM rls_ids WHERE key = 'invite_a';
+
+  PERFORM pg_temp.set_auth(v_luis);
+
+  PERFORM pg_temp.record_result(
+    'B01', 'Luis', 'A', 'never member', 'SELECT household',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.households WHERE id = %L', v_nido_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'B02', 'Luis', 'A', 'never member', 'SELECT expense',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expenses WHERE household_id = %L', v_nido_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'B03', 'Luis', 'A', 'never member', 'SELECT income',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.incomes WHERE household_id = %L', v_nido_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'B04', 'Luis', 'A', 'never member', 'SELECT budget',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.budgets WHERE household_id = %L', v_nido_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'B05', 'Luis', 'A', 'never member', 'SELECT goal',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.goals WHERE household_id = %L', v_nido_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'B06', 'Luis', 'A', 'never member', 'SELECT invitation token',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.household_invitations WHERE id = %L', v_invite_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'B07', 'Luis', 'A', 'never member', 'INSERT expense',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expenses (
+          household_id, category_id, amount, occurred_at, payer_id,
+          scope, distribution_method, created_by
+        ) VALUES (
+          %L, %L, 10, DATE '2026-01-22', %L, 'personal', 'fixed', %L
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_luis, v_luis
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'B08', 'Luis', 'A', 'never member', 'UPDATE expense',
+    'deny',
+    pg_temp.expect_allow(format(
+      'UPDATE public.expenses SET description = %L WHERE id = %L',
+      'luis should fail', v_expense_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'B09', 'Luis', 'B', 'active', 'SELECT household B',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.households WHERE id = %L', v_nido_b
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Scenarios E–H while Carlos is still active in A
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_cat_expense_a uuid;
+  v_cat_expense_b uuid;
+  v_cat_income_a uuid;
+  v_expense_a uuid;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+  SELECT id INTO v_cat_expense_a FROM rls_ids WHERE key = 'cat_expense_a';
+  SELECT id INTO v_cat_expense_b FROM rls_ids WHERE key = 'cat_expense_b';
+  SELECT id INTO v_cat_income_a FROM rls_ids WHERE key = 'cat_income_a';
+  SELECT id INTO v_expense_a FROM rls_ids WHERE key = 'expense_a';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+
+  PERFORM pg_temp.record_result(
+    'E01', 'Carlos', 'B', 'never member', 'cross-household INSERT expense',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expenses (
+          household_id, category_id, amount, occurred_at, payer_id,
+          scope, distribution_method, created_by
+        ) VALUES (
+          %L, %L, 10, DATE '2026-01-22', %L, 'personal', 'fixed', %L
+        )
+      $sql$,
+      v_nido_b, v_cat_expense_b, v_carlos, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'F01', 'Carlos', 'A', 'active', 'INSERT split for other-household member',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expense_splits (expense_id, member_id, amount, percentage)
+        VALUES (%L, %L, 1, 1)
+      $sql$,
+      v_expense_a, v_luis
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'G01', 'Carlos', 'A', 'active', 'INSERT income for other-household member',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.incomes (
+          household_id, member_id, category_id, amount, occurred_at, created_by
+        ) VALUES (
+          %L, %L, %L, 10, DATE '2026-01-22', %L
+        )
+      $sql$,
+      v_nido_a, v_luis, v_cat_income_a, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'H01', 'Carlos', 'A', 'active', 'INSERT expense with fake created_by',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expenses (
+          household_id, category_id, amount, occurred_at, payer_id,
+          scope, distribution_method, created_by
+        ) VALUES (
+          %L, %L, 10, DATE '2026-01-22', %L, 'personal', 'fixed', %L
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_carlos, v_diana
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'H02', 'Carlos', 'A', 'active', 'INSERT income with fake created_by',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.incomes (
+          household_id, member_id, category_id, amount, occurred_at, created_by
+        ) VALUES (
+          %L, %L, %L, 10, DATE '2026-01-22', %L
+        )
+      $sql$,
+      v_nido_a, v_carlos, v_cat_income_a, v_diana
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'H03', 'Carlos', 'A', 'active', 'INSERT goal with fake created_by',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.goals (
+          household_id, name, goal_type, target_amount, created_by
+        ) VALUES (
+          %L, 'Forged', 'saving', 100, %L
+        )
+      $sql$,
+      v_nido_a, v_diana
+    ))
+  );
+END;
+$$;
+
+-- Owner vs member restrictions while Carlos is still owner of A
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_nido_a uuid;
+  v_invite_a uuid;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_invite_a FROM rls_ids WHERE key = 'invite_a';
+
+  PERFORM pg_temp.set_auth(v_diana);
+
+  PERFORM pg_temp.record_result(
+    'O01', 'Diana', 'A', 'active member', 'SELECT invitation',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.household_invitations WHERE id = %L', v_invite_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'O02', 'Diana', 'A', 'active member', 'INSERT invitation',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.household_invitations (
+          household_id, invited_by, email, token, expires_at
+        ) VALUES (
+          %L, %L, 'other@example.test', 'nido-rls-invite-diana', now() + interval '1 day'
+        )
+      $sql$,
+      v_nido_a, v_diana
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'O03', 'Diana', 'A', 'active member', 'DELETE household',
+    'deny',
+    pg_temp.expect_allow(format(
+      'DELETE FROM public.households WHERE id = %L', v_nido_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'O04', 'Diana', 'A', 'active member', 'UPDATE membership role',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        UPDATE public.household_members
+        SET role = 'owner'
+        WHERE household_id = %L AND user_id = %L AND left_at IS NULL
+      $sql$,
+      v_nido_a, v_diana
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+
+  PERFORM pg_temp.record_result(
+    'O05', 'Carlos', 'A', 'active owner', 'SELECT invitation',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.household_invitations WHERE id = %L', v_invite_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'O06', 'Carlos', 'A', 'active owner', 'INSERT invitation',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.household_invitations (
+          household_id, invited_by, email, token, expires_at
+        ) VALUES (
+          %L, %L, 'second@example.test', 'nido-rls-invite-carlos', now() + interval '1 day'
+        )
+      $sql$,
+      v_nido_a, v_carlos
+    ))
+  );
+END;
+$$;
+
+-- Child-table inheritance and profile visibility
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_split_a uuid;
+  v_contrib_a uuid;
+  v_rec_split_a uuid;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_split_a FROM rls_ids WHERE key = 'split_a';
+  SELECT id INTO v_contrib_a FROM rls_ids WHERE key = 'contrib_a';
+  SELECT id INTO v_rec_split_a FROM rls_ids WHERE key = 'rec_split_a';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+
+  PERFORM pg_temp.record_result(
+    'P01', 'Carlos', 'A', 'active', 'SELECT expense_split',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expense_splits WHERE id = %L', v_split_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'P02', 'Carlos', 'A', 'active', 'SELECT goal_contribution',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.goal_contributions WHERE id = %L', v_contrib_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'P03', 'Carlos', 'A', 'active', 'SELECT Diana profile',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.profiles WHERE id = %L', v_diana
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'P04', 'Carlos', 'B', 'never member', 'SELECT Luis profile',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.profiles WHERE id = %L', v_luis
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+
+  PERFORM pg_temp.record_result(
+    'P05', 'Luis', 'A', 'never member', 'SELECT expense_split',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expense_splits WHERE id = %L', v_split_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'P06', 'Luis', 'A', 'never member', 'SELECT recurring_expense_split',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.recurring_expense_splits WHERE id = %L', v_rec_split_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'P07', 'Luis', 'A', 'never member', 'SELECT Carlos profile',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.profiles WHERE id = %L', v_carlos
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Scenario C — Carlos leaves Nido A
+-- Membership write is service_role / table-owner work, matching the
+-- chosen RLS model (clients cannot UPDATE household_members).
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_nido_a uuid;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+
+  PERFORM pg_temp.clear_auth();
+
+  UPDATE public.household_members
+  SET left_at = timestamptz '2026-08-01 00:00:00+00'
+  WHERE household_id = v_nido_a
+    AND user_id = v_carlos
+    AND left_at IS NULL;
+END;
+$$;
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_nido_a uuid;
+  v_cat_income_a uuid;
+  v_cat_expense_a uuid;
+  v_income_a uuid;
+  v_expense_a uuid;
+  v_budget_a uuid;
+  v_goal_a uuid;
+  v_contrib_a uuid;
+  v_rec_income_a uuid;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_cat_income_a FROM rls_ids WHERE key = 'cat_income_a';
+  SELECT id INTO v_cat_expense_a FROM rls_ids WHERE key = 'cat_expense_a';
+  SELECT id INTO v_income_a FROM rls_ids WHERE key = 'income_a';
+  SELECT id INTO v_expense_a FROM rls_ids WHERE key = 'expense_a';
+  SELECT id INTO v_budget_a FROM rls_ids WHERE key = 'budget_a';
+  SELECT id INTO v_goal_a FROM rls_ids WHERE key = 'goal_a';
+  SELECT id INTO v_contrib_a FROM rls_ids WHERE key = 'contrib_a';
+  SELECT id INTO v_rec_income_a FROM rls_ids WHERE key = 'rec_income_a';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+
+  PERFORM pg_temp.record_result(
+    'C01', 'Carlos', 'A', 'left', 'SELECT household',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.households WHERE id = %L', v_nido_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'C02', 'Carlos', 'A', 'left', 'SELECT historical expense',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expenses WHERE household_id = %L', v_nido_a
+    )) >= 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'C03', 'Carlos', 'A', 'left', 'SELECT historical income',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.incomes WHERE household_id = %L', v_nido_a
+    )) >= 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'C04', 'Carlos', 'A', 'left', 'SELECT historical budget',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.budgets WHERE household_id = %L', v_nido_a
+    )) >= 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'C05', 'Carlos', 'A', 'left', 'SELECT historical goal',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.goals WHERE household_id = %L', v_nido_a
+    )) >= 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'C06', 'Carlos', 'A', 'left', 'SELECT historical contribution',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.goal_contributions WHERE id = %L', v_contrib_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'C07', 'Carlos', 'A', 'left', 'INSERT expense',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expenses (
+          household_id, category_id, amount, occurred_at, payer_id,
+          scope, distribution_method, created_by
+        ) VALUES (
+          %L, %L, 10, DATE '2026-08-02', %L, 'personal', 'fixed', %L
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_carlos, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'C08', 'Carlos', 'A', 'left', 'INSERT income',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.incomes (
+          household_id, member_id, category_id, amount, occurred_at, created_by
+        ) VALUES (
+          %L, %L, %L, 10, DATE '2026-08-02', %L
+        )
+      $sql$,
+      v_nido_a, v_carlos, v_cat_income_a, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'C09', 'Carlos', 'A', 'left', 'UPDATE expense',
+    'deny',
+    pg_temp.expect_allow(format(
+      'UPDATE public.expenses SET description = %L WHERE id = %L',
+      'after leave', v_expense_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'C10', 'Carlos', 'A', 'left', 'UPDATE income',
+    'deny',
+    pg_temp.expect_allow(format(
+      'UPDATE public.incomes SET description = %L WHERE id = %L',
+      'after leave', v_income_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'C11', 'Carlos', 'A', 'left', 'UPDATE budget',
+    'deny',
+    pg_temp.expect_allow(format(
+      'UPDATE public.budgets SET amount = 1 WHERE id = %L', v_budget_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'C12', 'Carlos', 'A', 'left', 'UPDATE goal',
+    'deny',
+    pg_temp.expect_allow(format(
+      'UPDATE public.goals SET name = %L WHERE id = %L',
+      'after leave', v_goal_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'C13', 'Carlos', 'A', 'left', 'UPDATE recurring income',
+    'deny',
+    pg_temp.expect_allow(format(
+      'UPDATE public.recurring_incomes SET is_active = false WHERE id = %L',
+      v_rec_income_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'C14', 'Carlos', 'A', 'left', 'UPDATE membership',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        UPDATE public.household_members
+        SET role = 'owner'
+        WHERE household_id = %L AND user_id = %L
+      $sql$,
+      v_nido_a, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'C15', 'Carlos', 'A', 'left', 'INSERT membership',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.household_members (household_id, user_id, role)
+        VALUES (%L, %L, 'owner')
+      $sql$,
+      v_nido_a, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'C16', 'Carlos', 'A', 'left', 'UPDATE category',
+    'deny',
+    pg_temp.expect_allow(format(
+      'UPDATE public.categories SET archived_at = now() WHERE household_id = %L',
+      v_nido_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'C17', 'Carlos', 'A', 'left', 'SELECT Diana profile after leave',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.profiles WHERE id = %L', v_diana
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Scenario D — Carlos joins Nido B after leaving A
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_nido_b uuid;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+
+  PERFORM pg_temp.clear_auth();
+
+  INSERT INTO public.household_members (household_id, user_id, role, joined_at)
+  VALUES (v_nido_b, v_carlos, 'member', timestamptz '2026-08-02 00:00:00+00');
+END;
+$$;
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_luis uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_cat_income_a uuid;
+  v_cat_income_b uuid;
+  v_cat_expense_b uuid;
+  v_expense_a uuid;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+  SELECT id INTO v_cat_income_a FROM rls_ids WHERE key = 'cat_income_a';
+  SELECT id INTO v_cat_income_b FROM rls_ids WHERE key = 'cat_income_b';
+  SELECT id INTO v_cat_expense_b FROM rls_ids WHERE key = 'cat_expense_b';
+  SELECT id INTO v_expense_a FROM rls_ids WHERE key = 'expense_a';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+
+  PERFORM pg_temp.record_result(
+    'D01', 'Carlos', 'B', 'active', 'SELECT household B',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.households WHERE id = %L', v_nido_b
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'D02', 'Carlos', 'B', 'active', 'INSERT expense in B',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expenses (
+          household_id, category_id, amount, occurred_at, payer_id,
+          scope, distribution_method, created_by
+        ) VALUES (
+          %L, %L, 15, DATE '2026-08-03', %L, 'personal', 'fixed', %L
+        )
+      $sql$,
+      v_nido_b, v_cat_expense_b, v_carlos, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'D03', 'Carlos', 'B', 'active', 'INSERT income in B',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.incomes (
+          household_id, member_id, category_id, amount, occurred_at, created_by
+        ) VALUES (
+          %L, %L, %L, 20, DATE '2026-08-03', %L
+        )
+      $sql$,
+      v_nido_b, v_carlos, v_cat_income_b, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'D04', 'Carlos', 'A', 'left', 'SELECT historical A after joining B',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expenses WHERE household_id = %L', v_nido_a
+    )) >= 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'D05', 'Carlos', 'A', 'left', 'INSERT expense in A after joining B',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expenses (
+          household_id, category_id, amount, occurred_at, payer_id,
+          scope, distribution_method, created_by
+        ) VALUES (
+          %L, (
+            SELECT id FROM public.categories
+            WHERE household_id = %L AND type = 'expense' LIMIT 1
+          ), 10, DATE '2026-08-03', %L, 'personal', 'fixed', %L
+        )
+      $sql$,
+      v_nido_a, v_nido_a, v_carlos, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'D06', 'Carlos', 'A', 'left', 'UPDATE historical A expense after joining B',
+    'deny',
+    pg_temp.expect_allow(format(
+      'UPDATE public.expenses SET description = %L WHERE id = %L',
+      'move to b', v_expense_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'D07', 'Carlos', 'B', 'active', 'SELECT Luis profile after joining B',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.profiles WHERE id = %L', v_luis
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+END;
+$$;
+
+-- Household create + first-owner bootstrap
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_new_nido uuid := 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+
+  -- Carlos is already an active member of B, so a second active
+  -- membership must fail even if the household INSERT succeeds.
+  PERFORM pg_temp.record_result(
+    'M01', 'Carlos', 'new', 'active elsewhere', 'bootstrap second active owner',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.households (id, name, created_by)
+        VALUES (%L, 'Nido C', %L);
+        INSERT INTO public.household_members (household_id, user_id, role)
+        VALUES (%L, %L, 'owner');
+      $sql$,
+      v_new_nido, v_carlos, v_new_nido, v_carlos
+    ))
+  );
+END;
+$$;
+
+-- Recursion smoke test: helpers used by policies must not throw
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_ok boolean := false;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+
+  BEGIN
+    PERFORM public.is_household_member(v_nido_a);
+    PERFORM public.is_active_household_member(v_nido_a);
+    PERFORM public.is_household_owner(v_nido_a);
+    PERFORM public.is_household_member(v_nido_b);
+    PERFORM public.is_active_household_member(v_nido_b);
+    PERFORM (
+      SELECT count(*) FROM public.household_members WHERE household_id = v_nido_a
+    );
+    PERFORM (
+      SELECT count(*) FROM public.household_members WHERE household_id = v_nido_b
+    );
+    v_ok := true;
+  EXCEPTION
+    WHEN OTHERS THEN
+      v_ok := false;
+  END;
+
+  PERFORM pg_temp.record_result(
+    'R01', 'Carlos', 'A+B', 'mixed', 'membership helper recursion smoke',
+    'allow',
+    CASE WHEN v_ok THEN 'allow' ELSE 'deny' END
+  );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Report
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_failed integer;
+  v_total integer;
+  v_row record;
+  v_details text := '';
+BEGIN
+  SELECT count(*) FILTER (WHERE NOT passed), count(*)
+  INTO v_failed, v_total
+  FROM rls_test_results;
+
+  RAISE NOTICE 'RLS security matrix: % passed, % failed, % total',
+    v_total - v_failed, v_failed, v_total;
+
+  FOR v_row IN
+    SELECT * FROM rls_test_results ORDER BY test_id
+  LOOP
+    RAISE NOTICE '% | % | % | % | % | expected=% actual=% | %',
+      v_row.test_id,
+      v_row.actor,
+      v_row.household,
+      v_row.membership,
+      v_row.operation,
+      v_row.expected,
+      v_row.actual,
+      CASE WHEN v_row.passed THEN 'PASS' ELSE 'FAIL' END;
+
+    IF NOT v_row.passed THEN
+      v_details := v_details || format(
+        E'\n  %s %s/%s %s expected %s got %s',
+        v_row.test_id,
+        v_row.actor,
+        v_row.household,
+        v_row.operation,
+        v_row.expected,
+        v_row.actual
+      );
+    END IF;
+  END LOOP;
+
+  IF v_failed > 0 THEN
+    RAISE EXCEPTION 'RLS security matrix failed (% tests)%', v_failed, v_details;
+  END IF;
+END;
+$$;
+
+ROLLBACK;

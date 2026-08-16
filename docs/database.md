@@ -4,7 +4,7 @@ This document describes the long-term domain model for Nido. It is the source of
 
 The current frontend is a disposable visual prototype. It is not authoritative for this model. The UI will be adapted to this schema later.
 
-This migration establishes schema only. It does not connect a Supabase project, enable RLS, implement authentication, or expose API routes.
+The foundation migration establishes schema only. Row Level Security is a separate migration. See [docs/security.md](./security.md). This phase does not connect a Supabase project, implement authentication UI, or expose API routes.
 
 ---
 
@@ -856,43 +856,29 @@ Integrity triggers still require the **subject** of the row (`member_id`, `payer
 
 ---
 
-## 17. RLS considerations
+## 17. RLS
 
-RLS is **not** implemented in this migration. The next phase must enforce at least:
+RLS is implemented in `supabase/migrations/20260817000000_nido_rls.sql`. The authorization model, helpers, policies, and test matrix are documented in [docs/security.md](./security.md).
 
-**Read**
+Summary:
 
-- A user may read the Nido they currently belong to (`household_members.left_at IS NULL`).
-- A user may also read historical records of Nidos they **used to** belong to (any `household_members` row for that user, including `left_at IS NOT NULL`).
-- A user must not read another household’s financial records, categories, budgets, goals, or invitations.
-- Historical membership must be enough to read that Nido’s past incomes, expenses, splits, contributions, and related configuration. Do not require `left_at IS NULL` on SELECT of historical transactions.
+- **Read** uses historical membership (any `household_members` row for `auth.uid()`).
+- **Write** requires active membership (`left_at IS NULL`).
+- `created_by` on INSERT must equal `auth.uid()`.
+- Child tables inherit household scope through parent-lookup helpers. `household_id` is not denormalized onto `expense_splits`, `recurring_expense_splits`, or `goal_contributions`.
+- Membership leave/join/accept/transfer and invitation acceptance remain application/service operations (`service_role`). Clients cannot arbitrarily update `household_members`.
 
-**Write**
-
-- A user may create or edit financial/planning rows only in their **active** Nido.
-- A user must not create transactions, splits, budgets, goals, or contributions in a Nido where they are not an active member.
-- `created_by` on INSERT should be `auth.uid()` and that user must be an active member of the target household.
-- An unrelated profile must not write into another household.
-- Leaving (`left_at`) must not cascade-delete financial rows; RLS should not hide the need to keep those rows.
-
-**Membership**
-
-- The one-active-Nido unique index remains the database backstop. RLS / application still must prevent accepting an invite that would create a second active membership (fail before insert, or require leaving first).
-- Owner-only actions (invite, role change, transfer, archive household) belong in RLS / application, not in this foundation.
-
-**Child tables without `household_id`**
-
-`expense_splits`, `recurring_expense_splits`, and `goal_contributions` inherit household scope through their parent. RLS policies will join to `expenses` / `recurring_expenses` / `goals`. Do not denormalize `household_id` onto those tables unless a later RLS implementation proves the join is unworkable.
+The one-active-Nido unique index remains the database backstop.
 
 ---
 
 ## 18. Decisions intentionally deferred
 
-These remain out of scope for the foundation schema:
+These remain out of scope for the current schema and RLS migrations:
 
-1. **Row Level Security** — no policies, and RLS is not enabled. Requirements are listed in [section 17](#17-rls-considerations).
-2. **Authentication and Supabase client setup.**
-3. **API routes and frontend integration.**
+1. **Authentication and Supabase client setup.** RLS policies exist; the app does not yet call Supabase as an authenticated user.
+2. **API routes and frontend integration.**
+3. **Invitation acceptance, leave, join, and owner transfer** as service-layer operations. RLS denies arbitrary client writes to `household_members`.
 4. **Occurrence queue** — `next_occurrence` is sufficient.
 5. **Advanced recurrence** — extra frequencies, timezones, month-end rules, skipped-date history.
 6. **Split-sum triggers** — enforce in application transactions first.
@@ -900,12 +886,12 @@ These remain out of scope for the foundation schema:
 8. **Refunds or negative amounts** — money is non-negative; reversals can be modeled later.
 9. **Personal-budget spend attribution** — payer vs participant.
 10. **Automatic owner membership** on household insert.
-11. **Invitation acceptance workflow**, including the one-active-Nido conflict when the invitee already belongs elsewhere.
+11. **Invitation acceptance workflow details**, including expiry checks and the one-active-Nido conflict when the invitee already belongs elsewhere. RLS does not allow the invitee to UPDATE the invitation row.
 12. **Owner-count trigger** — at least one owner is an application rule.
 13. **Default category catalogs** and seed data.
 14. **Audit log** of edits.
 15. **Hard-delete prevention triggers** — application must use `deleted_at` / `is_active` / `archived_at` / goal `status`.
-16. **`created_by` must be an active member** — RLS / application.
+16. **`created_by` must be an active member** — enforced by RLS on INSERT (`created_by = auth.uid()` plus active membership). Application should still set the column to the acting user.
 17. **Using archived categories on new transactions** — allowed at the database level.
 18. **Goal contribution soft delete** and goal-to-category linkage.
 19. **Multi-currency.**
@@ -917,7 +903,8 @@ These remain out of scope for the foundation schema:
 
 ## Migration notes
 
-- File: `supabase/migrations/20260816000000_nido_foundation_schema.sql`
+- Schema: `supabase/migrations/20260816000000_nido_foundation_schema.sql`
+- RLS: `supabase/migrations/20260817000000_nido_rls.sql`
+- Security model: [docs/security.md](./security.md)
 - This directory is schema preparation only. No Supabase project is required to keep the app building.
 - Do not put seed data in the foundation migration. If seed SQL is added later, keep it in a clearly labeled separate file.
-- RLS will be a separate, reviewed step after this schema.
