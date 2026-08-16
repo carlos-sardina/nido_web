@@ -1,36 +1,13 @@
 /**
- * Temporary UI state so onboarding can resume after an email-confirmation
- * or password-recovery redirect.
+ * Temporary UI state so a `/join/<token>` invitation can resume after
+ * email confirmation or login.
  *
  * This is not session storage for auth tokens. Supabase owns the auth
- * session in cookies. These keys only remember the create/join choice
- * and, when present, the invitation token so /join/<token> can continue
- * after the user confirms their email.
+ * session in cookies. Authentication is independent from Nido creation;
+ * this key only remembers the invitation token so `/join/<token>` can
+ * continue after the user confirms their email.
  */
-const PENDING_FLOW_KEY = "nido.pendingOnboardingFlow";
 const PENDING_INVITE_KEY = "nido.pendingInvitationToken";
-
-export type PendingOnboardingFlow = "create" | "join";
-
-export function savePendingOnboardingFlow(flow: PendingOnboardingFlow) {
-  sessionStorage.setItem(PENDING_FLOW_KEY, flow);
-}
-
-export function peekPendingOnboardingFlow(): PendingOnboardingFlow | null {
-  const value = sessionStorage.getItem(PENDING_FLOW_KEY);
-  if (value === "create" || value === "join") return value;
-  return null;
-}
-
-export function takePendingOnboardingFlow(): PendingOnboardingFlow | null {
-  const value = peekPendingOnboardingFlow();
-  sessionStorage.removeItem(PENDING_FLOW_KEY);
-  return value;
-}
-
-export function clearPendingOnboardingFlow() {
-  sessionStorage.removeItem(PENDING_FLOW_KEY);
-}
 
 export function savePendingInvitationToken(token: string) {
   sessionStorage.setItem(PENDING_INVITE_KEY, token);

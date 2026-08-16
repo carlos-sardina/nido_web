@@ -8,11 +8,8 @@ import {
 } from "./errors.ts";
 import {
   clearPendingInvitationToken,
-  clearPendingOnboardingFlow,
   peekPendingInvitationToken,
-  peekPendingOnboardingFlow,
   savePendingInvitationToken,
-  savePendingOnboardingFlow,
 } from "./pending-flow.ts";
 import { resolveAppEntry } from "./destination.ts";
 
@@ -135,7 +132,7 @@ describe("interpretSignupResponse", () => {
   });
 });
 
-describe("pending create/join survives a rate-limited signup", () => {
+describe("pending invitation survives a rate-limited signup", () => {
   const memory = new Map<string, string>();
 
   function installSessionStorage() {
@@ -165,33 +162,27 @@ describe("pending create/join survives a rate-limited signup", () => {
     });
   }
 
-  it("keeps pending create after a rate-limit error", () => {
+  it("does not require a pending create/join choice after a rate-limit error", () => {
     installSessionStorage();
     memory.clear();
-    savePendingOnboardingFlow("create");
 
     const outcome = interpretSignupResponse({
       error: authError({ message: "email rate limit exceeded", status: 429 }),
     });
     assert.equal(outcome.kind, "error");
-    assert.equal(peekPendingOnboardingFlow(), "create");
     assert.deepEqual(
       resolveAppEntry({
         authenticated: false,
         membershipStatus: "unauthenticated",
-        pendingFlow: peekPendingOnboardingFlow(),
         pendingInviteToken: null,
       }),
       { kind: "landing" },
     );
-
-    clearPendingOnboardingFlow();
   });
 
   it("keeps pending join token after a rate-limit error", () => {
     installSessionStorage();
     memory.clear();
-    savePendingOnboardingFlow("join");
     savePendingInvitationToken("invite-token-value-1");
 
     const outcome = interpretSignupResponse({
@@ -202,19 +193,16 @@ describe("pending create/join survives a rate-limited signup", () => {
       }),
     });
     assert.equal(outcome.kind, "error");
-    assert.equal(peekPendingOnboardingFlow(), "join");
     assert.equal(peekPendingInvitationToken(), "invite-token-value-1");
     assert.deepEqual(
       resolveAppEntry({
         authenticated: true,
         membershipStatus: "no_nido",
-        pendingFlow: peekPendingOnboardingFlow(),
         pendingInviteToken: peekPendingInvitationToken(),
       }),
       { kind: "join_invite", token: "invite-token-value-1" },
     );
 
-    clearPendingOnboardingFlow();
     clearPendingInvitationToken();
   });
 });

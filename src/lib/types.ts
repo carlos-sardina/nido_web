@@ -1,7 +1,7 @@
 import type { EXP_SUGG } from "./constants";
 
 export type AppMode = "onboarding" | "app";
-export type OStep   = "welcome"|"auth"|"join"|"c-type"|"c-name"|"c-invite"|
+export type OStep   = "welcome"|"auth"|"select"|"join"|"c-type"|"c-name"|"c-invite"|
                "p-name"|"p-income"|"p-savings"|"p-expenses"|"p-contrib"|"nest-ready";
 export type Tab     = "home"|"budget"|"goals"|"household"|"activity";
 export type Model   = "equal"|"proportional"|"capacity";

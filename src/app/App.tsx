@@ -7,11 +7,8 @@ import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
 import { resolveAppEntry } from "@/lib/auth/destination";
 import {
   clearPendingInvitationToken,
-  clearPendingOnboardingFlow,
   peekPendingInvitationToken,
-  peekPendingOnboardingFlow,
   takePendingInvitationToken,
-  takePendingOnboardingFlow,
 } from "@/lib/auth/pending-flow";
 import { signOut } from "@/lib/auth/session";
 import { useAuth } from "@/lib/auth/use-auth";
@@ -30,15 +27,10 @@ function BootScreen({ message = "Cargando…" }: { message?: string }) {
   );
 }
 
-function readPending() {
-  if (typeof window === "undefined") {
-    return { flow: null, token: null };
-  }
+function readPendingInviteToken() {
+  if (typeof window === "undefined") return null;
   const token = peekPendingInvitationToken();
-  return {
-    flow: peekPendingOnboardingFlow(),
-    token: token && isInvitationTokenFormat(token) ? token : null,
-  };
+  return token && isInvitationTokenFormat(token) ? token : null;
 }
 
 export default function App() {
@@ -46,12 +38,10 @@ export default function App() {
   const [signingOut, setSigningOut] = useState(false);
   const { user, isLoading: authLoading } = useAuth();
   const nido = useMyNido(user, authLoading);
-  const pending = readPending();
   const entry = resolveAppEntry({
     authenticated: Boolean(user),
     membershipStatus: nido.status,
-    pendingFlow: pending.flow,
-    pendingInviteToken: pending.token,
+    pendingInviteToken: readPendingInviteToken(),
   });
 
   useEffect(() => {
@@ -59,19 +49,12 @@ export default function App() {
 
     if (entry.kind === "join_invite") {
       takePendingInvitationToken();
-      takePendingOnboardingFlow();
       router.replace(`/join/${encodeURIComponent(entry.token)}`);
       return;
     }
 
     if (entry.kind === "main_app") {
       clearPendingInvitationToken();
-      clearPendingOnboardingFlow();
-      return;
-    }
-
-    if (entry.kind === "create_nido" || entry.kind === "join_code") {
-      takePendingOnboardingFlow();
     }
   }, [authLoading, nido.isLoading, user, entry, router]);
 
@@ -83,7 +66,6 @@ export default function App() {
         console.error("Sign out failed", error);
         return;
       }
-      clearPendingOnboardingFlow();
       clearPendingInvitationToken();
     } catch (error) {
       console.error("Sign out failed", error);
@@ -137,10 +119,9 @@ export default function App() {
 
   return (
     <OnboardingFlow
+      key={user?.id ?? "guest"}
       user={user}
-      entry={
-        entry.kind === "join_code" ? "join" : entry.kind === "create_nido" ? "create" : "welcome"
-      }
+      entry={entry.kind === "nido_selection" ? "select" : "welcome"}
       onComplete={() => {
         void nido.refresh();
       }}

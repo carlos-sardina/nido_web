@@ -6,9 +6,9 @@ import {
   Check, ChevronLeft, Link, QrCode, Sparkles,
 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
-import { AuthPanel } from "@/components/auth/AuthPanel";
+import { AuthPanel, type AuthView } from "@/components/auth/AuthPanel";
+import { resolveNidoChoice } from "@/lib/auth/destination";
 import { identityFromUser } from "@/lib/auth/identity";
-import { savePendingOnboardingFlow, takePendingOnboardingFlow } from "@/lib/auth/pending-flow";
 import { createHousehold } from "@/lib/nido/household";
 import { createInvitation } from "@/lib/nido/invitations";
 import { updateMyDisplayName } from "@/lib/nido/profile";
@@ -21,6 +21,7 @@ import { NidoHouse } from "@/components/shared/NidoHouse";
 import { ExpenseEntryModal } from "@/components/onboarding/ExpenseEntryModal";
 import { OBtn2 } from "@/components/onboarding/OBtn2";
 import { OProgress2 } from "@/components/onboarding/OProgress2";
+import { NidoSelectionScreen } from "@/components/onboarding/NidoSelectionScreen";
 
 export function OnboardingFlow({
   onComplete,
@@ -29,14 +30,13 @@ export function OnboardingFlow({
 }: {
   onComplete: () => void;
   user: User | null;
-  entry?: "welcome" | "create" | "join";
+  entry?: "welcome" | "select";
 }) {
   const router = useRouter();
-  const [step, setStep] = useState<OStep>(
-    entry === "create" ? "c-name" : entry === "join" ? "join" : "welcome",
-  );
+  const [step, setStep] = useState<OStep>(entry === "select" ? "select" : "welcome");
+  const [authView, setAuthView] = useState<Exclude<AuthView, "confirm-email">>("signup");
   const [data, setData] = useState<OData>({
-    flow: entry === "join" ? "join" : entry === "create" ? "create" : null,
+    flow: null,
     nestType: "", nestEmoji: "🏠", nestName: "",
     userName: "", salary: "", freelance: "", savings: "",
     savingsType: "personal", savingsShared: "",
@@ -54,30 +54,18 @@ export function OnboardingFlow({
   const identity = identityFromUser(user);
   const set = (k: keyof OData, v: OData[keyof OData]) => setData(p => ({ ...p, [k]: v }));
 
-  const applyAuthenticatedIdentity = (flow: "create" | "join") => {
+  const applyNidoChoice = (choice: "create" | "join") => {
+    const dest = resolveNidoChoice(choice);
     setData(p => ({
       ...p,
-      flow,
+      flow: choice,
       userName: p.userName || identity?.displayName || "",
     }));
-    setStep(flow === "join" ? "join" : "c-name");
+    setStep(dest.kind === "join_code" ? "join" : "c-name");
   };
 
-  const startCreate = () => {
-    if (user) {
-      applyAuthenticatedIdentity("create");
-      return;
-    }
-    set("flow", "create");
-    setStep("auth");
-  };
-
-  const startJoin = () => {
-    if (user) {
-      applyAuthenticatedIdentity("join");
-      return;
-    }
-    set("flow", "join");
+  const openAuth = (view: Exclude<AuthView, "confirm-email">) => {
+    setAuthView(view);
     setStep("auth");
   };
 
@@ -91,17 +79,16 @@ export function OnboardingFlow({
     if (!user) {
       if (hadAuthError) {
         setAuthError("No pudimos completar la autenticación. Inténtalo de nuevo.");
+        setAuthView("login");
         setStep("auth");
+        return;
       }
+      setStep((current) => (current === "welcome" || current === "auth" ? current : "welcome"));
       return;
     }
 
-    if (step === "welcome" || step === "auth") {
-      const pending = takePendingOnboardingFlow();
-      const flow = pending ?? (data.flow === "join" ? "join" : "create");
-      applyAuthenticatedIdentity(flow);
-    }
-    // Resume after email confirmation or skip landing/auth when a session exists.
+    setStep((current) => (current === "welcome" || current === "auth" ? "select" : current));
+    // After login/confirmation, never infer create vs join — only leave landing/auth.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -181,12 +168,13 @@ export function OnboardingFlow({
                 <div className="text-center mt-2 mb-8">
                   <h1 className="text-4xl font-bold mb-2" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Nido</h1>
                   <p className="text-sm leading-relaxed" style={{ color: P.muted }}>El lugar donde las personas construyen<br />su patrimonio juntas.</p>
+                  <p className="text-xs leading-relaxed mt-3" style={{ color: P.muted }}>Una forma sencilla de organizar sus ingresos, gastos y metas en un mismo lugar.</p>
                 </div>
               </div>
               <div className="space-y-3">
-                <OBtn2 label="🪺 Crear un nuevo Nido" onClick={startCreate} />
-                <OBtn2 label="👋 Unirme a un Nido"   onClick={startJoin} variant="secondary" />
-                <p className="text-center text-[11px] leading-relaxed pt-1" style={{ color: P.muted }}>Puedes pertenecer a un solo Nido.<br />Ideal para una persona, parejas, roommates, familias y más.</p>
+                <OBtn2 label="Crear cuenta" onClick={() => openAuth("signup")} />
+                <OBtn2 label="Iniciar sesión" onClick={() => openAuth("login")} variant="secondary" />
+                <p className="text-center text-[11px] leading-relaxed pt-1" style={{ color: P.muted }}>Ideal para parejas, roommates, familias y más.</p>
               </div>
             </div>
           )}
@@ -197,11 +185,8 @@ export function OnboardingFlow({
                 <ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span>
               </button>
               <div className="flex-1 flex flex-col justify-center">
-                {/* Brand */}
                 <div className="text-center mb-8">
-                  <p className="text-xs font-semibold mb-1" style={{ color: P.muted }}>
-                    {data.flow === "create" ? "Crear un nuevo Nido" : "Unirme a un Nido"}
-                  </p>
+                  <p className="text-xs font-semibold mb-1" style={{ color: P.muted }}>Nido</p>
                   <h2 className="text-3xl font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Bienvenido</h2>
                   <p className="text-xs mt-1.5 mb-6" style={{ color: P.muted }}>Crea una cuenta o inicia sesión para continuar</p>
                 </div>
@@ -212,17 +197,11 @@ export function OnboardingFlow({
                   </p>
                 )}
                 <AuthPanel
-                  onAttempt={() => {
-                    savePendingOnboardingFlow(data.flow === "join" ? "join" : "create");
-                  }}
-                  onAuthenticated={() => applyAuthenticatedIdentity(data.flow === "join" ? "join" : "create")}
-                  onEmailConfirmationPending={() => {
-                    savePendingOnboardingFlow(data.flow === "join" ? "join" : "create");
-                  }}
+                  initialView={authView}
+                  onAuthenticated={() => undefined}
                 />
               </div>
 
-              {/* Legal */}
               <p className="text-center text-[10px] pb-2 leading-relaxed" style={{ color: P.muted }}>
                 Al continuar aceptas los{" "}
                 <span style={{ color: P.brnDk }}>Términos de uso</span> y la{" "}
@@ -231,11 +210,16 @@ export function OnboardingFlow({
             </div>
           )}
 
+          {step === "select" && (
+            <NidoSelectionScreen
+              onCreate={() => applyNidoChoice("create")}
+              onJoin={() => applyNidoChoice("join")}
+            />
+          )}
+
           {step === "join" && (
             <div>
-              {!user && (
-                <button onClick={() => setStep("auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
-              )}
+              <button onClick={() => setStep(user ? "select" : "auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
               <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Únete a un Nido</h2>
               <p className="text-xs mb-6" style={{ color: P.muted }}>Pega el enlace o el token de invitación. Solo puedes pertenecer a un Nido.</p>
               <label className="text-xs font-semibold mb-2 block" style={{ color: P.muted }}>Enlace o token de invitación</label>
@@ -255,7 +239,7 @@ export function OnboardingFlow({
 
           {step === "c-type" && (
             <div>
-              <button onClick={() => setStep("welcome")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              <button onClick={() => setStep(user ? "select" : "welcome")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
               <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿Qué tipo de Nido es?</h2>
               <p className="text-xs mb-6" style={{ color: P.muted }}>Esto nos ayuda a configurarlo mejor.</p>
               <div className="grid grid-cols-4 gap-2 mb-6">
@@ -274,9 +258,7 @@ export function OnboardingFlow({
 
           {step === "c-name" && (
             <div>
-              {!user && (
-                <button onClick={() => setStep("auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
-              )}
+              <button onClick={() => setStep(user ? "select" : "auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
               <OProgress2 step={1} total={6} />
               <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Dale nombre a tu Nido</h2>
               <p className="text-xs mb-6" style={{ color: P.muted }}>Algo que lo haga sentir especial.</p>

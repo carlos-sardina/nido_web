@@ -1,24 +1,28 @@
 import type { MembershipStatus } from "../nido/types";
-import type { PendingOnboardingFlow } from "./pending-flow";
 
 /**
  * Post-auth screen decision. Membership status comes from useMyNido /
  * classifyMemberships — this helper does not query the database.
  *
  * `/` is the application shell. This function decides what that shell shows.
+ * Authentication and Nido selection are separate: a session never implies
+ * "create a Nido", and registration never skips the selection screen.
  * Pass `pendingInviteToken` only after invitation-token format validation.
  */
 export type AppEntry =
   | { kind: "landing" }
   | { kind: "main_app" }
+  | { kind: "nido_selection" }
+  | { kind: "join_invite"; token: string };
+
+export type NidoChoice = "create" | "join";
+export type NidoOnboardingStart =
   | { kind: "create_nido" }
-  | { kind: "join_invite"; token: string }
   | { kind: "join_code" };
 
 export function resolveAppEntry(input: {
   authenticated: boolean;
   membershipStatus: MembershipStatus | "unauthenticated" | "loading";
-  pendingFlow: PendingOnboardingFlow | null;
   pendingInviteToken: string | null;
 }): AppEntry {
   if (!input.authenticated || input.membershipStatus === "unauthenticated") {
@@ -38,9 +42,13 @@ export function resolveAppEntry(input: {
     return { kind: "join_invite", token };
   }
 
-  if (input.pendingFlow === "join") {
-    return { kind: "join_code" };
-  }
+  return { kind: "nido_selection" };
+}
 
-  return { kind: "create_nido" };
+/**
+ * Explicit create/join choice on the authenticated Nido selection screen.
+ * Not inferred from registration or login.
+ */
+export function resolveNidoChoice(choice: NidoChoice): NidoOnboardingStart {
+  return choice === "join" ? { kind: "join_code" } : { kind: "create_nido" };
 }

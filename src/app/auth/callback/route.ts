@@ -26,7 +26,7 @@ function redirectWithNoStore(url: string) {
  * Uses the public anon key — not the service role. Tokens stay in cookies,
  * never in the URL. A safe explicit `next` path is preserved (join or
  * password update). This route does not inspect household membership; the
- * app shell decides landing vs create-Nido vs MainApp.
+ * app shell decides landing vs Nido selection vs MainApp.
  */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);

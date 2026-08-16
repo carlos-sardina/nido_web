@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthPanel } from "@/components/auth/AuthPanel";
 import { identityFromUser } from "@/lib/auth/identity";
-import { savePendingInvitationToken, savePendingOnboardingFlow } from "@/lib/auth/pending-flow";
+import { savePendingInvitationToken } from "@/lib/auth/pending-flow";
 import { useAuth } from "@/lib/auth/use-auth";
 import { acceptInvitation, lookupInvitation } from "@/lib/nido/invitations";
 import { getMyMembership } from "@/lib/nido/membership";
@@ -150,12 +150,10 @@ export function JoinInvitationScreen({ token }: { token: string }) {
                 nextPath={joinPath}
                 onAttempt={() => {
                   savePendingInvitationToken(token);
-                  savePendingOnboardingFlow("join");
                 }}
                 onAuthenticated={() => undefined}
                 onEmailConfirmationPending={() => {
                   savePendingInvitationToken(token);
-                  savePendingOnboardingFlow("join");
                 }}
               />
             )}
