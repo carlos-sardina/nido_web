@@ -10,7 +10,10 @@
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
--- Run:
+-- Run against the linked project:
+--   npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
+--
+-- or with psql:
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_security_matrix.sql
 --
 -- or, after `supabase start`:
@@ -58,6 +61,11 @@ CREATE TEMP TABLE rls_ids (
   key text PRIMARY KEY,
   id uuid NOT NULL
 );
+
+-- Hosted Supabase SET LOCAL ROLE authenticated cannot write temp tables
+-- created by the login role unless those privileges are granted.
+GRANT ALL ON TABLE rls_test_results TO authenticated;
+GRANT ALL ON TABLE rls_ids TO authenticated;
 
 -- -----------------------------------------------------------------------------
 -- Helpers
@@ -162,8 +170,16 @@ CREATE OR REPLACE FUNCTION pg_temp.expect_allow(p_sql text)
 RETURNS text
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  v_rowcount integer;
 BEGIN
   EXECUTE p_sql;
+  GET DIAGNOSTICS v_rowcount = ROW_COUNT;
+  -- RLS USING filters UPDATE/DELETE to zero rows without raising.
+  -- Treat that as deny so silent filtering is not recorded as allow.
+  IF v_rowcount = 0 AND p_sql ~* '^\s*(UPDATE|DELETE)' THEN
+    RETURN 'deny';
+  END IF;
   RETURN 'allow';
 EXCEPTION
   WHEN OTHERS THEN

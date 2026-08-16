@@ -22,11 +22,11 @@ The UI must never imply that multiple active Nidos are supported.
 
 | State | Meaning | App destination |
 | --- | --- | --- |
-| Unauthenticated | No session | Landing / Google auth |
+| Unauthenticated | No session | Landing / email+password auth |
 | Authenticated + no memberships | Never belonged to a Nido | Create / join onboarding |
 | Authenticated + historical only | `left_at` is set on every row | Create / join onboarding |
 | Authenticated + active | `left_at IS NULL` | Main app |
-| Authenticated + invitation pending | `/join/<token>` after OAuth or a pasted link | Invitation acceptance |
+| Authenticated + invitation pending | `/join/<token>` after email confirmation or a pasted link | Invitation acceptance |
 
 Historical membership is **not** current membership. A person who has left may create or join another Nido.
 
@@ -167,9 +167,10 @@ UI components call this layer. They do not query Supabase tables directly.
 | --- | --- |
 | `/` | Auth + membership gate: landing, onboarding, or main app |
 | `/join/<token>` | Invitation preview and accept |
-| `/auth/callback` | Existing OAuth callback. `?next=/join/<token>` returns the user to the invitation |
+| `/auth/callback` | Email confirmation and password-recovery callback. `?next=` is a safe same-origin path |
+| `/auth/update-password` | Set a new password after the recovery email |
 
-Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and continue with Google. The token is stored in `sessionStorage` and passed as `next` so OAuth can resume acceptance.
+Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and sign in or create an account with email and password. The token is stored in `sessionStorage` if email confirmation is required, so acceptance can resume after the user confirms.
 
 ---
 

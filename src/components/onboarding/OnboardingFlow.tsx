@@ -6,9 +6,9 @@ import {
   Check, ChevronLeft, Link, QrCode, Sparkles,
 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
+import { AuthPanel } from "@/components/auth/AuthPanel";
 import { identityFromUser } from "@/lib/auth/identity";
 import { savePendingOnboardingFlow, takePendingOnboardingFlow } from "@/lib/auth/pending-flow";
-import { signInWithGoogle } from "@/lib/auth/session";
 import { createHousehold } from "@/lib/nido/household";
 import { createInvitation } from "@/lib/nido/invitations";
 import { updateMyDisplayName } from "@/lib/nido/profile";
@@ -34,7 +34,6 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
   const [joinCode, setJoinCode] = useState("");
   const [expEditIdx, setExpEditIdx] = useState<number | null>(null);
   const [showQrInvite, setShowQrInvite] = useState(false);
-  const [oauthStarting, setOauthStarting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [nidoError, setNidoError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -71,24 +70,6 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
     setStep("auth");
   };
 
-  const handleGoogle = async () => {
-    setAuthError(null);
-    setOauthStarting(true);
-    try {
-      savePendingOnboardingFlow(data.flow === "join" ? "join" : "create");
-      const { error } = await signInWithGoogle();
-      if (error) {
-        console.error("Google OAuth failed", error);
-        setAuthError("No pudimos iniciar sesión con Google. Inténtalo de nuevo.");
-        setOauthStarting(false);
-      }
-    } catch (error) {
-      console.error("Google OAuth failed", error);
-      setAuthError("No pudimos iniciar sesión con Google. Inténtalo de nuevo.");
-      setOauthStarting(false);
-    }
-  };
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const hadAuthError = params.get("auth") === "error";
@@ -98,7 +79,7 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
 
     if (!user) {
       if (hadAuthError) {
-        setAuthError("No pudimos iniciar sesión con Google. Inténtalo de nuevo.");
+        setAuthError("No pudimos completar la autenticación. Inténtalo de nuevo.");
         setStep("auth");
       }
       return;
@@ -113,7 +94,7 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
     if (step === "auth") {
       applyAuthenticatedIdentity(data.flow === "join" ? "join" : "create");
     }
-    // Resume after OAuth or skip Google when a session already exists.
+    // Resume after email confirmation or skip auth when a session already exists.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -215,30 +196,20 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
                     {data.flow === "create" ? "Crear un nuevo Nido" : "Unirme a un Nido"}
                   </p>
                   <h2 className="text-3xl font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Bienvenido</h2>
-                  <p className="text-xs mt-1.5" style={{ color: P.muted }}>Usa tu cuenta para continuar</p>
+                  <p className="text-xs mt-1.5 mb-6" style={{ color: P.muted }}>Crea una cuenta o inicia sesión para continuar</p>
                 </div>
 
-                {/* Google button */}
-                <button
-                  onClick={oauthStarting ? undefined : handleGoogle}
-                  disabled={oauthStarting}
-                  className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl border-2 mb-4 transition-all active:scale-[0.98] font-semibold text-sm"
-                  style={{ backgroundColor: "#FFFFFF", borderColor: "rgba(47,42,40,0.15)", color: P.text, opacity: oauthStarting ? 0.7 : 1, cursor: oauthStarting ? "not-allowed" : "pointer" }}>
-                  {/* Google G */}
-                  <svg width="20" height="20" viewBox="0 0 48 48">
-                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                    <path fill="none" d="M0 0h48v48H0z"/>
-                  </svg>
-                  {oauthStarting ? "Conectando…" : "Continuar con Google"}
-                </button>
                 {authError && (
                   <p className="text-center text-[11px] mb-4 leading-relaxed" style={{ color: P.danger }}>
                     {authError}
                   </p>
                 )}
+                <AuthPanel
+                  onAuthenticated={() => applyAuthenticatedIdentity(data.flow === "join" ? "join" : "create")}
+                  onEmailConfirmationPending={() => {
+                    savePendingOnboardingFlow(data.flow === "join" ? "join" : "create");
+                  }}
+                />
               </div>
 
               {/* Legal */}
@@ -363,18 +334,13 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
                 <>
                   <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿Cómo te llamas?</h2>
                   <p className="text-xs mb-5" style={{ color: P.muted }}>Tu nombre aparecerá en el Nido. Puedes editarlo.</p>
-                  {/* Google badge */}
-                  <div className="flex items-center gap-2 mb-5 px-3 py-2 rounded-2xl" style={{ backgroundColor: P.sub }}>
-                    <svg width="14" height="14" viewBox="0 0 48 48" className="flex-shrink-0">
-                      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                    </svg>
-                    <p className="text-[11px]" style={{ color: P.muted }}>
-                      Conectado como <span className="font-semibold" style={{ color: P.text }}>{identity?.email ?? "tu cuenta de Google"}</span>
-                    </p>
-                  </div>
+                  {identity?.email && (
+                    <div className="flex items-center gap-2 mb-5 px-3 py-2 rounded-2xl" style={{ backgroundColor: P.sub }}>
+                      <p className="text-[11px]" style={{ color: P.muted }}>
+                        Conectado como <span className="font-semibold" style={{ color: P.text }}>{identity.email}</span>
+                      </p>
+                    </div>
+                  )}
                   <div className="flex justify-center mb-5">
                     <div className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-md overflow-hidden"
                       style={{ backgroundColor: P.brnDk }}>

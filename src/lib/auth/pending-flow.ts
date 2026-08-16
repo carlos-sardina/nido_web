@@ -1,10 +1,11 @@
 /**
- * Temporary UI state so onboarding can resume after the Google OAuth redirect.
+ * Temporary UI state so onboarding can resume after an email-confirmation
+ * or password-recovery redirect.
  *
  * This is not session storage for auth tokens. Supabase owns the auth
  * session in cookies. These keys only remember the create/join choice
  * and, when present, the invitation token so /join/<token> can continue
- * after OAuth.
+ * after the user confirms their email.
  */
 const PENDING_FLOW_KEY = "nido.pendingOnboardingFlow";
 const PENDING_INVITE_KEY = "nido.pendingInvitationToken";

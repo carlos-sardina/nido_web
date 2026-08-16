@@ -15,7 +15,7 @@ Implementation:
 
 ## 1. Authentication assumption
 
-Authorization uses Supabase Auth.
+Authorization uses Supabase Auth with email and password. Google OAuth is not enabled.
 
 - `auth.uid()` is the authenticated user id.
 - `profiles.id` is the same UUID as `auth.users.id`.
@@ -397,9 +397,7 @@ Expected results for the documented actors. `allow` / `deny` are RLS outcomes. S
 
 ### What can be run in this repository now
 
-This workspace has no Postgres client, no Docker, and no Supabase CLI.
-
-The check that **was executed** and passed:
+The static check that **was executed** and passed:
 
 ```bash
 node supabase/tests/validate_rls_coverage.mjs
@@ -407,25 +405,34 @@ node supabase/tests/validate_rls_coverage.mjs
 
 Result: RLS coverage validation passed for 14 tables. The script confirmed RLS is enabled on every foundation table, expected policies exist, helpers exist, `SECURITY DEFINER` functions set `search_path`, and no policy uses `USING (true)`. It does **not** prove runtime authorization.
 
-`npm run build` was also run and succeeded. The frontend was not changed.
+### Behavioral matrix against the linked project
 
-### What requires a Supabase database
+`supabase/tests/rls_security_matrix.sql` was executed against the linked hosted project with:
 
-`supabase/tests/rls_security_matrix.sql` is the behavioral matrix. It impersonates Carlos, Diana, and Luis with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, and post-leave historical read.
+```bash
+npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
+```
 
-It has **not** been executed here. Do not treat it as passing.
+It impersonates Carlos, Diana, and Luis with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, and post-leave historical read.
 
-To run it:
+The script rolls back seeded users. After the run, `auth.users` and application tables were empty.
 
-1. Install the Supabase CLI and start a local database, or use a linked project.
-2. Apply both migrations (`supabase db reset` or equivalent).
-3. Run:
+Two harness-only adjustments were required so the script can run on hosted Supabase. They do not change policies:
+
+1. Grant `authenticated` access to the temp result tables. `SET LOCAL ROLE authenticated` cannot write owner-created temp tables otherwise.
+2. Treat `UPDATE`/`DELETE` that affect zero rows as deny. PostgreSQL RLS filters those statements silently instead of raising.
+
+To re-run:
+
+```bash
+npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
+```
+
+or:
 
 ```bash
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_security_matrix.sql
 ```
-
-The script fails fast if `auth.uid()`, `auth.users`, or role `authenticated` are missing. It rolls back seeded users after the assertions.
 
 `auth.users` column requirements vary by Supabase version. If the seed insert fails, the script fails. That is a real failure, not a skipped pass.
 

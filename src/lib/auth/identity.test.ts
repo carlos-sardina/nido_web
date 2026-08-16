@@ -33,7 +33,7 @@ describe("identityFromUser", () => {
     assert.equal(identityFromUser(null), null);
   });
 
-  it("prefers Google full_name and picture metadata", () => {
+  it("prefers Auth full_name and picture metadata when present", () => {
     const identity = identityFromUser(user({
       email: "alex@example.com",
       user_metadata: {
@@ -64,7 +64,7 @@ describe("identityFromUser", () => {
 });
 
 describe("applyProfileDisplayName", () => {
-  it("prefers the persisted profile name over Google metadata", () => {
+  it("prefers the persisted profile name over Auth metadata", () => {
     const identity = identityFromUser(user({
       email: "alex@example.com",
       user_metadata: { full_name: "Alex Rivera" },

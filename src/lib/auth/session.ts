@@ -1,14 +1,40 @@
 import { createClient } from "@/lib/supabase/client";
-import { getOAuthRedirectTo } from "./redirect";
+import { normalizeEmail } from "./credentials";
+import { getAuthRedirectTo } from "./redirect";
 
-export async function signInWithGoogle(options?: { next?: string }) {
+export async function signInWithPassword(email: string, password: string) {
   const supabase = createClient();
-  return supabase.auth.signInWithOAuth({
-    provider: "google",
+  return supabase.auth.signInWithPassword({
+    email: normalizeEmail(email),
+    password,
+  });
+}
+
+export async function signUpWithPassword(
+  email: string,
+  password: string,
+  options?: { next?: string },
+) {
+  const supabase = createClient();
+  return supabase.auth.signUp({
+    email: normalizeEmail(email),
+    password,
     options: {
-      redirectTo: getOAuthRedirectTo(window.location.origin, options?.next),
+      emailRedirectTo: getAuthRedirectTo(window.location.origin, options?.next),
     },
   });
+}
+
+export async function requestPasswordReset(email: string) {
+  const supabase = createClient();
+  return supabase.auth.resetPasswordForEmail(normalizeEmail(email), {
+    redirectTo: getAuthRedirectTo(window.location.origin, "/auth/update-password"),
+  });
+}
+
+export async function updatePassword(password: string) {
+  const supabase = createClient();
+  return supabase.auth.updateUser({ password });
 }
 
 export async function signOut() {

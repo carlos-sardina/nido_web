@@ -13,10 +13,10 @@ function redirectWithNoStore(url: string) {
 }
 
 /**
- * Supabase OAuth callback.
+ * Supabase Auth callback for email confirmation and password recovery.
  *
- * Exchanges the provider `code` for a session and writes it to cookies
- * through the server Supabase client. Then returns the user to the app.
+ * Exchanges the `code` for a session and writes it to cookies through the
+ * server Supabase client. Then returns the user to a safe same-origin path.
  */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
       return redirectWithNoStore(destination);
     }
 
-    console.error("OAuth code exchange failed", error.message);
+    console.error("Auth code exchange failed", error.message);
   }
 
   return redirectWithNoStore(`${origin}/?auth=error`);

@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AuthPanel } from "@/components/auth/AuthPanel";
 import { identityFromUser } from "@/lib/auth/identity";
 import { savePendingInvitationToken } from "@/lib/auth/pending-flow";
-import { signInWithGoogle } from "@/lib/auth/session";
 import { useAuth } from "@/lib/auth/use-auth";
 import { acceptInvitation, lookupInvitation } from "@/lib/nido/invitations";
 import { getMyMembership } from "@/lib/nido/membership";
@@ -58,7 +58,6 @@ export function JoinInvitationScreen({ token }: { token: string }) {
   const [alreadyInNido, setAlreadyInNido] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [oauthStarting, setOauthStarting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,22 +106,7 @@ export function JoinInvitationScreen({ token }: { token: string }) {
 
   const copy = statusCopy(preview, alreadyInNido);
   const canAccept = Boolean(user && preview?.status === "valid" && !alreadyInNido);
-
-  const handleGoogle = async () => {
-    setError(null);
-    setOauthStarting(true);
-    try {
-      savePendingInvitationToken(token);
-      const { error: oauthError } = await signInWithGoogle({ next: `/join/${encodeURIComponent(token)}` });
-      if (oauthError) {
-        setError("No pudimos iniciar sesión con Google. Inténtalo de nuevo.");
-        setOauthStarting(false);
-      }
-    } catch {
-      setError("No pudimos iniciar sesión con Google. Inténtalo de nuevo.");
-      setOauthStarting(false);
-    }
-  };
+  const joinPath = `/join/${encodeURIComponent(token)}`;
 
   const handleAccept = async () => {
     setBusy(true);
@@ -162,9 +146,10 @@ export function JoinInvitationScreen({ token }: { token: string }) {
         {!authLoading && !loading && (
           <div className="space-y-3">
             {!user && preview?.status === "valid" && (
-              <OBtn2
-                label={oauthStarting ? "Conectando…" : "Continuar con Google"}
-                onClick={oauthStarting ? () => undefined : handleGoogle}
+              <AuthPanel
+                nextPath={joinPath}
+                onAuthenticated={() => undefined}
+                onEmailConfirmationPending={() => savePendingInvitationToken(token)}
               />
             )}
             {canAccept && (

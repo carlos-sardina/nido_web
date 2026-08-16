@@ -26,7 +26,33 @@ This repository does not introduce `SUPABASE_SERVICE_ROLE_KEY`. Normal applicati
 
 Copy [`.env.example`](../.env.example) to `.env.local` and fill in values from the Supabase project API settings. `.env.local` is gitignored and must not be committed.
 
-A separate redirect-URL environment variable is not required. The browser builds the OAuth callback from `window.location.origin`.
+A separate redirect-URL environment variable is not required. The browser builds email-confirmation and password-recovery callbacks from `window.location.origin`.
+
+---
+
+## Real project
+
+This repository is linked to the hosted Supabase project `nido_dev` (`pxfdvhavcddqmhuljxlf`) in `us-east-1`.
+
+CLI workflow:
+
+```bash
+npx supabase login
+npx supabase link --project-ref pxfdvhavcddqmhuljxlf
+npx supabase migration list
+npx supabase db push
+npx supabase gen types typescript --linked --schema public > src/lib/supabase/types.ts
+```
+
+The three repository migrations are applied on that project, in order:
+
+1. `20260816000000_nido_foundation_schema.sql`
+2. `20260817000000_nido_rls.sql`
+3. `20260818000000_nido_household_lifecycle.sql`
+
+Do not put the database password, service-role key, or anon key in this document.
+
+Local CLI config lives in `supabase/config.toml`. Link metadata under `supabase/.temp/` is gitignored.
 
 ---
 
@@ -78,14 +104,16 @@ The server client still uses the public anon key. It does not bypass RLS.
 
 ## Authentication
 
-Authentication uses Supabase Auth with Google OAuth. There is no custom JWT system, no token storage in `localStorage`, and no service-role client.
+Authentication uses Supabase Auth with **email and password**. Google OAuth is not enabled in this iteration and may be added later as an additional provider without changing the session architecture.
+
+There is no custom JWT system, no token storage in `localStorage`, and no service-role client.
 
 ### Browser / server architecture
 
 ```
 Browser:
   createBrowserClient
-    → Google OAuth
+    → signUp / signInWithPassword / resetPasswordForEmail
     → authenticated session (cookies)
 
 Server:
@@ -101,37 +129,39 @@ Middleware:
 
 The session is owned by `@supabase/ssr` cookies. React state only holds the current `User` for display. Access and refresh tokens are not copied into React state or `localStorage`.
 
-### Google OAuth flow
+### Email and password
 
-1. The user clicks **Continuar con Google**.
-2. The browser client calls `supabase.auth.signInWithOAuth({ provider: "google" })`.
-3. `redirectTo` is `${origin}/auth/callback` (local example: `http://localhost:3000/auth/callback`).
-4. Google authenticates the user and returns to Supabase.
-5. Supabase redirects to `src/app/auth/callback/route.ts` with a `code`.
-6. The route handler exchanges the code for a session through the server client.
-7. Session cookies are written.
-8. The user is redirected back to `/`.
-9. The existing `handle_new_user` database trigger creates a `profiles` row for a new `auth.users` row.
-10. The existing onboarding UI continues. The frontend does **not** insert into `profiles`.
+**Registro:** `supabase.auth.signUp({ email, password })`
 
-If Google authentication fails, the user stays on (or returns to) the authentication screen with a generic error and can retry. Internal Supabase error details are not shown in the UI.
+- If Supabase returns a session immediately, onboarding continues (create or join).
+- If email confirmation is required, the app shows a “revisa tu correo” message and does **not** treat the user as authenticated. The Nido is not created yet.
+
+**Login:** `supabase.auth.signInWithPassword({ email, password })`
+
+Failed login shows a generic “Email o contraseña incorrectos.” The UI does not expose raw Supabase or Postgres errors.
+
+**Logout:** `supabase.auth.signOut()` on the browser client. It clears the session and returns to the landing state. It does not delete the profile, membership, or any database rows.
+
+**Recuperación:** `supabase.auth.resetPasswordForEmail()` sends a link to `/auth/callback?next=/auth/update-password`. After the callback exchanges the code, `/auth/update-password` calls `supabase.auth.updateUser({ password })`.
+
+The recovery request always shows: “Si el correo está registrado, te enviaremos un enlace…”
+
+`handle_new_user` still creates `public.profiles` when Auth creates a user. Display name comes from email local part until onboarding persists `profiles.display_name`. There is no Google avatar; the UI uses initials when `avatar_url` is missing.
 
 ### Callback URL
 
-Application callback route: `/auth/callback`
+`/auth/callback` is kept for email confirmation and password recovery. It is not an OAuth-only route.
 
-| Environment | Application redirect URL |
+| Environment | Redirect URLs to add in the dashboard |
 | --- | --- |
 | Local development | `http://localhost:3000/auth/callback` |
+| Local development | `http://localhost:3000/auth/update-password` |
 | Production | `https://<production-domain>/auth/callback` |
+| Production | `https://<production-domain>/auth/update-password` |
 
 Do not invent the production domain. Use the origin of the deployed app.
 
-This application callback is **not** the same URL that Google Cloud Console needs. Google must redirect to Supabase first:
-
-```
-https://<project-ref>.supabase.co/auth/v1/callback
-```
+`next` is validated with `safeNextPath` to prevent open redirects.
 
 ### Session handling
 
@@ -141,9 +171,9 @@ The session survives:
 
 - page refresh
 - client navigation
-- returning from Google OAuth
+- returning from email confirmation or password recovery
 
-An already authenticated user is not sent through the Google button again. Routing uses the active membership:
+An already authenticated user is not sent through signup/login again. Routing uses the active membership:
 
 - no active Nido → create/join onboarding
 - active Nido → main app
@@ -171,15 +201,15 @@ If `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` are missing, th
 
 ### Profile trigger
 
-`handle_new_user` is a `SECURITY DEFINER` trigger on `auth.users`. When Google creates an auth user, the trigger inserts `public.profiles` with:
+`handle_new_user` is a `SECURITY DEFINER` trigger on `auth.users`. When Auth creates a user, the trigger inserts `public.profiles` with:
 
 - `id` = `auth.users.id`
-- `display_name` from Google metadata (`display_name`, `full_name`, `name`) or the email local part
-- `avatar_url` from `raw_user_meta_data.avatar_url`
+- `display_name` from metadata (`display_name`, `full_name`, `name`) or the email local part
+- `avatar_url` from `raw_user_meta_data.avatar_url` when present
 
 The UI must not insert a profile during login. Onboarding may update `profiles.display_name` for the signed-in user. That is an UPDATE under RLS, not an INSERT.
 
-The onboarding name field is persisted to `profiles.display_name` when the Nido is created. If the user does not edit it, the Google-derived name is used.
+The onboarding name field is persisted to `profiles.display_name` when the Nido is created. If the user does not edit it, the email-derived name is used.
 
 ### Current-phase limitations
 
@@ -192,6 +222,7 @@ This phase does **not**:
 - send invitation emails
 - transfer ownership
 - use a service-role client
+- enable Google OAuth (explicitly out of this iteration)
 
 Create, join, leave, and invitation accept are documented in [nido.md](./nido.md).
 
@@ -199,47 +230,43 @@ Create, join, leave, and invitation accept are documented in [nido.md](./nido.md
 
 ## Supabase dashboard configuration
 
-The application cannot configure the Supabase dashboard. A developer must do this before real Google login works.
+Verified on `nido_dev` (`pxfdvhavcddqmhuljxlf`) via the public Auth settings API:
 
-### 1. Enable the Google provider
+| Setting | Current value |
+| --- | --- |
+| Email provider | enabled |
+| Google provider | disabled (do not enable for this phase) |
+| Signups | enabled (`disable_signup` is false) |
+| Confirm email (`mailer_autoconfirm`) | **false** — confirmation is required |
 
-In the Supabase dashboard:
+Implications of confirm email:
 
-**Authentication → Sign In / Providers → Google**
+- `signUp()` typically returns a user without a session.
+- The app shows the confirmation message and does not create a Nido.
+- The user must open the email link, which returns through `/auth/callback`.
+- To test a same-session signup locally, a developer may temporarily enable “Confirm email” autoconfirm in the dashboard. This repository does not change that setting.
 
-Enable Google and add the Client ID and Client Secret from Google Cloud Console. This repository does not contain those credentials and must not invent them.
-
-### 2. Google Cloud Console
-
-Create an OAuth client (Web application) and set the authorized redirect URI to the **Supabase** callback:
-
-```
-https://<project-ref>.supabase.co/auth/v1/callback
-```
-
-`<project-ref>` is the subdomain of `NEXT_PUBLIC_SUPABASE_URL`.
-
-### 3. Application redirect URLs
-
-In the Supabase dashboard:
+### Redirect URLs
 
 **Authentication → URL Configuration**
 
-Add the application callback URLs:
-
-Development:
+Add:
 
 ```
 http://localhost:3000/auth/callback
+http://localhost:3000/auth/update-password
 ```
+
+Site URL for local development is typically `http://localhost:3000`.
 
 Production (replace with the real deployed origin):
 
 ```
 https://<production-domain>/auth/callback
+https://<production-domain>/auth/update-password
 ```
 
-Site URL for local development is typically `http://localhost:3000`.
+Google remains a future optional provider. Do not configure it in this phase.
 
 ---
 
@@ -248,7 +275,7 @@ Site URL for local development is typically `http://localhost:3000`.
 1. Install dependencies: `npm install`
 2. Copy `.env.example` to `.env.local`
 3. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-4. Enable Google in the Supabase dashboard and add `http://localhost:3000/auth/callback`
+4. Confirm Email is enabled in the dashboard and add the redirect URLs above
 5. Start the app: `npm run dev`
 
 Without those public variables, `npm run build` still succeeds. Creating a client at runtime throws a clear configuration error. The app does not invent fake credentials.
@@ -295,24 +322,18 @@ Do not add parallel domain interfaces that only repeat a table row. Feature-spec
 
 ### Generation approach
 
-Supabase CLI was **not** available in the environment that created this file, and no live project was linked. `types.ts` is therefore a **hand-authored** representation of the SQL migrations. It is **not** output from `supabase gen types` against a live database.
-
-Prefer official generation as soon as a project exists. Replace the file in place; keep the official `Database` shape so clients do not need to change.
-
-### How to regenerate
-
-With a hosted project:
+`src/lib/supabase/types.ts` is official output from the linked project:
 
 ```bash
-npx supabase gen types typescript --project-id <project-id> --schema public > src/lib/supabase/types.ts
+npx supabase gen types typescript --linked --schema public > src/lib/supabase/types.ts
 ```
 
-With a local Supabase stack (Docker + CLI):
+Do not hand-edit that file. Regenerate it after schema changes.
+
+A local Supabase stack (Docker + CLI) can also generate types:
 
 ```bash
 npx supabase gen types typescript --local > src/lib/supabase/types.ts
 ```
 
-After regenerating, restore the file header comment if you want the regeneration instructions to stay in the file, or keep this document as the source for that command.
-
-Local development and `npm run dev` do **not** require Docker or the Supabase CLI.
+`npm run dev` does **not** require Docker. The CLI is invoked with `npx supabase`.

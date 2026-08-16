@@ -905,7 +905,8 @@ These remain out of scope for the current schema and RLS migrations:
 
 - Schema: `supabase/migrations/20260816000000_nido_foundation_schema.sql`
 - RLS: `supabase/migrations/20260817000000_nido_rls.sql`
+- Household lifecycle RPCs: `supabase/migrations/20260818000000_nido_household_lifecycle.sql`
 - Security model: [docs/security.md](./security.md)
 - Application clients: [docs/supabase.md](./supabase.md)
-- This directory is schema preparation only. No Supabase project is required to keep the app building.
+- These migrations are applied on the linked hosted project. See [docs/supabase.md](./supabase.md).
 - Do not put seed data in the foundation migration. If seed SQL is added later, keep it in a clearly labeled separate file.
