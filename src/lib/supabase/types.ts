@@ -4,6 +4,7 @@
  * Source of truth: supabase/migrations/
  *   - 20260816000000_nido_foundation_schema.sql
  *   - 20260817000000_nido_rls.sql
+ *   - 20260818000000_nido_household_lifecycle.sql
  *
  * Status: hand-authored from those migrations. Supabase CLI was not
  * available in this environment, and no live project was linked. These
@@ -920,6 +921,37 @@ export type Database = {
       shares_household_with: {
         Args: { p_user_id: string };
         Returns: boolean;
+      };
+      create_household: {
+        Args: { p_name: string };
+        Returns: {
+          id: string;
+          name: string;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+      };
+      lookup_invitation: {
+        Args: { p_token: string };
+        Returns: {
+          status: string;
+          household_name: string | null;
+        }[];
+      };
+      accept_invitation: {
+        Args: { p_token: string };
+        Returns: {
+          id: string;
+          name: string;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+      };
+      leave_household: {
+        Args: Record<PropertyKey, never>;
+        Returns: undefined;
       };
     };
     Enums: {

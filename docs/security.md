@@ -21,7 +21,7 @@ Authorization uses Supabase Auth.
 - `profiles.id` is the same UUID as `auth.users.id`.
 - Policies apply to the `authenticated` role.
 - `anon` has no table privileges.
-- `service_role` has full table privileges and bypasses RLS. Invitation accept, leave, join, and owner transfer use `service_role` (or a later SECURITY DEFINER RPC), not client policies.
+- `service_role` has full table privileges and bypasses RLS. The application does not use a service-role client. Invitation accept and leave use narrowly scoped RPCs (`accept_invitation`, `leave_household`). Owner transfer is not implemented.
 
 Unauthenticated requests see no application rows.
 
@@ -155,7 +155,7 @@ RLS does not guarantee that a household always has an owner. Creating a househol
 
 Clients cannot change `user_id`, `household_id`, `role`, `joined_at`, or `left_at` on existing rows.
 
-Leave, join, invitation accept, role change, and owner transfer are application/service operations using `service_role`. Leaving must set `left_at`, not delete the row.
+Leave and invitation accept are application RPCs (`leave_household`, `accept_invitation`). They set `left_at` or insert a member row; they do not delete membership. Role change and owner transfer are not implemented. There is no service-role client.
 
 The first-owner INSERT is the only client write. A historical creator cannot re-insert themselves as owner after members already exist.
 
@@ -225,10 +225,10 @@ Same-household integrity triggers from the foundation schema remain authoritativ
 | Read invitation / token | Active owner | RLS SELECT |
 | Revoke invitation | Active owner | RLS DELETE |
 | Delete household | Active owner | RLS DELETE (not a supported product path) |
-| Accept invitation | Service | No client UPDATE policy |
-| Leave / join | Service | No client UPDATE/DELETE on `household_members` |
-| Change role / transfer owner | Service | No client UPDATE on `household_members` |
-| Guarantee at least one owner | Service | Not an RLS invariant |
+| Accept invitation | `accept_invitation` RPC | No client UPDATE policy |
+| Leave | `leave_household` RPC | No client UPDATE/DELETE on `household_members` |
+| Change role / transfer owner | Not implemented | No client UPDATE on `household_members` |
+| Guarantee at least one owner | `leave_household` rejects the last owner | Not an RLS invariant |
 
 Active non-owner members can update household name and household financial/planning data. They cannot manage memberships or invitations.
 
@@ -253,9 +253,10 @@ RLS does not replace the application transaction rules in [database.md](./databa
 
 Still application/service work:
 
-- Household create + first owner row in one transaction
-- Leave / join / invite accept / owner transfer
-- At-least-one-owner invariant
+- Household create + first owner row in one transaction (`create_household`)
+- Leave / invite accept (`leave_household`, `accept_invitation`)
+- Owner transfer (not implemented)
+- At-least-one-owner invariant (enforced on leave; not an RLS trigger)
 - Expense + all splits in one transaction, including sum and personal-expense cardinality
 - Recurring generate / edit / skip / confirm
 - Soft-delete via `deleted_at`, deactivate via `is_active`, archive via `archived_at` / goal `status`

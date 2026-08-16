@@ -1,73 +1,106 @@
 "use client";
 
 import { useState } from "react";
-import {
-  C_CAP, C_INC, C_PER, D_CAP, D_INC, D_PER, DIANA_ITEMS, LIFE_EVENTS, TOT_B, T_CAP, T_INC,
-} from "@/lib/constants";
+import { Link } from "lucide-react";
+import { initialsFromName } from "@/lib/auth/identity";
+import { createInvitation } from "@/lib/nido/invitations";
+import type { Household, HouseholdMember, HouseholdMemberView } from "@/lib/nido/types";
+import { C_CAP, C_INC, D_CAP, D_INC, T_CAP, T_INC, TOT_B } from "@/lib/constants";
 import { $k } from "@/lib/helpers";
 import { P } from "@/lib/palette";
 import type { Model } from "@/lib/types";
 
-export function HouseholdScreen({ model, setModel }: { model: Model; setModel: (m: Model) => void }) {
-  const [showItems, setShowItems]   = useState(false);
-  const [events, setEvents]         = useState(LIFE_EVENTS.map(e => e.active));
+export function HouseholdScreen({
+  household,
+  membership,
+  members,
+  model,
+  setModel,
+}: {
+  household: Household;
+  membership: HouseholdMember;
+  members: HouseholdMemberView[];
+  model: Model;
+  setModel: (m: Model) => void;
+}) {
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const isOwner = membership.role === "owner";
+  const memberLabel = members.length === 1 ? "1 miembro" : `${members.length} miembros`;
   const shares = model === "equal" ? { d: 50, c: 50 }
     : model === "proportional" ? { d: Math.round(D_INC/T_INC*100), c: Math.round(C_INC/T_INC*100) }
     : { d: Math.round(D_CAP/T_CAP*100), c: Math.round(C_CAP/T_CAP*100) };
 
+  const handleInvite = async () => {
+    setInviteBusy(true);
+    setInviteError(null);
+    setInviteCopied(false);
+    const result = await createInvitation({ householdId: household.id });
+    setInviteBusy(false);
+    if (result.ok === false) {
+      setInviteError(result.error.message);
+      return;
+    }
+    setInviteUrl(result.data.url);
+    try {
+      await navigator.clipboard.writeText(result.data.url);
+      setInviteCopied(true);
+    } catch {
+      setInviteCopied(false);
+    }
+  };
+
   return (
     <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:hidden">
       <div className="px-6 pt-3 pb-1">
-        <h2 className="text-[22px] font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Hogar</h2>
-        <p className="text-xs" style={{ color: P.muted }}>Departamento · 2 miembros</p>
+        <h2 className="text-[22px] font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{household.name}</h2>
+        <p className="text-xs" style={{ color: P.muted }}>{memberLabel}</p>
       </div>
-      <div className="px-6 my-3 flex gap-3">
-        {[
-          { name: "Diana",  init: "DV", income: D_INC, personal: D_PER, cap: D_CAP, color: P.sage  },
-          { name: "Carlos", init: "CR", income: C_INC, personal: C_PER, cap: C_CAP, color: "#5A9E90" },
-        ].map(m => (
-          <div key={m.name} className="flex-1 rounded-[1.5rem] p-4 shadow-sm" style={{ backgroundColor: P.card }}>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: m.color }}>{m.init}</div>
-              <span className="text-sm font-semibold" style={{ color: P.text }}>{m.name}</span>
+      <div className="px-6 my-3 space-y-2">
+        {members.map((member) => (
+          <div key={member.userId} className="rounded-[1.5rem] p-4 shadow-sm flex items-center gap-3" style={{ backgroundColor: P.card }}>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold overflow-hidden" style={{ backgroundColor: P.sage }}>
+              {member.avatarUrl
+                ? <img src={member.avatarUrl} alt="" className="w-full h-full object-cover" />
+                : initialsFromName(member.displayName)}
             </div>
-            <p className="text-[9px]" style={{ color: P.muted }}>Ingreso</p>
-            <p className="text-base font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{$k(m.income)}</p>
-            <div className="mt-2 pt-2 border-t" style={{ borderColor: P.sub }}>
-              <p className="text-[9px]" style={{ color: P.muted }}>Gastos pers.</p>
-              <p className="text-xs font-semibold" style={{ color: P.danger }}>−{$k(m.personal)}</p>
-              <p className="text-[9px] mt-1" style={{ color: P.muted }}>Capacidad</p>
-              <p className="text-sm font-bold" style={{ color: m.color }}>{$k(m.cap)}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold truncate" style={{ color: P.text }}>{member.displayName}</p>
+              <p className="text-[10px]" style={{ color: P.muted }}>{member.role === "owner" ? "Propietario" : "Miembro"}</p>
             </div>
           </div>
         ))}
       </div>
-      {/* Diana items expandable */}
-      <div className="mx-6 mb-3 bg-white rounded-[1.5rem] shadow-sm overflow-hidden">
-        <button className="w-full flex items-center justify-between p-4" onClick={() => setShowItems(!showItems)}>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm" style={{ backgroundColor: P.sagePl }}>👤</div>
-            <div className="text-left">
-              <p className="text-xs font-semibold" style={{ color: P.text }}>Gastos fijos de Diana</p>
-              <p className="text-[9px]" style={{ color: P.muted }}>{DIANA_ITEMS.length} compromisos · {$k(D_PER)}/mes</p>
+      {isOwner && (
+        <div className="mx-6 mb-3">
+          <button
+            onClick={inviteBusy ? undefined : handleInvite}
+            className="w-full flex items-center gap-3 p-4 rounded-[1.5rem] border text-left"
+            style={{ borderColor: P.border, backgroundColor: P.card, opacity: inviteBusy ? 0.7 : 1 }}
+          >
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: P.sagePl }}>
+              <Link size={16} style={{ color: P.sageDk }} />
             </div>
-          </div>
-          <span className="text-[10px] font-bold" style={{ color: P.danger }}>−{$k(D_PER)}</span>
-        </button>
-        {showItems && (
-          <div className="px-4 pb-4 space-y-1.5 border-t pt-3" style={{ borderColor: P.sub }}>
-            {DIANA_ITEMS.map(item => (
-              <div key={item.name} className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><span className="text-sm">{item.icon}</span><span className="text-xs" style={{ color: P.text }}>{item.name}</span></div>
-                <span className="text-[10px] font-semibold" style={{ color: P.muted }}>{$k(item.amount)}/mes</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      {/* Contribution model */}
+            <div className="flex-1">
+              <p className="text-xs font-semibold" style={{ color: P.text }}>
+                {inviteBusy ? "Generando enlace…" : inviteCopied ? "Enlace copiado" : "Invitar por enlace"}
+              </p>
+              <p className="text-[10px]" style={{ color: P.muted }}>Comparte un link. No se envía correo todavía.</p>
+            </div>
+          </button>
+          {inviteUrl && (
+            <p className="text-[10px] break-all mt-2 px-1" style={{ color: P.muted }}>{inviteUrl}</p>
+          )}
+          {inviteError && (
+            <p className="text-[11px] mt-2" style={{ color: P.danger }}>{inviteError}</p>
+          )}
+        </div>
+      )}
       <div className="mx-6 mb-3 bg-white rounded-[1.5rem] p-5 shadow-sm">
         <h3 className="text-xs font-semibold mb-3" style={{ color: P.text }}>Modelo de aportación</h3>
+        <p className="text-[10px] mb-3" style={{ color: P.muted }}>Los montos siguen siendo de demostración.</p>
         <div className="space-y-2 mb-5">
           {([
             { id: "equal" as Model,       label: "Por partes iguales",     sub: "50 / 50" },
@@ -94,7 +127,7 @@ export function HouseholdScreen({ model, setModel }: { model: Model; setModel: (
           ))}
         </div>
         <h3 className="text-[9px] font-semibold uppercase tracking-wider mb-3" style={{ color: P.muted }}>Aportación mensual · {$k(TOT_B)}/mes</h3>
-        {[{ name: "Diana", share: shares.d, color: P.sage }, { name: "Carlos", share: shares.c, color: "#5A9E90" }].map(m => (
+        {[{ name: "Persona A", share: shares.d, color: P.sage }, { name: "Persona B", share: shares.c, color: "#5A9E90" }].map(m => (
           <div key={m.name} className="mb-3">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs font-medium" style={{ color: P.text }}>{m.name}</span>

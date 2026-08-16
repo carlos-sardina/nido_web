@@ -149,7 +149,7 @@ Invite-by-email or token / QR.
 | `accepted_at` | `timestamptz` nullable | |
 | `created_at` | `timestamptz` | |
 
-Accepting an invitation is application work: validate token and expiry, enforce one-active-Nido, insert `household_members`, set `accepted_at`. That flow is not implemented in this phase.
+Accepting an invitation is application work: validate token and expiry, enforce one-active-Nido, insert `household_members`, set `accepted_at`. See [nido.md](./nido.md) for the Phase 8 RPCs and service layer.
 
 ### 3.5 `categories`
 

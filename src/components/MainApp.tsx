@@ -14,21 +14,32 @@ import { ProfilePanel } from "@/components/flows/ProfilePanel";
 import { GoalsScreen } from "@/components/goals/GoalsScreen";
 import { HomeScreen } from "@/components/home/HomeScreen";
 import { HouseholdScreen } from "@/components/household/HouseholdScreen";
-import { identityFromUser } from "@/lib/auth/identity";
+import { applyProfileDisplayName, identityFromUser } from "@/lib/auth/identity";
 import { P } from "@/lib/palette";
 import type { Flow, Model, Tab } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
+import type { Household, HouseholdMember, HouseholdMemberView, Profile } from "@/lib/nido/types";
 
 export function MainApp({
   user,
+  household,
+  membership,
+  members,
+  profile,
   onLogout,
+  onNidoChanged,
   signingOut = false,
 }: {
   user: User | null;
+  household: Household;
+  membership: HouseholdMember;
+  members: HouseholdMemberView[];
+  profile: Pick<Profile, "id" | "display_name" | "avatar_url"> | null;
   onLogout: () => void;
+  onNidoChanged: () => void;
   signingOut?: boolean;
 }) {
-  const identity = identityFromUser(user);
+  const identity = applyProfileDisplayName(identityFromUser(user), profile?.display_name);
   const [tab, setTab]           = useState<Tab>("home");
   const [model, setModel]       = useState<Model>("capacity");
   const [showSheet, setShowSheet] = useState(false);
@@ -54,7 +65,15 @@ export function MainApp({
           {tab === "home"      && <HomeScreen identity={identity} onProfileOpen={() => setProfileOpen(true)} onNavigate={t => { setTab(t); setShowSheet(false); }} />}
           {tab === "budget"    && <BudgetScreen />}
           {tab === "goals"     && <GoalsScreen />}
-          {tab === "household" && <HouseholdScreen model={model} setModel={setModel} />}
+          {tab === "household" && (
+            <HouseholdScreen
+              household={household}
+              membership={membership}
+              members={members}
+              model={model}
+              setModel={setModel}
+            />
+          )}
           {tab === "activity"  && <ActivityScreen />}
         </div>
 
@@ -111,9 +130,12 @@ export function MainApp({
         {profileOpen && (
           <ProfilePanel
             identity={identity}
+            householdName={household.name}
+            role={membership.role}
             signingOut={signingOut}
             onClose={() => setProfileOpen(false)}
             onLogout={onLogout}
+            onLeft={onNidoChanged}
           />
         )}
     </div>

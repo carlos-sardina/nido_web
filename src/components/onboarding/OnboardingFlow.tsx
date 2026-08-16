@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Check, ChevronLeft, Link, QrCode, Sparkles,
 } from "lucide-react";
@@ -8,6 +9,10 @@ import type { User } from "@supabase/supabase-js";
 import { identityFromUser } from "@/lib/auth/identity";
 import { savePendingOnboardingFlow, takePendingOnboardingFlow } from "@/lib/auth/pending-flow";
 import { signInWithGoogle } from "@/lib/auth/session";
+import { createHousehold } from "@/lib/nido/household";
+import { createInvitation } from "@/lib/nido/invitations";
+import { updateMyDisplayName } from "@/lib/nido/profile";
+import { extractInvitationToken } from "@/lib/nido/rules";
 import { EXP_SUGG, NEST_TYPES, NIDO_NAMES } from "@/lib/constants";
 import { P } from "@/lib/palette";
 import type { Model, OStep, OData } from "@/lib/types";
@@ -18,6 +23,7 @@ import { OBtn2 } from "@/components/onboarding/OBtn2";
 import { OProgress2 } from "@/components/onboarding/OProgress2";
 
 export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; user: User | null }) {
+  const router = useRouter();
   const [step, setStep] = useState<OStep>("welcome");
   const [data, setData] = useState<OData>({
     flow: null, nestType: "", nestEmoji: "🏠", nestName: "",
@@ -30,6 +36,11 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
   const [showQrInvite, setShowQrInvite] = useState(false);
   const [oauthStarting, setOauthStarting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [nidoError, setNidoError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [createdHouseholdId, setCreatedHouseholdId] = useState<string | null>(null);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [inviteCopied, setInviteCopied] = useState(false);
   const identity = identityFromUser(user);
   const set = (k: keyof OData, v: OData[keyof OData]) => setData(p => ({ ...p, [k]: v }));
 
@@ -37,7 +48,6 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
     setData(p => ({
       ...p,
       flow,
-      // Local onboarding draft only. Not written to profiles in this phase.
       userName: p.userName || identity?.displayName || "",
     }));
     setStep(flow === "join" ? "join" : "c-name");
@@ -112,6 +122,55 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
   const isPers = pIdx >= 0;
 
   const expCanContinue = data.expenses.some(e => e.selected);
+  const joinToken = extractInvitationToken(joinCode);
+
+  const persistDisplayName = async () => {
+    const displayName = (data.userName || identity?.displayName || "").trim();
+    if (!displayName) return { ok: true as const, data: { id: "", display_name: "" } };
+    return updateMyDisplayName(displayName);
+  };
+
+  const handleCreateNido = async () => {
+    setNidoError(null);
+    setSubmitting(true);
+    const nameResult = await persistDisplayName();
+    if (nameResult.ok === false) {
+      setNidoError(nameResult.error.message);
+      setSubmitting(false);
+      return;
+    }
+    const result = await createHousehold({ name: data.nestName });
+    setSubmitting(false);
+    if (result.ok === false) {
+      setNidoError(result.error.message);
+      if (result.error.code === "already_in_nido") onComplete();
+      return;
+    }
+    setCreatedHouseholdId(result.data.id);
+    setStep("c-invite");
+  };
+
+  const handleCreateInvite = async () => {
+    if (!createdHouseholdId) {
+      setNidoError("Primero crea tu Nido.");
+      return null;
+    }
+    setNidoError(null);
+    setInviteCopied(false);
+    const result = await createInvitation({ householdId: createdHouseholdId });
+    if (result.ok === false) {
+      setNidoError(result.error.message);
+      return null;
+    }
+    setInviteUrl(result.data.url);
+    try {
+      await navigator.clipboard.writeText(result.data.url);
+      setInviteCopied(true);
+    } catch {
+      setInviteCopied(false);
+    }
+    return result.data.url;
+  };
 
   const handleExpConfirm = (amount: string, type: "personal" | "shared") => {
     if (expEditIdx === null) return;
@@ -139,7 +198,7 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
               <div className="space-y-3">
                 <OBtn2 label="🪺 Crear un nuevo Nido" onClick={startCreate} />
                 <OBtn2 label="👋 Unirme a un Nido"   onClick={startJoin} variant="secondary" />
-                <p className="text-center text-[11px] leading-relaxed pt-1" style={{ color: P.muted }}>Puedes pertenecer a múltiples Nidos.<br />Ideal para parejas, roommates, familias y más.</p>
+                <p className="text-center text-[11px] leading-relaxed pt-1" style={{ color: P.muted }}>Puedes pertenecer a un solo Nido.<br />Ideal para una persona, parejas, roommates, familias y más.</p>
               </div>
             </div>
           )}
@@ -195,16 +254,19 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
             <div>
               <button onClick={() => setStep(user ? "welcome" : "auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
               <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Únete a un Nido</h2>
-              <p className="text-xs mb-6" style={{ color: P.muted }}>Alguien ya creó un Nido para ti.</p>
-              <label className="text-xs font-semibold mb-2 block" style={{ color: P.muted }}>Código de invitación</label>
-              <input className="w-full py-3.5 px-4 rounded-2xl text-center text-2xl font-bold tracking-[0.3em] border-2 outline-none mb-4"
-                style={{ backgroundColor: P.card, borderColor: joinCode ? P.brnDk : P.sub, color: P.text, fontFamily: "Fraunces, serif" }}
-                placeholder="· · · · · ·" maxLength={6} value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} />
-              <div className="flex gap-2 mb-6">
-                <button className="flex-1 py-3 rounded-2xl flex items-center justify-center gap-2 border text-xs font-semibold"
-                  style={{ borderColor: P.border, backgroundColor: P.card, color: P.text }}><Link size={16} style={{ color: P.brnDk }}/>Desde enlace</button>
-              </div>
-              <OBtn2 label="Unirme al Nido" onClick={() => setStep("p-name")} disabled={joinCode.length < 6} />
+              <p className="text-xs mb-6" style={{ color: P.muted }}>Pega el enlace o el token de invitación. Solo puedes pertenecer a un Nido.</p>
+              <label className="text-xs font-semibold mb-2 block" style={{ color: P.muted }}>Enlace o token de invitación</label>
+              <input className="w-full py-3.5 px-4 rounded-2xl text-sm font-semibold border-2 outline-none mb-4"
+                style={{ backgroundColor: P.card, borderColor: joinToken ? P.brnDk : P.sub, color: P.text }}
+                placeholder="https://…/join/…" value={joinCode} onChange={e => setJoinCode(e.target.value)} />
+              {joinCode && !joinToken && (
+                <p className="text-[11px] mb-4" style={{ color: P.danger }}>No reconocimos ese enlace o token.</p>
+              )}
+              <OBtn2
+                label="Continuar"
+                onClick={() => joinToken && router.push(`/join/${encodeURIComponent(joinToken)}`)}
+                disabled={!joinToken}
+              />
             </div>
           )}
 
@@ -251,20 +313,28 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
             <div>
               <button onClick={() => setStep("p-contrib")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
               <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Invita a los miembros</h2>
-              <p className="text-xs mb-4" style={{ color: P.muted }}>Pueden unirse ahora o más tarde.</p>
+              <p className="text-xs mb-4" style={{ color: P.muted }}>Pueden unirse ahora o más tarde. Un Nido puede tener una o muchas personas.</p>
               <div className="flex justify-center mb-6"><NidoHouse /></div>
+              {nidoError && (
+                <p className="text-[11px] mb-3 leading-relaxed" style={{ color: P.danger }}>{nidoError}</p>
+              )}
               <div className="space-y-2 mb-6">
-                <button className="w-full flex items-center gap-3 p-4 rounded-2xl border text-left"
+                <button
+                  onClick={() => { void handleCreateInvite(); }}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl border text-left"
                   style={{ borderColor: P.border, backgroundColor: P.card }}>
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: P.sagePl }}>
                     <Link size={16} style={{ color: P.sageDk }} />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold" style={{ color: P.text }}>Invitar por enlace</p>
-                    <p className="text-[10px]" style={{ color: P.muted }}>Comparte un link directo</p>
+                    <p className="text-xs font-semibold" style={{ color: P.text }}>{inviteCopied ? "Enlace copiado" : "Invitar por enlace"}</p>
+                    <p className="text-[10px]" style={{ color: P.muted }}>Genera y copia un link. No se envía correo todavía.</p>
                   </div>
                 </button>
-                <button onClick={() => setShowQrInvite(true)}
+                <button onClick={async () => {
+                  const url = inviteUrl ?? await handleCreateInvite();
+                  if (url) setShowQrInvite(true);
+                }}
                   className="w-full flex items-center gap-3 p-4 rounded-2xl border text-left"
                   style={{ borderColor: P.border, backgroundColor: P.card }}>
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: P.sagePl }}>
@@ -272,11 +342,14 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
                   </div>
                   <div>
                     <p className="text-xs font-semibold" style={{ color: P.text }}>Invitar por QR</p>
-                    <p className="text-[10px]" style={{ color: P.muted }}>Escanea para unirse al Nido</p>
+                    <p className="text-[10px]" style={{ color: P.muted }}>Muestra el enlace para unirse al Nido</p>
                   </div>
                 </button>
               </div>
-              <OBtn2 label="Crear mi Nido 🪺" onClick={() => setStep("nest-ready")} />
+              {inviteUrl && (
+                <p className="text-[10px] break-all mb-4" style={{ color: P.muted }}>{inviteUrl}</p>
+              )}
+              <OBtn2 label="Entrar a mi Nido 🪺" onClick={onComplete} />
             </div>
           )}
 
@@ -536,7 +609,14 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
                       </button>
                     ))}
                   </div>
-                  <OBtn2 label="Finalizar nido 🪺" onClick={() => setStep(data.flow === "create" ? "c-invite" : "nest-ready")} />
+                  {nidoError && (
+                    <p className="text-[11px] mb-3 leading-relaxed" style={{ color: P.danger }}>{nidoError}</p>
+                  )}
+                  <OBtn2
+                    label={submitting ? "Creando tu Nido…" : "Crear mi Nido 🪺"}
+                    onClick={() => { void handleCreateNido(); }}
+                    disabled={submitting}
+                  />
                 </>
               )}
             </div>
@@ -546,27 +626,11 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
             <div className="flex flex-col h-full">
               <div className="flex-1 flex flex-col items-center justify-center text-center">
                 <NidoHouse />
-                <h2 className="text-2xl font-bold mt-4 mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¡Tu Nido está casi listo!</h2>
-                <p className="text-xs mb-6" style={{ color: P.muted }}>Solo falta un miembro por configurar.</p>
-                <div className="w-full bg-white rounded-3xl p-4 mb-6 text-left shadow-sm">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm" style={{ backgroundColor: P.sub }}>⏳</div>
-                    <span className="text-xs font-semibold" style={{ color: P.text }}>Esperando a:</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-2xl" style={{ backgroundColor: P.sub }}>
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-[#5BA4CF] flex items-center justify-center text-white text-xs font-bold">CR</div>
-                      <div>
-                        <p className="text-xs font-semibold" style={{ color: P.text }}>Carlos</p>
-                        <p className="text-[10px]" style={{ color: P.muted }}>Completar perfil · ~2 min</p>
-                      </div>
-                    </div>
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#D4AC4E" }} />
-                  </div>
-                </div>
+                <h2 className="text-2xl font-bold mt-4 mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¡Tu Nido está listo!</h2>
+                <p className="text-xs mb-6" style={{ color: P.muted }}>Puedes entrar ahora e invitar a más personas cuando quieras.</p>
                 <div className="w-full p-3 rounded-2xl flex gap-2 mb-2" style={{ backgroundColor: P.sagePl }}>
                   <Sparkles size={13} style={{ color: P.sageDk, flexShrink:0, marginTop:1 }} />
-                  <p className="text-[10px] leading-relaxed" style={{ color: P.text }}>Tu Nido funciona aunque Carlos no haya completado su perfil todavía.</p>
+                  <p className="text-[10px] leading-relaxed" style={{ color: P.text }}>Un Nido puede ser de una persona o de muchas. Los datos financieros de esta pantalla siguen siendo de demostración.</p>
                 </div>
               </div>
               <OBtn2 label="Entrar a mi Nido 🪺" onClick={onComplete} />
@@ -594,9 +658,9 @@ export function OnboardingFlow({ onComplete, user }: { onComplete: () => void; u
           />
         )}
 
-        {showQrInvite && (
+        {showQrInvite && inviteUrl && (
           <InviteQrModal
-            inviteUrl={`https://nido.app/join/${(data.nestName || "nido").toLowerCase().replace(/\s+/g, "-")}`}
+            inviteUrl={inviteUrl}
             nestName={data.nestName}
             onClose={() => setShowQrInvite(false)}
           />

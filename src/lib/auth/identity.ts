@@ -4,8 +4,8 @@ import type { User } from "@supabase/supabase-js";
  * Display identity derived from the authenticated Supabase Auth user.
  *
  * This is NOT a `profiles` row. The database trigger `handle_new_user`
- * creates the profile. Name edits in onboarding stay local in this phase
- * and are not written back to `profiles`.
+ * creates the profile. Onboarding may later persist `profiles.display_name`.
+ * Prefer that column over Auth metadata when a profile is loaded.
  */
 export type AuthIdentity = {
   email: string | null;
@@ -49,5 +49,21 @@ export function identityFromUser(user: User | null | undefined): AuthIdentity | 
     avatarUrl,
     initials: initialsFromName(displayName),
     firstName,
+  };
+}
+
+export function applyProfileDisplayName(
+  identity: AuthIdentity | null,
+  displayName: string | null | undefined,
+): AuthIdentity | null {
+  if (!identity) return null;
+  const trimmed = displayName?.trim();
+  if (!trimmed) return identity;
+  const firstName = trimmed.split(/\s+/).filter(Boolean)[0] ?? trimmed;
+  return {
+    ...identity,
+    displayName: trimmed,
+    firstName,
+    initials: initialsFromName(trimmed),
   };
 }

@@ -26,6 +26,12 @@ const rlsPath = path.join(
 
 const foundation = fs.readFileSync(foundationPath, "utf8");
 const rls = fs.readFileSync(rlsPath, "utf8");
+const migrationsDir = path.join(root, "supabase/migrations");
+const allMigrations = fs
+  .readdirSync(migrationsDir)
+  .filter((file) => file.endsWith(".sql"))
+  .map((file) => fs.readFileSync(path.join(migrationsDir, file), "utf8"))
+  .join("\n");
 
 const errors = [];
 const notices = [];
@@ -60,7 +66,7 @@ for (const helper of expectedHelpers) {
 }
 
 const definerBlocks = [
-  ...rls.matchAll(
+  ...allMigrations.matchAll(
     /CREATE OR REPLACE FUNCTION public\.([a-z_]+)\([\s\S]*?AS \$\$/g
   ),
 ];

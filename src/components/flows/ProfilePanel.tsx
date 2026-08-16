@@ -1,20 +1,32 @@
+import { useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import type { AuthIdentity } from "@/lib/auth/identity";
+import { leaveHousehold } from "@/lib/nido/membership";
+import type { HouseholdRole } from "@/lib/nido/types";
 import { DIANA_EXTRAS, DIANA_ITEMS } from "@/lib/constants";
 import { $k } from "@/lib/helpers";
 import { P } from "@/lib/palette";
 
 export function ProfilePanel({
   identity,
+  householdName,
+  role,
   onClose,
   onLogout,
+  onLeft,
   signingOut = false,
 }: {
   identity: AuthIdentity | null;
+  householdName: string;
+  role: HouseholdRole;
   onClose: () => void;
   onLogout: () => void;
+  onLeft: () => void;
   signingOut?: boolean;
 }) {
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
   const fixedTotal = DIANA_ITEMS.reduce((s, i) => s + i.amount, 0);
   const extraTotal = DIANA_EXTRAS.reduce((s, i) => s + i.amount, 0);
   return (
@@ -38,7 +50,9 @@ export function ProfilePanel({
           </div>
           <p className="text-base font-bold mb-0.5" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{identity?.displayName ?? "Usuario"}</p>
           <p className="text-xs" style={{ color: P.muted }}>{identity?.email ?? ""}</p>
-          <div className="mt-2 px-3 py-1 rounded-full text-[10px] font-semibold" style={{ backgroundColor: P.sagePl, color: P.brnDp }}>Nido: Departamento 🏠</div>
+          <div className="mt-2 px-3 py-1 rounded-full text-[10px] font-semibold" style={{ backgroundColor: P.sagePl, color: P.brnDp }}>
+            Nido: {householdName} · {role === "owner" ? "Propietario" : "Miembro"}
+          </div>
         </div>
 
         {/* Fixed personal expenses */}
@@ -80,8 +94,53 @@ export function ProfilePanel({
           </div>
         </div>
 
-        {/* Logout */}
-        <div className="px-6">
+        {/* Leave + logout */}
+        <div className="px-6 space-y-3">
+          {!confirmLeave ? (
+            <button
+              onClick={() => { setLeaveError(null); setConfirmLeave(true); }}
+              className="w-full py-3.5 rounded-2xl text-sm font-semibold border transition-all active:scale-[0.98]"
+              style={{ color: P.text, borderColor: P.border, backgroundColor: P.card }}
+            >
+              Salir del Nido
+            </button>
+          ) : (
+            <div className="rounded-2xl p-4 border" style={{ borderColor: P.border, backgroundColor: P.card }}>
+              <p className="text-xs mb-3 leading-relaxed" style={{ color: P.muted }}>
+                Salir no borra el historial. Si eres el único propietario, no podrás salir todavía.
+              </p>
+              {leaveError && (
+                <p className="text-[11px] mb-3" style={{ color: P.danger }}>{leaveError}</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmLeave(false)}
+                  className="flex-1 py-3 rounded-2xl text-xs font-semibold border"
+                  style={{ borderColor: P.border, color: P.muted }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={async () => {
+                    setLeaving(true);
+                    setLeaveError(null);
+                    const result = await leaveHousehold();
+                    setLeaving(false);
+                    if (result.ok === false) {
+                      setLeaveError(result.error.message);
+                      return;
+                    }
+                    onLeft();
+                  }}
+                  disabled={leaving}
+                  className="flex-1 py-3 rounded-2xl text-xs font-semibold"
+                  style={{ backgroundColor: P.dangerBg, color: P.danger, opacity: leaving ? 0.7 : 1 }}
+                >
+                  {leaving ? "Saliendo…" : "Confirmar"}
+                </button>
+              </div>
+            </div>
+          )}
           <button onClick={signingOut ? undefined : onLogout}
             disabled={signingOut}
             className="w-full py-3.5 rounded-2xl text-sm font-semibold border transition-all active:scale-[0.98]"

@@ -1,8 +1,6 @@
 # Nido Supabase integration
 
-This document describes the application-side Supabase foundation and authentication. The domain model in [database.md](./database.md) remains the source of truth. Row Level Security is documented in [security.md](./security.md).
-
-Household membership and onboarding persistence are intentionally not implemented yet.
+This document describes the application-side Supabase foundation and authentication. The domain model in [database.md](./database.md) remains the source of truth. Row Level Security is documented in [security.md](./security.md). Household membership is documented in [nido.md](./nido.md).
 
 ---
 
@@ -145,7 +143,11 @@ The session survives:
 - client navigation
 - returning from Google OAuth
 
-An already authenticated user is not sent through the Google button again. They are **not** routed to the dashboard, create-Nido, or join-Nido based on household membership. That decision belongs to a later phase.
+An already authenticated user is not sent through the Google button again. Routing uses the active membership:
+
+- no active Nido → create/join onboarding
+- active Nido → main app
+- pending invitation token → `/join/<token>`
 
 Logout calls `supabase.auth.signOut()` on the browser client. It clears the session and returns to the unauthenticated landing state. It does not delete the profile, membership, or any database rows.
 
@@ -175,26 +177,23 @@ If `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` are missing, th
 - `display_name` from Google metadata (`display_name`, `full_name`, `name`) or the email local part
 - `avatar_url` from `raw_user_meta_data.avatar_url`
 
-The UI must not insert a profile during login. Later screens may read `profiles` under RLS. Profile editing is not implemented in this phase.
+The UI must not insert a profile during login. Onboarding may update `profiles.display_name` for the signed-in user. That is an UPDATE under RLS, not an INSERT.
 
-The onboarding name field is a **local draft**. Editing it does not update `profiles`.
+The onboarding name field is persisted to `profiles.display_name` when the Nido is created. If the user does not edit it, the Google-derived name is used.
 
 ### Current-phase limitations
 
-Household membership and onboarding persistence are intentionally not implemented yet.
+Household identity is real. Financial onboarding fields are still local drafts.
 
 This phase does **not**:
 
-- create a household
-- insert `household_members`
-- assign an owner
-- join a household
-- send or accept invitations
 - persist onboarding income, savings, expenses, or contribution model
 - replace mock financial dashboard data
-- route authenticated users based on active Nido membership
+- send invitation emails
+- transfer ownership
+- use a service-role client
 
-The buttons **Crear un nuevo Nido** and **Unirme a un Nido** still lead into the existing prototype onboarding. Join remains a UI mock.
+Create, join, leave, and invitation accept are documented in [nido.md](./nido.md).
 
 ---
 
@@ -270,7 +269,7 @@ Architectural principle:
 - **Server:** anon/publishable key + authenticated user's session + RLS
 - **Service role:** not introduced
 
-Do not use service-role access for normal application operations. Invitation accept, leave, join, and owner transfer remain later service-layer work, as documented in [security.md](./security.md).
+Do not use service-role access for normal application operations. Invitation accept and leave use narrowly scoped RPCs under the authenticated session, as documented in [nido.md](./nido.md) and [security.md](./security.md). Owner transfer is not implemented.
 
 When server-side identity is required, obtain it from the authenticated Supabase session (`getUser()`). Do not trust a client-provided user id.
 

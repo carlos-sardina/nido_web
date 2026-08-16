@@ -11,12 +11,27 @@ describe("getOAuthRedirectTo", () => {
   it("strips a trailing slash from the origin", () => {
     assert.equal(getOAuthRedirectTo("http://localhost:3000/"), "http://localhost:3000/auth/callback");
   });
+
+  it("preserves a safe next path for invitation return", () => {
+    assert.equal(
+      getOAuthRedirectTo("http://localhost:3000", "/join/abc"),
+      "http://localhost:3000/auth/callback?next=%2Fjoin%2Fabc",
+    );
+  });
+
+  it("ignores an unsafe next path", () => {
+    assert.equal(
+      getOAuthRedirectTo("http://localhost:3000", "https://evil.example"),
+      "http://localhost:3000/auth/callback",
+    );
+  });
 });
 
 describe("safeNextPath", () => {
   it("allows same-origin relative paths", () => {
     assert.equal(safeNextPath("/"), "/");
     assert.equal(safeNextPath("/onboarding"), "/onboarding");
+    assert.equal(safeNextPath("/join/token-value"), "/join/token-value");
   });
 
   it("rejects open redirects", () => {

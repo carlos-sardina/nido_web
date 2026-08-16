@@ -29,6 +29,13 @@ export function InviteQrModal({ inviteUrl, nestName, onClose }: { inviteUrl: str
           <p className="text-xs text-center font-medium break-all mb-5 px-2" style={{ color: P.text }}>
             {inviteUrl}
           </p>
+          <PBtn
+            label="Copiar enlace"
+            onClick={() => {
+              void navigator.clipboard.writeText(inviteUrl);
+            }}
+          />
+          <div className="h-2" />
           <PBtn label="Cerrar" onClick={onClose} variant="ghost" />
         </div>
       </div>

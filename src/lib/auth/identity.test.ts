@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { User } from "@supabase/supabase-js";
-import { identityFromUser, initialsFromName } from "./identity.ts";
+import { applyProfileDisplayName, identityFromUser, initialsFromName } from "./identity.ts";
 
 function user(overrides: Partial<User> & { user_metadata?: User["user_metadata"] }): User {
   return {
@@ -60,5 +60,18 @@ describe("identityFromUser", () => {
     assert.equal(identity?.displayName, "robin");
     assert.equal(identity?.email, "robin@example.com");
     assert.equal(identity?.avatarUrl, null);
+  });
+});
+
+describe("applyProfileDisplayName", () => {
+  it("prefers the persisted profile name over Google metadata", () => {
+    const identity = identityFromUser(user({
+      email: "alex@example.com",
+      user_metadata: { full_name: "Alex Rivera" },
+    }));
+    const updated = applyProfileDisplayName(identity, "Alex del Nido");
+    assert.equal(updated?.displayName, "Alex del Nido");
+    assert.equal(updated?.firstName, "Alex");
+    assert.equal(updated?.initials, "AN");
   });
 });
