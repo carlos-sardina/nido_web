@@ -46,7 +46,7 @@ describe("pending invitation token", () => {
     assert.equal(peekPendingInvitationToken(), "invite-token-value-1");
     assert.deepEqual(
       resolveAppEntry({
-        authenticated: true,
+        authStatus: "authenticated",
         membershipStatus: "no_nido",
         pendingInviteToken: peekPendingInvitationToken(),
       }),
@@ -65,7 +65,7 @@ describe("pending invitation token", () => {
 
     assert.deepEqual(
       resolveAppEntry({
-        authenticated: true,
+        authStatus: "authenticated",
         membershipStatus: "no_nido",
         pendingInviteToken: peekPendingInvitationToken(),
       }),

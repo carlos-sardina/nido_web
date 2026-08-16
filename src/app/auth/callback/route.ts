@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { completeAuthCallback } from "@/lib/auth/callback";
-import { resolveCallbackRedirectUrl } from "@/lib/auth/redirect";
+import { recoveryMarkerCookiesForNext } from "@/lib/auth/recovery";
+import { resolveCallbackRedirectUrl, safeNextPath } from "@/lib/auth/redirect";
 import { getPublicSupabaseConfig } from "@/lib/supabase/env";
 import type { Database } from "@/lib/supabase/types";
 
@@ -25,8 +26,10 @@ function redirectWithNoStore(url: string) {
  *
  * Uses the public anon key — not the service role. Tokens stay in cookies,
  * never in the URL. A safe explicit `next` path is preserved (join or
- * password update). This route does not inspect household membership; the
- * app shell decides landing vs Nido selection vs MainApp.
+ * password update). Password recovery also sets a non-secret marker cookie
+ * so other tabs do not treat the recovery session as a normal login.
+ * This route does not inspect household membership; the app shell decides
+ * landing vs Nido selection vs MainApp.
  */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -51,6 +54,7 @@ export async function GET(request: Request) {
     writeRequestCookie: (name, value, options) => {
       cookieStore.set(name, value, options);
     },
+    successCookies: recoveryMarkerCookiesForNext(safeNextPath(next)),
     exchangeCodeForSession: async (code, cookieAdapter) => {
       const { url, anonKey } = getPublicSupabaseConfig();
       const supabase = createServerClient<Database>(url, anonKey, {

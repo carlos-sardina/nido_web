@@ -127,7 +127,7 @@ Middleware:
     → write updated cookies
 ```
 
-The session is owned by `@supabase/ssr` cookies. React state only holds the current `User` for display. Access and refresh tokens are not copied into React state or `localStorage`.
+The session is owned by `@supabase/ssr` cookies. React state holds the current `User` and a discriminated auth status (`unauthenticated` | `authenticated` | `recovery`) for routing. Access and refresh tokens are not copied into React state or `localStorage`. The recovery marker cookie is a non-secret UI flag, not a credential.
 
 ### Email and password
 
@@ -142,7 +142,7 @@ Failed login shows a generic “Email o contraseña incorrectos.” Rate limits 
 
 **Logout:** `supabase.auth.signOut()` on the browser client. It clears the session and returns to the landing state. It does not delete the profile, membership, or any database rows.
 
-**Recuperación:** `supabase.auth.resetPasswordForEmail()` sends a link to `/auth/callback?next=/auth/update-password`. After the callback exchanges the code, `/auth/update-password` calls `supabase.auth.updateUser({ password })`.
+**Recuperación:** `supabase.auth.resetPasswordForEmail()` sends a link to `/auth/callback?next=/auth/update-password`. After the callback exchanges the code, it sets a non-secret recovery marker cookie and redirects to `/auth/update-password`. That page calls `supabase.auth.updateUser({ password })`. A recovery session is not a normal login: other tabs that receive the auth change keep their current UI instead of opening MainApp or Nido selection. After the password is saved, the marker is cleared and routing uses the normal authenticated destination.
 
 The recovery request always shows: “Si el correo está registrado, te enviaremos un enlace…” Rate limits on recovery show the wait-and-retry copy instead of pretending the email was sent.
 
@@ -181,20 +181,27 @@ The `/auth/callback` route exchanges the PKCE `code` and writes session cookies 
 
 On startup, the app root calls `getUser()` and subscribes to `onAuthStateChange`. The subscription is created once and cleaned up on unmount.
 
+Auth status is discriminated:
+
+- unauthenticated
+- authenticated (normal login or completed recovery)
+- recovery (`PASSWORD_RECOVERY` or the recovery marker cookie)
+
 The session survives:
 
 - page refresh
 - client navigation
 - returning from email confirmation or password recovery
 
-An already authenticated user is not sent through signup/login again. Routing uses the active membership:
+An already authenticated user is not sent through signup/login again. Routing uses the active membership, and only for a **normal** authenticated session:
 
+- recovery session → stay on the current UI / auth landing (not MainApp, not Nido selection)
 - no active Nido → Nido selection
 - historical-only membership → Nido selection
 - active Nido → main app
 - pending invitation token → `/join/<token>`
 
-Logout calls `supabase.auth.signOut()` on the browser client. It clears the session, the pending invitation token, and the local onboarding draft, then returns to the unauthenticated landing. It does not delete the profile, membership, or any database rows.
+Logout calls `supabase.auth.signOut()` on the browser client. It clears the session, the recovery marker, the pending invitation token, and the local onboarding draft, then returns to the unauthenticated landing. It does not delete the profile, membership, or any database rows.
 
 ### Middleware / proxy
 

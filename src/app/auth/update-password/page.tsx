@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { validateNewPassword } from "@/lib/auth/credentials";
 import { classifyAuthError, logAuthFailure } from "@/lib/auth/errors";
+import { RECOVERY_LINK_INVALID_MESSAGE } from "@/lib/auth/recovery";
 import { updatePassword } from "@/lib/auth/session";
 import { useAuth } from "@/lib/auth/use-auth";
 import { P } from "@/lib/palette";
@@ -63,7 +64,7 @@ export default function UpdatePasswordPage() {
         ) : !user ? (
           <>
             <p className="text-sm leading-relaxed mb-6" style={{ color: P.danger }}>
-              Este enlace no es válido o ya expiró. Solicita uno nuevo desde la pantalla de inicio.
+              {RECOVERY_LINK_INVALID_MESSAGE}
             </p>
             <OBtn2 label="Volver al inicio" onClick={() => router.replace("/")} />
           </>

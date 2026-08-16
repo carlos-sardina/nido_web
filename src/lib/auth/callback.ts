@@ -69,6 +69,7 @@ export async function completeAuthCallback<T extends CallbackRedirectResponse>(i
   createRedirect: (url: string) => T;
   readCookies: () => CallbackCookie[];
   writeRequestCookie?: (name: string, value: string, options?: Record<string, unknown>) => void;
+  successCookies?: CallbackCookieToSet[];
   exchangeCodeForSession: (
     code: string,
     cookies: CallbackCookieMethods,
@@ -87,6 +88,14 @@ export async function completeAuthCallback<T extends CallbackRedirectResponse>(i
   const { error } = await input.exchangeCodeForSession(input.code, cookies);
 
   if (!error) {
+    (input.successCookies ?? []).forEach(({ name, value, options }) => {
+      try {
+        input.writeRequestCookie?.(name, value, options);
+      } catch {
+        // The redirect response is the source of truth for the browser.
+      }
+      response.cookies.set(name, value, options);
+    });
     return response;
   }
 

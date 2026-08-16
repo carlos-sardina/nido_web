@@ -1,4 +1,7 @@
 import type { MembershipStatus } from "../nido/types";
+import type { AuthStatus } from "./state";
+
+export type { AuthStatus } from "./state";
 
 /**
  * Post-auth screen decision. Membership status comes from useMyNido /
@@ -7,6 +10,8 @@ import type { MembershipStatus } from "../nido/types";
  * `/` is the application shell. This function decides what that shell shows.
  * Authentication and Nido selection are separate: a session never implies
  * "create a Nido", and registration never skips the selection screen.
+ * A password-recovery session is not a normal login: it stays on landing
+ * until `updateUser({ password })` completes.
  * Pass `pendingInviteToken` only after invitation-token format validation.
  */
 export type AppEntry =
@@ -21,11 +26,11 @@ export type NidoOnboardingStart =
   | { kind: "join_code" };
 
 export function resolveAppEntry(input: {
-  authenticated: boolean;
+  authStatus: AuthStatus;
   membershipStatus: MembershipStatus | "unauthenticated" | "loading";
   pendingInviteToken: string | null;
 }): AppEntry {
-  if (!input.authenticated || input.membershipStatus === "unauthenticated") {
+  if (input.authStatus !== "authenticated" || input.membershipStatus === "unauthenticated") {
     return { kind: "landing" };
   }
 

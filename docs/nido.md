@@ -15,7 +15,7 @@ Unauthenticated visitors see only authentication:
 1. Landing: **Crear cuenta** / **Iniciar sesión**. It does not offer “Crear un Nido” or “Unirme a un Nido”.
 2. Signup with email, password, and confirmation. If Supabase requires email confirmation, the UI shows **Revisa tu correo** and does not treat the user as authenticated. A Nido is not created.
 3. Login with email and password. Invalid credentials stay generic. Unconfirmed email, rate limits, and network errors have their own Spanish copy. Raw Supabase errors are never shown.
-4. Recovery: forgot password → email → `/auth/callback` → `/auth/update-password`. `next` is sanitized with `safeNextPath`. Tokens stay in cookies, not URLs or `localStorage`.
+4. Recovery: forgot password → email → `/auth/callback` → `/auth/update-password`. The callback marks the session as password recovery so other tabs do not treat it as a normal login. `next` is sanitized with `safeNextPath`. Tokens stay in cookies, not URLs or `localStorage`. After `updateUser({ password })`, routing is the normal authenticated destination (MainApp or Nido selection).
 5. Logout: `signOut()`, clear the invitation token and the onboarding draft, return to the auth landing. It does not delete Supabase rows.
 
 Google OAuth remains disabled. Email confirmation remains required. SMTP is configured outside this repository.

@@ -5,6 +5,7 @@ import {
   type CallbackCookieToSet,
   type CallbackRedirectResponse,
 } from "./callback.ts";
+import { PASSWORD_RECOVERY_COOKIE, recoveryMarkerCookiesForNext } from "./recovery.ts";
 import { resolveCallbackRedirectUrl, safeNextPath } from "./redirect.ts";
 
 const ORIGIN = "https://nido-web-chi.vercel.app";
@@ -69,6 +70,7 @@ async function runCallback(input: {
     createRedirect,
     readCookies: () => [],
     writeRequestCookie: input.writeRequestCookie,
+    successCookies: recoveryMarkerCookiesForNext(safeNextPath(input.next)),
     exchangeCodeForSession: input.exchange,
   });
 }
@@ -173,6 +175,43 @@ describe("completeAuthCallback", () => {
       response.setCookies.some((cookie) => cookie.name === SESSION_COOKIE),
       true,
     );
+    assert.equal(
+      response.setCookies.some((cookie) => cookie.name === PASSWORD_RECOVERY_COOKIE && cookie.value === "1"),
+      true,
+    );
+    assertNoTokensInUrl(response.location);
+  });
+
+  it("does not mark email confirmation as password recovery", async () => {
+    const response = await runCallback({
+      code: "pkce-code",
+      next: "/join/invite-token-value-1",
+      exchange: async (_code, cookies) => {
+        cookies.setAll([{ name: SESSION_COOKIE, value: "session-cookie" }], {});
+        return { error: null };
+      },
+    });
+
+    assert.equal(response.location, `${ORIGIN}/join/invite-token-value-1`);
+    assert.equal(
+      response.setCookies.some((cookie) => cookie.name === PASSWORD_RECOVERY_COOKIE),
+      false,
+    );
+    assertNoTokensInUrl(response.location);
+  });
+
+  it("does not set a recovery marker when the exchange fails", async () => {
+    const response = await runCallback({
+      code: "pkce-code",
+      next: "/auth/update-password",
+      exchange: async () => ({ error: { message: "invalid grant" } }),
+    });
+
+    assert.equal(response.location, `${ORIGIN}/?auth=error`);
+    assert.equal(
+      response.setCookies.some((cookie) => cookie.name === PASSWORD_RECOVERY_COOKIE),
+      false,
+    );
     assertNoTokensInUrl(response.location);
   });
 
@@ -188,6 +227,10 @@ describe("completeAuthCallback", () => {
 
     assert.equal(response.location, `${ORIGIN}/`);
     assert.equal(response.location.startsWith("https://evil.example"), false);
+    assert.equal(
+      response.setCookies.some((cookie) => cookie.name === PASSWORD_RECOVERY_COOKIE),
+      false,
+    );
     assertNoTokensInUrl(response.location);
   });
 });

@@ -37,16 +37,17 @@ function readPendingInviteToken() {
 export default function App() {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
-  const { user, isLoading: authLoading } = useAuth();
-  const nido = useMyNido(user, authLoading);
+  const { user, status, isLoading: authLoading } = useAuth();
+  const appUser = status === "authenticated" ? user : null;
+  const nido = useMyNido(appUser, authLoading);
   const entry = resolveAppEntry({
-    authenticated: Boolean(user),
+    authStatus: status === "loading" ? "unauthenticated" : status,
     membershipStatus: nido.status,
     pendingInviteToken: readPendingInviteToken(),
   });
 
   useEffect(() => {
-    if (authLoading || nido.isLoading || !user) return;
+    if (authLoading || nido.isLoading || !appUser) return;
 
     if (entry.kind === "join_invite") {
       takePendingInvitationToken();
@@ -57,7 +58,7 @@ export default function App() {
     if (entry.kind === "main_app") {
       clearPendingInvitationToken();
     }
-  }, [authLoading, nido.isLoading, user, entry, router]);
+  }, [authLoading, nido.isLoading, appUser, entry, router]);
 
   const handleLogout = async () => {
     if (signingOut) return;
@@ -81,11 +82,11 @@ export default function App() {
     return <BootScreen message="Cerrando sesión…" />;
   }
 
-  if (authLoading || (user && nido.isLoading)) {
+  if (authLoading || (appUser && nido.isLoading)) {
     return <BootScreen />;
   }
 
-  if (nido.error && user && nido.status !== "active") {
+  if (nido.error && appUser && nido.status !== "active") {
     return (
       <div
         className="min-h-screen flex flex-col items-center justify-center px-6"
@@ -109,10 +110,10 @@ export default function App() {
     return <BootScreen />;
   }
 
-  if (entry.kind === "main_app" && nido.household && nido.membership) {
+  if (entry.kind === "main_app" && appUser && nido.household && nido.membership) {
     return (
       <MainApp
-        user={user!}
+        user={appUser}
         household={nido.household}
         membership={nido.membership}
         members={nido.members}
@@ -126,8 +127,8 @@ export default function App() {
 
   return (
     <OnboardingFlow
-      key={user?.id ?? "guest"}
-      user={user}
+      key={appUser?.id ?? "guest"}
+      user={appUser}
       entry={entry.kind === "nido_selection" ? "select" : "welcome"}
       onComplete={() => {
         void nido.refresh();

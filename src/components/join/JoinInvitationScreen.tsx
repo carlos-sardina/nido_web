@@ -18,8 +18,9 @@ import { OBtn2 } from "@/components/onboarding/OBtn2";
 
 export function JoinInvitationScreen({ token }: { token: string }) {
   const router = useRouter();
-  const { user, isLoading: authLoading } = useAuth();
-  const identity = identityFromUser(user);
+  const { user, status, isLoading: authLoading } = useAuth();
+  const sessionUser = status === "authenticated" ? user : null;
+  const identity = identityFromUser(sessionUser);
   const [preview, setPreview] = useState<InvitationPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [alreadyInNido, setAlreadyInNido] = useState(false);
@@ -52,7 +53,7 @@ export function JoinInvitationScreen({ token }: { token: string }) {
       }
       setPreview(lookedUp.data);
 
-      if (user) {
+      if (sessionUser) {
         const membership = await getMyMembership();
         if (cancelled) return;
         const hasActive = membership.ok && membership.data !== null;
@@ -79,7 +80,7 @@ export function JoinInvitationScreen({ token }: { token: string }) {
     return () => {
       cancelled = true;
     };
-  }, [token, user, authLoading]);
+  }, [token, sessionUser, authLoading]);
 
   const block = joinBlockReason({
     alreadyInNido,
@@ -87,7 +88,7 @@ export function JoinInvitationScreen({ token }: { token: string }) {
     invitationHouseholdName: preview?.householdName ?? null,
   });
   const copy = joinInvitationCopy({ preview, block });
-  const canAccept = Boolean(user && preview?.status === "valid" && block === "none");
+  const canAccept = Boolean(sessionUser && preview?.status === "valid" && block === "none");
   const joinPath = `/join/${encodeURIComponent(token)}`;
 
   const handleAccept = async () => {
@@ -115,7 +116,7 @@ export function JoinInvitationScreen({ token }: { token: string }) {
           <p className="text-sm leading-relaxed mb-6" style={{ color: P.muted }}>
             {authLoading || loading ? "Un momento." : copy.body}
           </p>
-          {user && identity?.email && (
+          {sessionUser && identity?.email && (
             <p className="text-[11px] mb-4" style={{ color: P.muted }}>
               Conectado como <span className="font-semibold" style={{ color: P.text }}>{identity.email}</span>
             </p>
@@ -129,7 +130,7 @@ export function JoinInvitationScreen({ token }: { token: string }) {
 
         {!authLoading && !loading && (
           <div className="space-y-3">
-            {!user && preview?.status === "valid" && (
+            {!sessionUser && preview?.status === "valid" && (
               <AuthPanel
                 nextPath={joinPath}
                 onAttempt={() => {

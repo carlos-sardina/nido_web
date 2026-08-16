@@ -69,6 +69,32 @@ Probar también:
 
 Sin sesión, `/auth/update-password` no debe permitir cambiar la contraseña.
 
+### Password recovery — multi-tab
+
+1. Open production Vercel app in Tab A.
+2. Start "Olvidé mi contraseña".
+3. Request recovery email.
+4. Open the recovery email.
+5. Click the recovery link so it opens Tab B.
+6. Tab B should show "Nueva contraseña".
+7. Tab A must NOT automatically navigate to Dashboard/MainApp/NidoSelection because of the recovery session.
+8. Enter a new password in Tab B.
+9. Submit.
+10. Tab B should resolve:
+    - active Nido → Dashboard
+    - no active Nido → NidoSelection
+11. Refresh Tab B.
+12. Session should remain valid.
+13. Log out.
+14. App returns to Auth Landing.
+
+Also test:
+
+- recovery link expired
+- recovery link reused
+- recovery from production Vercel
+- recovery from localhost if configured
+
 ---
 
 ## F. Logout

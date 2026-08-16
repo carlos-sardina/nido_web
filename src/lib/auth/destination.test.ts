@@ -6,7 +6,7 @@ describe("resolveAppEntry", () => {
   it("sends an unauthenticated user to the auth landing", () => {
     assert.deepEqual(
       resolveAppEntry({
-        authenticated: false,
+        authStatus: "unauthenticated",
         membershipStatus: "unauthenticated",
         pendingInviteToken: null,
       }),
@@ -16,7 +16,7 @@ describe("resolveAppEntry", () => {
 
   it("does not send an unauthenticated user to create or join a Nido", () => {
     const entry = resolveAppEntry({
-      authenticated: false,
+      authStatus: "unauthenticated",
       membershipStatus: "unauthenticated",
       pendingInviteToken: "invite-token-value-1",
     });
@@ -28,7 +28,7 @@ describe("resolveAppEntry", () => {
   it("sends an authenticated user with no Nido to Nido selection", () => {
     assert.deepEqual(
       resolveAppEntry({
-        authenticated: true,
+        authStatus: "authenticated",
         membershipStatus: "no_nido",
         pendingInviteToken: null,
       }),
@@ -38,7 +38,7 @@ describe("resolveAppEntry", () => {
 
   it("does not send a newly registered user without a Nido into create onboarding", () => {
     const entry = resolveAppEntry({
-      authenticated: true,
+      authStatus: "authenticated",
       membershipStatus: "no_nido",
       pendingInviteToken: null,
     });
@@ -49,7 +49,7 @@ describe("resolveAppEntry", () => {
   it("sends an authenticated user with an active Nido to MainApp", () => {
     assert.deepEqual(
       resolveAppEntry({
-        authenticated: true,
+        authStatus: "authenticated",
         membershipStatus: "active",
         pendingInviteToken: "aaaaaaaaaaaaaaaa",
       }),
@@ -60,7 +60,7 @@ describe("resolveAppEntry", () => {
   it("treats historical-only membership as Nido selection, not MainApp", () => {
     assert.deepEqual(
       resolveAppEntry({
-        authenticated: true,
+        authStatus: "authenticated",
         membershipStatus: "historical_only",
         pendingInviteToken: null,
       }),
@@ -71,7 +71,7 @@ describe("resolveAppEntry", () => {
   it("sends email confirmation with no Nido to Nido selection, not create-Nido", () => {
     assert.deepEqual(
       resolveAppEntry({
-        authenticated: true,
+        authStatus: "authenticated",
         membershipStatus: "no_nido",
         pendingInviteToken: null,
       }),
@@ -82,7 +82,7 @@ describe("resolveAppEntry", () => {
   it("sends email confirmation with an active Nido to MainApp", () => {
     assert.deepEqual(
       resolveAppEntry({
-        authenticated: true,
+        authStatus: "authenticated",
         membershipStatus: "active",
         pendingInviteToken: null,
       }),
@@ -93,7 +93,7 @@ describe("resolveAppEntry", () => {
   it("returns a pending join invitation to /join/<token> after authentication", () => {
     assert.deepEqual(
       resolveAppEntry({
-        authenticated: true,
+        authStatus: "authenticated",
         membershipStatus: "no_nido",
         pendingInviteToken: "invite-token-value-1",
       }),
@@ -104,7 +104,7 @@ describe("resolveAppEntry", () => {
   it("does not infer create vs join from authentication alone", () => {
     assert.deepEqual(
       resolveAppEntry({
-        authenticated: true,
+        authStatus: "authenticated",
         membershipStatus: "historical_only",
         pendingInviteToken: null,
       }),
@@ -115,7 +115,7 @@ describe("resolveAppEntry", () => {
   it("returns to the auth landing after logout (unauthenticated)", () => {
     assert.deepEqual(
       resolveAppEntry({
-        authenticated: false,
+        authStatus: "unauthenticated",
         membershipStatus: "unauthenticated",
         pendingInviteToken: null,
       }),
@@ -126,7 +126,7 @@ describe("resolveAppEntry", () => {
   it("keeps a pending invite behind an active Nido (MainApp wins)", () => {
     assert.deepEqual(
       resolveAppEntry({
-        authenticated: true,
+        authStatus: "authenticated",
         membershipStatus: "active",
         pendingInviteToken: "invite-token-value-1",
       }),
@@ -137,8 +137,71 @@ describe("resolveAppEntry", () => {
   it("sends historical-only membership with a pending invite to /join/<token>", () => {
     assert.deepEqual(
       resolveAppEntry({
-        authenticated: true,
+        authStatus: "authenticated",
         membershipStatus: "historical_only",
+        pendingInviteToken: "invite-token-value-1",
+      }),
+      { kind: "join_invite", token: "invite-token-value-1" },
+    );
+  });
+
+  it("does not send a recovery session with an active Nido to MainApp", () => {
+    const entry = resolveAppEntry({
+      authStatus: "recovery",
+      membershipStatus: "active",
+      pendingInviteToken: null,
+    });
+    assert.equal(entry.kind, "landing");
+    assert.notEqual(entry.kind, "main_app");
+  });
+
+  it("does not send a recovery session with no Nido to Nido selection", () => {
+    const entry = resolveAppEntry({
+      authStatus: "recovery",
+      membershipStatus: "no_nido",
+      pendingInviteToken: null,
+    });
+    assert.equal(entry.kind, "landing");
+    assert.notEqual(entry.kind, "nido_selection");
+  });
+
+  it("does not consume a pending invite during password recovery", () => {
+    const entry = resolveAppEntry({
+      authStatus: "recovery",
+      membershipStatus: "no_nido",
+      pendingInviteToken: "invite-token-value-1",
+    });
+    assert.equal(entry.kind, "landing");
+    assert.notEqual(entry.kind, "join_invite");
+  });
+
+  it("sends MainApp after a successful password update when the Nido is active", () => {
+    assert.deepEqual(
+      resolveAppEntry({
+        authStatus: "authenticated",
+        membershipStatus: "active",
+        pendingInviteToken: null,
+      }),
+      { kind: "main_app" },
+    );
+  });
+
+  it("sends Nido selection after a successful password update when there is no Nido", () => {
+    assert.deepEqual(
+      resolveAppEntry({
+        authStatus: "authenticated",
+        membershipStatus: "no_nido",
+        pendingInviteToken: null,
+      }),
+      { kind: "nido_selection" },
+    );
+  });
+
+  it("still resumes a pending invitation after a normal authenticated session", () => {
+    assert.deepEqual(
+      resolveAppEntry({
+        authStatus: "authenticated",
+        membershipStatus: "no_nido",
         pendingInviteToken: "invite-token-value-1",
       }),
       { kind: "join_invite", token: "invite-token-value-1" },
