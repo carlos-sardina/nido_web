@@ -1,42 +1,51 @@
 import { QrCode, X } from "lucide-react";
 import { P } from "@/lib/palette";
-import { PBtn } from "@/components/shared/PBtn";
+import { Button } from "@/components/nido/Button";
+import { SectionLabel } from "@/components/nido/ChoiceCard";
+import { Heading, Text } from "@/components/nido/Typography";
 
 export function InviteQrModal({ inviteUrl, nestName, onClose }: { inviteUrl: string; nestName: string; onClose: () => void }) {
   return (
     <>
       <div className="fixed inset-0 z-50" style={{ backgroundColor: "rgba(47,42,40,0.40)" }} onClick={onClose} />
-      <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-[2rem] pt-3 pb-8" style={{ backgroundColor: P.card }}>
+      <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-[2rem] pt-3 pb-8 font-sans" style={{ backgroundColor: P.card }}>
         <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ backgroundColor: P.sub }} />
-        <div className="px-6">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="text-lg font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Invitar por QR</h3>
-            <button onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: P.sub }}>
+        <div className="mx-auto w-full max-w-md px-6">
+          <div className="flex items-center justify-between mb-2">
+            <Heading as="h3" size="h3">Invitar por QR</Heading>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Cerrar"
+              className="w-11 h-11 rounded-full flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              style={{ backgroundColor: P.sub }}
+            >
               <X size={16} style={{ color: P.text }} />
             </button>
           </div>
-          <p className="text-xs mb-5" style={{ color: P.muted }}>
+          <Text size="body-sm" tone="muted" className="mb-6">
             Escanea para unirse a {nestName || "tu Nido"}
-          </p>
-          <div className="flex justify-center mb-5">
-            <div className="p-4 rounded-2xl border-2" style={{ backgroundColor: "#FFFFFF", borderColor: "rgba(47,42,40,0.12)" }}>
+          </Text>
+          <div className="flex justify-center mb-6">
+            <div className="p-4 rounded-2xl border-2" style={{ backgroundColor: "#FFFFFF", borderColor: P.sub }}>
               <QrCode size={160} strokeWidth={1.25} style={{ color: P.text }} />
             </div>
           </div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-center mb-1.5" style={{ color: P.muted }}>
-            Enlace de invitación
-          </p>
-          <p className="text-xs text-center font-medium break-all mb-5 px-2" style={{ color: P.text }}>
+          <SectionLabel>Enlace de invitación</SectionLabel>
+          <Text size="caption" className="text-center font-medium break-all mb-6 px-2">
             {inviteUrl}
-          </p>
-          <PBtn
-            label="Copiar enlace"
+          </Text>
+          <Button
             onClick={() => {
               void navigator.clipboard.writeText(inviteUrl);
             }}
-          />
-          <div className="h-2" />
-          <PBtn label="Cerrar" onClick={onClose} variant="ghost" />
+          >
+            Copiar enlace
+          </Button>
+          <div className="h-3" />
+          <Button variant="ghost" onClick={onClose}>
+            Cerrar
+          </Button>
         </div>
       </div>
     </>

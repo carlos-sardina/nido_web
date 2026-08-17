@@ -1,12 +1,39 @@
 import { P } from "@/lib/palette";
+import { Button, type NidoButtonVariant } from "@/components/nido/Button";
 
-export function OBtn2({ label, onClick, variant = "primary", disabled = false }: { label: string; onClick: () => void; variant?: "primary"|"secondary"; disabled?: boolean }) {
+export function OBtn2({
+  label,
+  onClick,
+  variant = "primary",
+  disabled = false,
+}: {
+  label: string;
+  onClick: () => void;
+  variant?: "primary" | "secondary";
+  disabled?: boolean;
+}) {
   return (
-    <button onClick={disabled ? undefined : onClick} className="w-full py-4 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98]"
-      style={variant === "primary"
-        ? { backgroundColor: disabled ? P.sub : P.brnDk, color: disabled ? P.muted : "#fff", cursor: disabled ? "not-allowed" : "pointer" }
-        : { backgroundColor: P.sub, color: P.text }}>
+    <Button variant={variant} disabled={disabled} onClick={onClick}>
       {label}
-    </button>
+    </Button>
+  );
+}
+
+export function PBtn({
+  label,
+  onClick,
+  disabled = false,
+  variant = "primary",
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: "primary" | "ghost";
+}) {
+  const mapped: NidoButtonVariant = variant === "ghost" ? "ghost" : "primary";
+  return (
+    <Button variant={mapped} disabled={disabled} onClick={onClick} style={variant === "ghost" ? { color: P.muted } : undefined}>
+      {label}
+    </Button>
   );
 }

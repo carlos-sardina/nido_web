@@ -4,7 +4,7 @@ This document describes household (Nido) creation, membership, leaving, invitati
 
 The schema in [database.md](./database.md) remains the source of truth. RLS in [security.md](./security.md) is unchanged. Application services and four Postgres functions live in this phase. It does not change tables or weaken policies.
 
-Phase 9 (real financial data and a live dashboard) has **not** started.
+Phase 9 (real financial data and a live dashboard) has **not** started. Auth and onboarding visuals use the tokens in [design-system.md](./design-system.md).
 
 ---
 

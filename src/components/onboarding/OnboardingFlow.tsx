@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Check, ChevronLeft, Link, QrCode, Sparkles,
+  Check, Link, QrCode, Sparkles,
 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { AuthPanel, type AuthView } from "@/components/auth/AuthPanel";
@@ -44,9 +44,13 @@ import type { Model, OStep, OData } from "@/lib/types";
 import { InviteQrModal } from "@/components/flows/InviteQrModal";
 import { NidoHouse } from "@/components/shared/NidoHouse";
 import { ExpenseEntryModal } from "@/components/onboarding/ExpenseEntryModal";
-import { OBtn2 } from "@/components/onboarding/OBtn2";
 import { OProgress2 } from "@/components/onboarding/OProgress2";
 import { NidoSelectionScreen } from "@/components/onboarding/NidoSelectionScreen";
+import { Button } from "@/components/nido/Button";
+import { ChoiceCard, SectionLabel } from "@/components/nido/ChoiceCard";
+import { Field, FieldError, FieldLabel, HelperText, MoneyField, TextInput } from "@/components/nido/Field";
+import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
+import { Text } from "@/components/nido/Typography";
 
 const CREATE_STEPS = 7;
 
@@ -54,13 +58,16 @@ export function OnboardingFlow({
   onComplete,
   user,
   entry = "welcome",
+  onLogout,
 }: {
   onComplete: () => void;
   user: User | null;
   entry?: "welcome" | "select";
+  onLogout?: () => void;
 }) {
   const router = useRouter();
   const restored = useRef(false);
+  const ids = useId();
   const [step, setStep] = useState<OStep>(entry === "select" ? "select" : "welcome");
   const [authView, setAuthView] = useState<AuthView>("signup");
   const [data, setData] = useState<OData>(() => ({
@@ -80,6 +87,7 @@ export function OnboardingFlow({
   const [inviteCopied, setInviteCopied] = useState(false);
   const identity = identityFromUser(user);
   const set = (k: keyof OData, v: OData[keyof OData]) => setData(p => ({ ...p, [k]: v }));
+  const fieldErrorId = `${ids}-field-error`;
 
   const goTo = (next: OStep) => {
     setFieldError(null);
@@ -273,65 +281,61 @@ export function OnboardingFlow({
   const authHeading =
     authView === "confirm-email" ? CONFIRM_EMAIL_HEADING
       : authView === "forgot" ? "Recupera tu acceso"
-        : "Bienvenido";
+        : authView === "login" ? "Iniciar sesión"
+          : "Crea tu cuenta";
   const authSub =
     authView === "confirm-email" ? null
       : authView === "forgot" ? "Te enviaremos un enlace para restablecer la contraseña."
-        : "Crea una cuenta o inicia sesión para continuar";
+        : authView === "login" ? "Usa el correo con el que te registraste."
+          : "Ingresa tu correo y elige una contraseña.";
 
   return (
-    <div className="relative min-h-screen flex flex-col overflow-hidden" style={{ backgroundColor: P.bgL, fontFamily: "Figtree, sans-serif" }}>
-        <div className="flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden px-6 pt-4 pb-8">
-
+    <FlowScreen
+      footer={step === "p-expenses" ? (
+        <ScreenFooter>
+          <Button
+            disabled={!expCanContinue}
+            onClick={() => expCanContinue && goTo("p-contrib")}
+          >
+            Continuar
+          </Button>
+        </ScreenFooter>
+      ) : undefined}
+    >
           {step === "welcome" && (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col flex-1">
               <div className="flex-1 flex flex-col items-center justify-center">
                 <NidoHouse />
-                <div className="text-center mt-2 mb-8">
-                  <h1 className="text-4xl font-bold mb-2" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Nido</h1>
-                  <p className="text-sm leading-relaxed" style={{ color: P.muted }}>El lugar donde las personas construyen<br />su patrimonio juntas.</p>
-                  <p className="text-xs leading-relaxed mt-3" style={{ color: P.muted }}>Una forma sencilla de organizar sus ingresos, gastos y metas en un mismo lugar.</p>
-                </div>
+                <ScreenIntro
+                  className="mt-6"
+                  align="center"
+                  titleSize="display"
+                  title="Bienvenido"
+                  description="Crea una cuenta o inicia sesión para continuar."
+                />
               </div>
-              <div className="space-y-3">
-                <OBtn2 label="Crear cuenta" onClick={() => openAuth("signup")} />
-                <OBtn2 label="Iniciar sesión" onClick={() => openAuth("login")} variant="secondary" />
-                <p className="text-center text-[11px] leading-relaxed pt-1" style={{ color: P.muted }}>Ideal para parejas, roommates, familias y más.</p>
+              <div className="space-y-3 mt-8">
+                <Button onClick={() => openAuth("signup")}>Crear cuenta</Button>
+                <Button variant="secondary" onClick={() => openAuth("login")}>Iniciar sesión</Button>
               </div>
             </div>
           )}
 
           {step === "auth" && (
-            <div className="flex flex-col h-full">
-              <button type="button" onClick={() => goTo("welcome")} className="flex items-center gap-1 mb-2" style={{ color: P.muted }}>
-                <ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span>
-              </button>
+            <div className="flex flex-col flex-1">
+              <BackLink onClick={() => goTo("welcome")} />
               <div className="flex-1 flex flex-col justify-center">
-                <div className="text-center mb-8">
-                  <p className="text-xs font-semibold mb-1" style={{ color: P.muted }}>Nido</p>
-                  <h2 className="text-3xl font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{authHeading}</h2>
-                  {authSub && (
-                    <p className="text-xs mt-1.5 mb-6" style={{ color: P.muted }}>{authSub}</p>
-                  )}
-                </div>
-
-                {authError && (
-                  <p className="text-center text-[11px] mb-4 leading-relaxed" style={{ color: P.danger }}>
-                    {authError}
-                  </p>
-                )}
+                <ScreenIntro className="mb-8" align="center" title={authHeading} description={authSub} />
+                {authError && <FieldError className="mb-4 text-center">{authError}</FieldError>}
                 <AuthPanel
                   initialView={authView === "login" || authView === "forgot" ? authView : "signup"}
                   onAuthenticated={() => undefined}
                   onViewChange={setAuthView}
                 />
               </div>
-
-              <p className="text-center text-[10px] pb-2 leading-relaxed" style={{ color: P.muted }}>
-                Al continuar aceptas los{" "}
-                <span style={{ color: P.brnDk }}>Términos de uso</span> y la{" "}
-                <span style={{ color: P.brnDk }}>Política de privacidad</span>.
-              </p>
+              <Text size="caption" tone="muted" className="text-center mt-8 leading-relaxed">
+                Al continuar aceptas los Términos de uso y la Política de privacidad.
+              </Text>
             </div>
           )}
 
@@ -339,228 +343,296 @@ export function OnboardingFlow({
             <NidoSelectionScreen
               onCreate={() => applyNidoChoice("create")}
               onJoin={() => applyNidoChoice("join")}
+              onLogout={onLogout}
             />
           )}
 
           {step === "join" && (
             <div>
-              <button type="button" onClick={() => goTo(user ? "select" : "auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
-              <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Únete a un Nido</h2>
-              <p className="text-xs mb-6" style={{ color: P.muted }}>Pega el enlace o el token de invitación. Solo puedes pertenecer a un Nido.</p>
-              <label className="text-xs font-semibold mb-2 block" style={{ color: P.muted }}>Enlace o token de invitación</label>
-              <input className="w-full py-3.5 px-4 rounded-2xl text-sm font-semibold border-2 outline-none mb-4"
-                style={{ backgroundColor: P.card, borderColor: joinToken ? P.brnDk : P.sub, color: P.text }}
-                placeholder="https://…/join/…" value={joinCode} onChange={e => setJoinCode(e.target.value)} />
+              <BackLink onClick={() => goTo(user ? "select" : "auth")} />
+              <ScreenIntro
+                className="mb-8"
+                title="Únete a un Nido"
+                description="Pega el enlace o el token de invitación. Solo puedes pertenecer a un Nido."
+              />
+              <Field className="mb-6">
+                <FieldLabel htmlFor={`${ids}-join`}>Enlace o token de invitación</FieldLabel>
+                <TextInput
+                  id={`${ids}-join`}
+                  placeholder="https://…/join/…"
+                  value={joinCode}
+                  filled={Boolean(joinToken)}
+                  invalid={Boolean(joinCode) && !joinToken}
+                  onChange={e => setJoinCode(e.target.value)}
+                />
+              </Field>
               {joinCode && !joinToken && (
-                <p className="text-[11px] mb-4" style={{ color: P.danger }}>No reconocimos ese enlace o token.</p>
+                <FieldError className="mb-4">No reconocimos ese enlace o token.</FieldError>
               )}
-              <OBtn2
-                label="Continuar"
+              <Button
                 onClick={() => joinToken && router.push(`/join/${encodeURIComponent(joinToken)}`)}
                 disabled={!joinToken}
-              />
+              >
+                Continuar
+              </Button>
             </div>
           )}
 
           {step === "c-type" && (
             <div>
-              <button type="button" onClick={() => goTo(user ? "select" : "welcome")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
-              <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿Qué tipo de Nido es?</h2>
-              <p className="text-xs mb-6" style={{ color: P.muted }}>Esto nos ayuda a configurarlo mejor.</p>
-              <div className="grid grid-cols-4 gap-2 mb-6">
+              <BackLink onClick={() => goTo(user ? "select" : "welcome")} />
+              <ScreenIntro
+                className="mb-8"
+                title="¿Qué tipo de Nido es?"
+                description="Esto nos ayuda a configurarlo mejor."
+              />
+              <div className="grid grid-cols-4 gap-2 mb-8">
                 {NEST_TYPES.map(nt => (
-                  <button key={nt.label} type="button" onClick={() => set("nestType", nt.label)}
-                    className="flex flex-col items-center gap-1.5 py-4 rounded-2xl border-2 transition-all"
-                    style={{ borderColor: data.nestType === nt.label ? P.brnDk : "transparent", backgroundColor: data.nestType === nt.label ? P.sagePl : P.sub }}>
-                    <span className="text-2xl">{nt.emoji}</span>
-                    <span className="text-[9px] font-semibold" style={{ color: P.text }}>{nt.label}</span>
+                  <button
+                    key={nt.label}
+                    type="button"
+                    onClick={() => set("nestType", nt.label)}
+                    aria-pressed={data.nestType === nt.label}
+                    className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    style={{
+                      borderColor: data.nestType === nt.label ? P.brnDk : "transparent",
+                      backgroundColor: data.nestType === nt.label ? P.sagePl : P.sub,
+                    }}
+                  >
+                    <span className="text-h2" aria-hidden="true">{nt.emoji}</span>
+                    <span className="text-caption font-semibold text-foreground">{nt.label}</span>
                   </button>
                 ))}
               </div>
-              <OBtn2 label="Continuar" onClick={() => { if(data.nestType) goTo("c-name"); }} />
+              <Button onClick={() => { if (data.nestType) goTo("c-name"); }} disabled={!data.nestType}>
+                Continuar
+              </Button>
             </div>
           )}
 
           {step === "c-name" && (
             <div>
-              <button type="button" onClick={() => goTo(user ? "select" : "auth")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              <BackLink onClick={() => goTo(user ? "select" : "auth")} />
               <OProgress2 step={1} total={CREATE_STEPS} />
-              <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Dale nombre a tu Nido</h2>
-              <p className="text-xs mb-6" style={{ color: P.muted }}>Algo que lo haga sentir especial. Todavía no se crea nada.</p>
-              <input className="w-full py-4 px-4 rounded-2xl text-lg font-semibold border-2 outline-none mb-2 transition-all"
-                style={{ backgroundColor: P.card, borderColor: data.nestName ? P.brnDk : P.sub, color: P.text }}
-                placeholder="Casa Roma, Depa 502…" value={data.nestName} onChange={e => set("nestName",e.target.value)} />
-              <div className="flex flex-wrap gap-2 mb-6">
+              <ScreenIntro
+                className="mb-8"
+                emoji="🪺"
+                title="Dale nombre a tu Nido"
+                description="Elige un nombre que represente el espacio que están construyendo juntos. Todavía no se crea nada."
+              />
+              <Field className="mb-4">
+                <FieldLabel htmlFor={`${ids}-nest`}>Nombre del Nido</FieldLabel>
+                <TextInput
+                  id={`${ids}-nest`}
+                  placeholder="Casa Roma, Depa 502…"
+                  value={data.nestName}
+                  filled={Boolean(data.nestName)}
+                  invalid={Boolean(fieldError)}
+                  aria-describedby={fieldError ? fieldErrorId : undefined}
+                  onChange={e => set("nestName", e.target.value)}
+                />
+              </Field>
+              <div className="flex flex-wrap gap-2 mb-8">
                 {NIDO_NAMES.map(n => (
-                  <button key={n} type="button" onClick={() => set("nestName",n)}
-                    className="text-xs font-medium px-3 py-1.5 rounded-full border"
-                    style={{ borderColor: P.border, backgroundColor: P.sub, color: P.muted }}>{n}</button>
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => set("nestName", n)}
+                    className="text-caption font-medium px-3 h-8 rounded-full border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    style={{ borderColor: P.border, backgroundColor: P.sub, color: P.muted }}
+                  >
+                    {n}
+                  </button>
                 ))}
               </div>
-              {fieldError && <p className="text-[11px] mb-3" style={{ color: P.danger }}>{fieldError}</p>}
-              <OBtn2 label="Continuar" onClick={() => {
-                const invalid = validateHouseholdName(data.nestName);
-                if (invalid) { setFieldError(invalid); return; }
-                const normalized = normalizeHouseholdName(data.nestName);
-                if (normalized) set("nestName", normalized);
-                goTo("p-name");
-              }} disabled={!data.nestName.trim()} />
+              {fieldError && <FieldError id={fieldErrorId} className="mb-4">{fieldError}</FieldError>}
+              <Button
+                onClick={() => {
+                  const invalid = validateHouseholdName(data.nestName);
+                  if (invalid) { setFieldError(invalid); return; }
+                  const normalized = normalizeHouseholdName(data.nestName);
+                  if (normalized) set("nestName", normalized);
+                  goTo("p-name");
+                }}
+                disabled={!data.nestName.trim()}
+              >
+                Continuar
+              </Button>
             </div>
           )}
 
           {step === "c-invite" && (
             <div>
-              <button type="button" onClick={() => goTo("p-contrib")} className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              <BackLink onClick={() => goTo("p-contrib")} />
               <OProgress2 step={7} total={CREATE_STEPS} />
-              <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Invita a los miembros</h2>
-              <p className="text-xs mb-4" style={{ color: P.muted }}>Puedes invitar ahora o hacerlo después. Crear tu Nido no espera a que alguien acepte.</p>
+              <ScreenIntro
+                className="mb-6"
+                title="Invita a los miembros"
+                description="Puedes invitar ahora o hacerlo después. Crear tu Nido no espera a que alguien acepte."
+              />
               <div className="flex justify-center mb-6"><NidoHouse /></div>
-              {nidoError && (
-                <p className="text-[11px] mb-3 leading-relaxed" style={{ color: P.danger }}>{nidoError}</p>
-              )}
-              <div className="space-y-2 mb-6">
-                <button
-                  type="button"
+              {nidoError && <FieldError className="mb-4">{nidoError}</FieldError>}
+              <div className="space-y-3 mb-8">
+                <ChoiceCard
+                  icon={<Link size={16} style={{ color: P.sageDk }} />}
+                  title={submitting ? "Creando tu Nido…" : inviteCopied ? "Enlace copiado" : "Invitar por enlace"}
+                  description="Copia un enlace para compartir. No se envía correo."
                   disabled={submitting}
                   onClick={() => { void handleCreateInvite(); }}
-                  className="w-full flex items-center gap-3 p-4 rounded-2xl border text-left"
-                  style={{ borderColor: P.border, backgroundColor: P.card, opacity: submitting ? 0.7 : 1 }}>
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: P.sagePl }}>
-                    <Link size={16} style={{ color: P.sageDk }} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold" style={{ color: P.text }}>
-                      {submitting ? "Creando tu Nido…" : inviteCopied ? "Enlace copiado" : "Invitar por enlace"}
-                    </p>
-                    <p className="text-[10px]" style={{ color: P.muted }}>Genera y copia un link. No se envía correo todavía.</p>
-                  </div>
-                </button>
-                <button
-                  type="button"
+                />
+                <ChoiceCard
+                  icon={<QrCode size={16} style={{ color: P.sageDk }} />}
+                  title="Invitar por QR"
+                  description="Muestra un código para unirse al Nido."
                   disabled={submitting}
                   onClick={async () => {
                     const url = inviteUrl ?? await handleCreateInvite();
                     if (url) setShowQrInvite(true);
                   }}
-                  className="w-full flex items-center gap-3 p-4 rounded-2xl border text-left"
-                  style={{ borderColor: P.border, backgroundColor: P.card, opacity: submitting ? 0.7 : 1 }}>
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: P.sagePl }}>
-                    <QrCode size={16} style={{ color: P.sageDk }} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold" style={{ color: P.text }}>Invitar por QR</p>
-                    <p className="text-[10px]" style={{ color: P.muted }}>Muestra el enlace para unirse al Nido</p>
-                  </div>
-                </button>
+                />
               </div>
               {inviteUrl && (
-                <p className="text-[10px] break-all mb-4" style={{ color: P.muted }}>{inviteUrl}</p>
+                <HelperText className="break-all mb-4">{inviteUrl}</HelperText>
               )}
-              <OBtn2
-                label={submitting ? "Creando tu Nido…" : createdHouseholdId ? "Entrar a mi Nido 🪺" : "Crear mi Nido 🪺"}
+              <Button
                 onClick={() => { void handleCreateNido(); }}
                 disabled={submitting}
-              />
+                loading={submitting}
+              >
+                {submitting ? "Creando tu Nido…" : createdHouseholdId ? "Entrar a mi Nido 🪺" : "Crear mi Nido 🪺"}
+              </Button>
             </div>
           )}
 
           {isPers && (
             <div>
-              <button type="button" onClick={() => goTo(data.flow==="join"&&step==="p-name"?"join":PERSONAL[pIdx-1]||"c-name")}
-                className="mb-4 flex items-center gap-1" style={{ color: P.muted }}><ChevronLeft size={16}/><span className="text-xs font-medium">Atrás</span></button>
+              <BackLink onClick={() => goTo(data.flow==="join"&&step==="p-name"?"join":PERSONAL[pIdx-1]||"c-name")} />
               <OProgress2 step={pIdx+2} total={CREATE_STEPS} />
 
               {step === "p-name" && (
                 <>
-                  <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿Cómo te llamas?</h2>
-                  <p className="text-xs mb-5" style={{ color: P.muted }}>Este es el nombre que verán los demás miembros de tu Nido.</p>
+                  <ScreenIntro
+                    className="mb-6"
+                    title="¿Cómo te llamas?"
+                    description="Este es el nombre que verán los demás miembros de tu Nido."
+                  />
                   {identity?.email && (
-                    <div className="flex items-center gap-2 mb-5 px-3 py-2 rounded-2xl" style={{ backgroundColor: P.sub }}>
-                      <p className="text-[11px]" style={{ color: P.muted }}>
-                        Conectado como <span className="font-semibold" style={{ color: P.text }}>{identity.email}</span>
-                      </p>
+                    <div className="flex items-center gap-2 mb-6 px-4 py-3 rounded-2xl" style={{ backgroundColor: P.sub }}>
+                      <HelperText>
+                        Conectado como <span className="font-semibold text-foreground">{identity.email}</span>
+                      </HelperText>
                     </div>
                   )}
-                  <div className="flex justify-center mb-5">
-                    <div className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-md overflow-hidden"
-                      style={{ backgroundColor: P.brnDk }}>
+                  <div className="flex justify-center mb-6">
+                    <div
+                      className="w-20 h-20 rounded-full flex items-center justify-center text-h1 font-bold text-white shadow-md overflow-hidden"
+                      style={{ backgroundColor: P.brnDk }}
+                    >
                       {identity?.avatarUrl
                         ? <img src={identity.avatarUrl} alt="" className="w-full h-full object-cover" />
                         : (data.userName ? data.userName[0].toUpperCase() : "?")}
                     </div>
                   </div>
-                  <input className="w-full py-4 px-4 rounded-2xl text-base font-semibold border-2 outline-none mb-2"
-                    style={{ backgroundColor: P.card, borderColor: data.userName ? P.brnDk : "rgba(47,42,40,0.15)", color: P.text }}
-                    placeholder="Carlos Sardina" value={data.userName} onChange={e => set("userName",e.target.value)} />
-                  <p className="text-[11px] mb-6" style={{ color: P.muted }}>Puedes cambiarlo después.</p>
-                  {fieldError && <p className="text-[11px] mb-3" style={{ color: P.danger }}>{fieldError}</p>}
-                  <OBtn2 label="Continuar" onClick={() => {
-                    const invalid = validateDisplayName(data.userName);
-                    if (invalid) { setFieldError(invalid); return; }
-                    const normalized = normalizeDisplayName(data.userName);
-                    if (normalized) set("userName", normalized);
-                    goTo("p-income");
-                  }} disabled={!data.userName.trim()} />
+                  <Field className="mb-2">
+                    <FieldLabel htmlFor={`${ids}-user`}>Tu nombre</FieldLabel>
+                    <TextInput
+                      id={`${ids}-user`}
+                      placeholder="Carlos Sardina"
+                      value={data.userName}
+                      filled={Boolean(data.userName)}
+                      invalid={Boolean(fieldError)}
+                      aria-describedby={fieldError ? fieldErrorId : undefined}
+                      onChange={e => set("userName", e.target.value)}
+                    />
+                  </Field>
+                  <HelperText className="mb-8">Puedes cambiarlo después.</HelperText>
+                  {fieldError && <FieldError id={fieldErrorId} className="mb-4">{fieldError}</FieldError>}
+                  <Button
+                    onClick={() => {
+                      const invalid = validateDisplayName(data.userName);
+                      if (invalid) { setFieldError(invalid); return; }
+                      const normalized = normalizeDisplayName(data.userName);
+                      if (normalized) set("userName", normalized);
+                      goTo("p-income");
+                    }}
+                    disabled={!data.userName.trim()}
+                  >
+                    Continuar
+                  </Button>
                 </>
               )}
               {step === "p-income" && (
                 <>
-                  <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿Cuánto ganas al mes?</h2>
-                  <p className="text-xs mb-6" style={{ color: P.muted }}>Esta información es privada y solo se utiliza para calcular cómo repartir los gastos del Nido.</p>
+                  <ScreenIntro
+                    className="mb-8"
+                    title="¿Cuánto ganas al mes?"
+                    description="Esta información es privada y solo se utiliza para calcular cómo repartir los gastos del Nido."
+                  />
                   <div className="mb-2">
-                    <label className="text-xs font-semibold mb-1.5 block" style={{ color: P.muted }}>Ingreso mensual neto</label>
-                    <div className="rounded-2xl border-2 px-4 py-3.5 flex items-center gap-1"
-                      style={{ backgroundColor: P.card, borderColor: data.salary ? P.brnDk : P.sub }}>
-                      <span className="text-base font-normal flex-shrink-0" style={{ color: P.muted }}>$</span>
-                      <input className="flex-1 text-base bg-transparent outline-none"
-                        style={{ color: P.text }}
-                        type="text" inputMode="decimal" placeholder="40,000"
-                        value={formatMoneyInput(data.salary)}
-                        onChange={e => set("salary", e.target.value.replace(/[^0-9.]/g,""))} />
-                    </div>
+                    <MoneyField
+                      id={`${ids}-salary`}
+                      label="Ingreso mensual neto"
+                      placeholder="40,000"
+                      value={formatMoneyInput(data.salary)}
+                      invalid={Boolean(fieldError)}
+                      describedBy={fieldError ? fieldErrorId : undefined}
+                      onChange={(value) => set("salary", value)}
+                    />
                   </div>
-                  <p className="text-[11px] mb-6" style={{ color: P.muted }}>Puedes cambiarlo después.</p>
-                  {fieldError && <p className="text-[11px] mb-3" style={{ color: P.danger }}>{fieldError}</p>}
-                  <OBtn2 label="Continuar" onClick={() => {
-                    const invalid = validateIncome(data.salary);
-                    if (invalid) { setFieldError(invalid); return; }
-                    goTo("p-savings");
-                  }} disabled={!data.salary} />
+                  <HelperText className="mb-8">Puedes cambiarlo después.</HelperText>
+                  {fieldError && <FieldError id={fieldErrorId} className="mb-4">{fieldError}</FieldError>}
+                  <Button
+                    onClick={() => {
+                      const invalid = validateIncome(data.salary);
+                      if (invalid) { setFieldError(invalid); return; }
+                      goTo("p-savings");
+                    }}
+                    disabled={!data.salary}
+                  >
+                    Continuar
+                  </Button>
                 </>
               )}
               {step === "p-savings" && (
                 <>
-                  <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿Cuánto tienes ahorrado?</h2>
-                  <p className="text-xs mb-5" style={{ color: P.muted }}>Puedes registrar tus ahorros personales y los que ya comparten como hogar.</p>
-
-                  <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: P.muted }}>Ahorros personales</p>
-                  <div className="rounded-2xl border-2 px-4 py-3 flex items-center gap-1 mb-3"
-                    style={{ backgroundColor: P.card, borderColor: data.savings ? P.brnDk : P.sub }}>
-                    <span className="text-base font-normal flex-shrink-0" style={{ color: P.muted }}>$</span>
-                    <input className="flex-1 text-base bg-transparent outline-none"
-                      style={{ color: P.text }}
-                      type="text" inputMode="decimal" placeholder="0.00"
+                  <ScreenIntro
+                    className="mb-6"
+                    title="¿Cuánto tienes ahorrado?"
+                    description="Puedes registrar tus ahorros personales y los que ya comparten como hogar."
+                  />
+                  <div className="mb-4">
+                    <MoneyField
+                      id={`${ids}-savings`}
+                      label="Ahorros personales"
+                      placeholder="0.00"
                       value={formatMoneyInput(data.savings)}
-                      onChange={e => set("savings", e.target.value.replace(/[^0-9.]/g,""))} />
+                      invalid={Boolean(fieldError)}
+                      describedBy={fieldError ? fieldErrorId : undefined}
+                      onChange={(value) => set("savings", value)}
+                    />
                   </div>
-
-                  <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: P.muted }}>Ahorros compartidos</p>
-                  <div className="rounded-2xl border-2 px-4 py-3 flex items-center gap-1 mb-2"
-                    style={{ backgroundColor: P.card, borderColor: data.savingsShared ? P.brnDk : P.sub }}>
-                    <span className="text-base font-normal flex-shrink-0" style={{ color: P.muted }}>$</span>
-                    <input className="flex-1 text-base bg-transparent outline-none"
-                      style={{ color: P.text }}
-                      type="text" inputMode="decimal" placeholder="0.00"
+                  <div className="mb-2">
+                    <MoneyField
+                      id={`${ids}-savings-shared`}
+                      label="Ahorros compartidos"
+                      placeholder="0.00"
                       value={formatMoneyInput(data.savingsShared)}
-                      onChange={e => set("savingsShared", e.target.value.replace(/[^0-9.]/g,""))} />
+                      invalid={Boolean(fieldError)}
+                      describedBy={fieldError ? fieldErrorId : undefined}
+                      onChange={(value) => set("savingsShared", value)}
+                    />
                   </div>
-                  <p className="text-[11px] mb-6" style={{ color: P.muted }}>Ambos son opcionales.</p>
-                  {fieldError && <p className="text-[11px] mb-3" style={{ color: P.danger }}>{fieldError}</p>}
-                  <OBtn2 label="Continuar" onClick={() => {
-                    const invalid = validateSavings(data.savings, data.savingsShared);
-                    if (invalid) { setFieldError(invalid); return; }
-                    goTo("p-expenses");
-                  }} />
+                  <HelperText className="mb-8">Ambos son opcionales.</HelperText>
+                  {fieldError && <FieldError id={fieldErrorId} className="mb-4">{fieldError}</FieldError>}
+                  <Button
+                    onClick={() => {
+                      const invalid = validateSavings(data.savings, data.savingsShared);
+                      if (invalid) { setFieldError(invalid); return; }
+                      goTo("p-expenses");
+                    }}
+                  >
+                    Continuar
+                  </Button>
                 </>
               )}
               {step === "p-expenses" && (() => {
@@ -597,25 +669,30 @@ export function OnboardingFlow({
                 const renderExpense = (exp: OData["expenses"][number], i: number) => {
                   const done = exp.selected && !!exp.amount;
                   return (
-                    <button key={`${exp.name}-${i}`} type="button"
+                    <button
+                      key={`${exp.name}-${i}`}
+                      type="button"
                       onClick={() => setExpEditIdx(i)}
-                      className="w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all text-left"
+                      className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       style={{
-                        borderColor: done ? P.brnDk : "rgba(47,42,40,0.15)",
+                        borderColor: done ? P.brnDk : P.sub,
                         backgroundColor: P.card,
-                      }}>
-                      <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: done ? P.brnDk : "transparent", border: `2px solid ${done ? P.brnDk : "rgba(47,42,40,0.2)"}` }}>
+                      }}
+                    >
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: done ? P.brnDk : "transparent", border: `2px solid ${done ? P.brnDk : P.sub}` }}
+                      >
                         {done && <Check size={12} color="#fff" />}
                       </div>
-                      <span className="text-sm flex-shrink-0">{exp.icon}</span>
-                      <span className="text-xs font-medium flex-1 text-left truncate" style={{ color: P.text }}>{exp.name}</span>
+                      <span className="text-body-sm flex-shrink-0" aria-hidden="true">{exp.icon}</span>
+                      <span className="text-label font-medium flex-1 text-left truncate text-foreground">{exp.name}</span>
                       {done && (
                         <>
-                          <span className="text-xs font-bold flex-shrink-0" style={{ color: P.text }}>
+                          <span className="text-label font-bold flex-shrink-0 text-foreground">
                             ${(parseMoneyInput(exp.amount) ?? 0).toLocaleString("es-MX")}
                           </span>
-                          <span className="text-sm flex-shrink-0 ml-1">
+                          <span className="text-body-sm flex-shrink-0 ml-1" aria-hidden="true">
                             {exp.type === "personal" ? "👤" : "🏠"}
                           </span>
                         </>
@@ -633,34 +710,46 @@ export function OnboardingFlow({
 
                 return (
                   <>
-                    <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Gastos mensuales estimados</h2>
-                    <p className="text-xs mb-4" style={{ color: P.muted }}>Toca un gasto para agregar el monto mensual y definir si es personal o compartido.</p>
+                    <ScreenIntro
+                      className="mb-6"
+                      title="Gastos mensuales estimados"
+                      description="Toca un gasto para agregar el monto mensual y definir si es personal o compartido."
+                    />
 
-                    <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: P.muted }}>Recurrentes / fijos</p>
-                    <div className="space-y-2 mb-4">
+                    <SectionLabel>Recurrentes / fijos</SectionLabel>
+                    <div className="space-y-2 mb-6">
                       {recurring.map(({ exp, i }) => renderExpense(exp, i))}
                     </div>
 
-                    <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: P.muted }}>Variables</p>
-                    <div className="space-y-2 mb-3">
+                    <SectionLabel>Variables</SectionLabel>
+                    <div className="space-y-2 mb-4">
                       {variable.map(({ exp, i }) => renderExpense(exp, i))}
                     </div>
 
                     {!showAddCustom ? (
-                      <button type="button" onClick={() => setShowAddCustom(true)}
-                        className="w-full flex items-center gap-2 py-3 px-4 rounded-2xl border-2 border-dashed mb-3 transition-all"
-                        style={{ borderColor: P.border, backgroundColor: "transparent", color: P.muted }}>
-                        <span className="text-base">➕</span>
-                        <span className="text-xs font-semibold">Agregar otro gasto</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddCustom(true)}
+                        className="w-full flex items-center gap-2 h-14 px-4 rounded-2xl border-2 border-dashed mb-4 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        style={{ borderColor: P.border, backgroundColor: "transparent", color: P.muted }}
+                      >
+                        <span className="text-body" aria-hidden="true">➕</span>
+                        <span className="text-sm font-semibold">Agregar otro gasto</span>
                       </button>
                     ) : (
-                      <div className="rounded-2xl border-2 p-4 mb-3" style={{ borderColor: P.brnDk, backgroundColor: P.sagePl }}>
-                        <p className="text-[9px] font-semibold uppercase tracking-widest mb-3" style={{ color: P.muted }}>Nuevo gasto personalizado</p>
-                        <div className="flex gap-1.5 overflow-x-auto [&::-webkit-scrollbar]:hidden mb-3 pb-0.5">
+                      <div className="rounded-2xl border-2 p-4 mb-4" style={{ borderColor: P.brnDk, backgroundColor: P.sagePl }}>
+                        <SectionLabel>Nuevo gasto personalizado</SectionLabel>
+                        <div className="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden mb-4">
                           {QUICK_EMOJIS.map(e => (
-                            <button key={e} type="button" onClick={() => setCustomEmoji(e)}
-                              className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-lg transition-all"
-                              style={{ backgroundColor: customEmoji === e ? P.brnDk + "20" : P.card, border: `2px solid ${customEmoji === e ? P.brnDk : "transparent"}` }}>
+                            <button
+                              key={e}
+                              type="button"
+                              onClick={() => setCustomEmoji(e)}
+                              aria-label={`Emoji ${e}`}
+                              aria-pressed={customEmoji === e}
+                              className="flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              style={{ backgroundColor: customEmoji === e ? P.brnDk + "20" : P.card, border: `2px solid ${customEmoji === e ? P.brnDk : "transparent"}` }}
+                            >
                               {e}
                             </button>
                           ))}
@@ -668,7 +757,7 @@ export function OnboardingFlow({
                             type="text"
                             aria-label="Otro emoji"
                             placeholder="＋"
-                            className="flex-shrink-0 w-9 h-9 rounded-xl text-lg text-center outline-none border-2 transition-all"
+                            className="flex-shrink-0 w-11 h-11 rounded-xl text-lg text-center outline-none border-2 transition-all"
                             style={{
                               backgroundColor: !isQuickEmoji ? P.brnDk + "20" : P.card,
                               borderColor: !isQuickEmoji ? P.brnDk : "transparent",
@@ -678,115 +767,119 @@ export function OnboardingFlow({
                             onChange={e => setEmojiFromInput(e.target.value)}
                           />
                         </div>
-                        <div className="flex gap-2 mb-3">
+                        <div className="flex gap-2 mb-4">
                           <input
                             type="text"
                             aria-label="Emoji del gasto"
-                            className="w-10 h-10 rounded-xl text-xl text-center outline-none border-2 flex-shrink-0"
+                            className="w-11 h-11 rounded-xl text-lg text-center outline-none border-2 flex-shrink-0"
                             style={{ backgroundColor: P.card, borderColor: P.brnDk, color: P.text }}
                             value={customEmoji}
                             onChange={e => setEmojiFromInput(e.target.value)}
                           />
                           <input
-                            className="flex-1 rounded-xl px-3 py-2 text-xs font-medium outline-none border-2"
+                            className="flex-1 h-11 rounded-xl px-3 text-sm font-medium outline-none border-2"
                             style={{ backgroundColor: P.card, borderColor: customName ? P.brnDk : P.border, color: P.text }}
                             placeholder="Nombre del gasto (ej. Masajes)"
                             value={customName}
                             onChange={e => setCustomName(e.target.value)}
                           />
                         </div>
-                        <div className="flex gap-1.5 mb-3">
+                        <div className="flex gap-2 mb-4">
                           {([{ val: "personal" as const, label: "Personal", emoji: "👤" }, { val: "shared" as const, label: "Compartido", emoji: "🏠" }]).map(t => (
-                            <button key={t.val} type="button" onClick={() => setCustomEtype(t.val)}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all"
-                              style={{ backgroundColor: customEtype === t.val ? P.brnDk : P.card, color: customEtype === t.val ? "#fff" : P.muted }}>
-                              <span>{t.emoji}</span>{t.label}
+                            <button
+                              key={t.val}
+                              type="button"
+                              onClick={() => setCustomEtype(t.val)}
+                              aria-pressed={customEtype === t.val}
+                              className="flex items-center gap-1 px-3 h-8 rounded-full text-caption font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              style={{ backgroundColor: customEtype === t.val ? P.brnDk : P.card, color: customEtype === t.val ? "#fff" : P.muted }}
+                            >
+                              <span aria-hidden="true">{t.emoji}</span>{t.label}
                             </button>
                           ))}
                         </div>
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => { setShowAddCustom(false); setFieldError(null); }}
-                            className="flex-1 py-2.5 rounded-xl text-xs font-semibold border"
-                            style={{ borderColor: P.border, backgroundColor: P.card, color: P.muted }}>
+                          <Button
+                            variant="ghost"
+                            size="compact"
+                            onClick={() => { setShowAddCustom(false); setFieldError(null); }}
+                          >
                             Cancelar
-                          </button>
-                          <button type="button" onClick={addCustom} disabled={!customName.trim()}
-                            className="flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all"
-                            style={{ backgroundColor: customName.trim() ? P.brnDk : P.sub, color: customName.trim() ? "#fff" : P.muted }}>
+                          </Button>
+                          <Button
+                            size="compact"
+                            onClick={addCustom}
+                            disabled={!customName.trim()}
+                          >
                             Agregar
-                          </button>
+                          </Button>
                         </div>
-                        {fieldError && <p className="text-[11px] mt-2" style={{ color: P.danger }}>{fieldError}</p>}
+                        {fieldError && <FieldError className="mt-3">{fieldError}</FieldError>}
                       </div>
                     )}
-
                   </>
                 );
               })()}
               {step === "p-contrib" && (
                 <>
-                  <h2 className="text-2xl font-bold mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿Cómo dividir los gastos?</h2>
-                  <p className="text-xs mb-5" style={{ color: P.muted }}>Puedes cambiarlo cuando quieras. Los datos de otras personas se podrán completar después.</p>
-                  <div className="space-y-2 mb-4">
+                  <ScreenIntro
+                    className="mb-6"
+                    title="¿Cómo dividir los gastos?"
+                    description="Puedes cambiarlo cuando quieras. Los datos de otras personas se podrán completar después."
+                  />
+                  <div className="space-y-3 mb-6">
                     {([
                       { id:"equal" as Model,        emoji:"⚖️", label:"Por partes iguales",         sub:"Los gastos compartidos se dividen en partes iguales." },
                       { id:"proportional" as Model, emoji:"📊", label:"Proporcional al ingreso",     sub:"Cada persona aporta según su porcentaje del ingreso total." },
                       { id:"capacity" as Model,     emoji:"💡", label:"Capacidad de aportación",     sub:"Cada persona aporta según lo que le queda después de cubrir sus gastos personales.", rec:true },
                     ] as const).map(opt => (
-                      <button key={opt.id} type="button" onClick={() => set("contrib",opt.id)}
-                        className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all"
-                        style={{ borderColor: data.contrib===opt.id ? P.brnDk : "rgba(47,42,40,0.15)", backgroundColor: P.card }}>
-                        <span className="text-xl flex-shrink-0">{opt.emoji}</span>
-                        <div className="flex-1">
-                          <p className="text-xs font-semibold" style={{ color: P.text }}>{opt.label}</p>
-                          <p className="text-[9px]" style={{ color: P.muted }}>{opt.sub}</p>
-                        </div>
-                        {"rec" in opt && opt.rec && (
-                          <span className="text-[9px] font-bold rounded-full px-2 py-0.5" style={{ backgroundColor: P.brnDk, color:"#fff" }}>✦ IDEAL</span>
-                        )}
-                      </button>
+                      <ChoiceCard
+                        key={opt.id}
+                        icon={<span aria-hidden="true">{opt.emoji}</span>}
+                        title={opt.label}
+                        description={opt.sub}
+                        selected={data.contrib === opt.id}
+                        badge={"rec" in opt && opt.rec ? (
+                          <span className="text-caption font-bold rounded-full px-2 py-0.5 flex-shrink-0" style={{ backgroundColor: P.brnDk, color:"#fff" }}>Ideal</span>
+                        ) : undefined}
+                        onClick={() => set("contrib", opt.id)}
+                      />
                     ))}
                   </div>
                   {contribHint && (
-                    <p className="text-[11px] mb-3 leading-relaxed" style={{ color: P.muted }}>{contribHint}</p>
+                    <HelperText className="mb-4">{contribHint}</HelperText>
                   )}
                   {nidoError && (
-                    <p className="text-[11px] mb-3 leading-relaxed" style={{ color: P.danger }}>{nidoError}</p>
+                    <FieldError className="mb-4">{nidoError}</FieldError>
                   )}
-                  <OBtn2
-                    label="Continuar"
-                    onClick={() => goTo("c-invite")}
-                  />
+                  <Button onClick={() => goTo("c-invite")}>
+                    Continuar
+                  </Button>
                 </>
               )}
             </div>
           )}
 
           {step === "nest-ready" && (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col flex-1">
               <div className="flex-1 flex flex-col items-center justify-center text-center">
                 <NidoHouse />
-                <h2 className="text-2xl font-bold mt-4 mb-1" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¡Tu Nido está listo!</h2>
-                <p className="text-xs mb-6" style={{ color: P.muted }}>Puedes entrar ahora e invitar a más personas cuando quieras.</p>
-                <div className="w-full p-3 rounded-2xl flex gap-2 mb-2" style={{ backgroundColor: P.sagePl }}>
-                  <Sparkles size={13} style={{ color: P.sageDk, flexShrink:0, marginTop:1 }} />
-                  <p className="text-[10px] leading-relaxed" style={{ color: P.text }}>Un Nido puede ser de una persona o de muchas. Los datos financieros de esta pantalla siguen siendo de demostración.</p>
+                <ScreenIntro
+                  className="mt-6"
+                  align="center"
+                  title="¡Tu Nido está listo!"
+                  description="Puedes entrar ahora e invitar a más personas cuando quieras."
+                />
+                <div className="w-full p-4 rounded-2xl flex gap-2 mt-6" style={{ backgroundColor: P.sagePl }}>
+                  <Sparkles size={16} style={{ color: P.sageDk, flexShrink:0, marginTop:2 }} />
+                  <Text size="caption" className="leading-relaxed text-left">
+                    Un Nido puede ser de una persona o de muchas. Los datos financieros de esta pantalla siguen siendo de demostración.
+                  </Text>
                 </div>
               </div>
-              <OBtn2 label="Entrar a mi Nido 🪺" onClick={onComplete} />
+              <Button className="mt-8" onClick={onComplete}>Entrar a mi Nido 🪺</Button>
             </div>
           )}
-        </div>
-
-        {step === "p-expenses" && (
-          <div className="flex-shrink-0 px-6 pb-6 pt-3 border-t" style={{ backgroundColor: P.bgL, borderColor: P.border }}>
-            <button type="button" onClick={() => expCanContinue && goTo("p-contrib")}
-              className="w-full py-4 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98]"
-              style={{ backgroundColor: expCanContinue ? P.brnDk : P.sub, color: expCanContinue ? "#fff" : P.muted, cursor: expCanContinue ? "pointer" : "not-allowed" }}>
-              Continuar
-            </button>
-          </div>
-        )}
 
         {expEditIdx !== null && (
           <ExpenseEntryModal
@@ -803,6 +896,6 @@ export function OnboardingFlow({
             onClose={() => setShowQrInvite(false)}
           />
         )}
-    </div>
+    </FlowScreen>
   );
 }

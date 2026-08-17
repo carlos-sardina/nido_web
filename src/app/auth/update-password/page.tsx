@@ -1,18 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { validateNewPassword } from "@/lib/auth/credentials";
 import { classifyAuthError, logAuthFailure } from "@/lib/auth/errors";
 import { RECOVERY_LINK_INVALID_MESSAGE } from "@/lib/auth/recovery";
 import { updatePassword } from "@/lib/auth/session";
 import { useAuth } from "@/lib/auth/use-auth";
-import { P } from "@/lib/palette";
-import { OBtn2 } from "@/components/onboarding/OBtn2";
+import { Button } from "@/components/nido/Button";
+import { Field, FieldError, FieldLabel, TextInput } from "@/components/nido/Field";
+import { FlowScreen, ScreenIntro } from "@/components/nido/Screen";
+import { TextLink } from "@/components/nido/TextLink";
 
 export default function UpdatePasswordPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
+  const ids = useId();
+  const passwordId = `${ids}-password`;
+  const confirmId = `${ids}-confirm`;
+  const errorId = `${ids}-error`;
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -47,73 +53,65 @@ export default function UpdatePasswordPage() {
   };
 
   return (
-    <div
-      className="min-h-screen flex flex-col px-6 py-8"
-      style={{ backgroundColor: P.bgL, fontFamily: "Figtree, sans-serif" }}
-    >
-      <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
-        <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "Fraunces, serif", color: P.text }}>
-          Nueva contraseña
-        </h1>
-        <p className="text-xs mb-6" style={{ color: P.muted }}>
-          Elige una contraseña para tu cuenta.
-        </p>
+    <FlowScreen>
+      <div className="flex-1 flex flex-col justify-center">
+        <ScreenIntro
+          className="mb-8"
+          title="Nueva contraseña"
+          description="Elige una contraseña para tu cuenta."
+        />
 
         {isLoading ? (
-          <p className="text-sm" style={{ color: P.muted }}>Cargando…</p>
+          <p className="text-body-sm text-muted-foreground">Cargando…</p>
         ) : !user ? (
-          <>
-            <p className="text-sm leading-relaxed mb-6" style={{ color: P.danger }}>
-              {RECOVERY_LINK_INVALID_MESSAGE}
-            </p>
-            <OBtn2 label="Volver al inicio" onClick={() => router.replace("/")} />
-          </>
+          <div className="space-y-6">
+            <FieldError>{RECOVERY_LINK_INVALID_MESSAGE}</FieldError>
+            <Button onClick={() => router.replace("/")}>Volver al inicio</Button>
+          </div>
         ) : (
           <form
+            className="space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
               if (!busy) void handleSubmit();
             }}
           >
-            <label className="text-xs font-semibold mb-2 block" style={{ color: P.muted }}>
-              Contraseña
-            </label>
-            <input
-              type="password"
-              autoComplete="new-password"
-              className="w-full py-3.5 px-4 rounded-2xl text-sm font-semibold border-2 outline-none mb-3"
-              style={{ backgroundColor: P.card, borderColor: password ? P.brnDk : P.sub, color: P.text }}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-            <label className="text-xs font-semibold mb-2 block" style={{ color: P.muted }}>
-              Confirmar contraseña
-            </label>
-            <input
-              type="password"
-              autoComplete="new-password"
-              className="w-full py-3.5 px-4 rounded-2xl text-sm font-semibold border-2 outline-none mb-4"
-              style={{
-                backgroundColor: P.card,
-                borderColor: confirmPassword ? P.brnDk : P.sub,
-                color: P.text,
-              }}
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-            />
-            {error && (
-              <p className="text-[11px] mb-3 leading-relaxed" style={{ color: P.danger }}>
-                {error}
-              </p>
-            )}
-            <OBtn2
-              label={busy ? "Guardando…" : "Guardar contraseña"}
-              onClick={() => undefined}
-              disabled={busy}
-            />
+            <Field>
+              <FieldLabel htmlFor={passwordId}>Contraseña</FieldLabel>
+              <TextInput
+                id={passwordId}
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                filled={Boolean(password)}
+                aria-describedby={error ? errorId : undefined}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={confirmId}>Confirmar contraseña</FieldLabel>
+              <TextInput
+                id={confirmId}
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                filled={Boolean(confirmPassword)}
+                aria-describedby={error ? errorId : undefined}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+              />
+            </Field>
+            {error && <FieldError id={errorId}>{error}</FieldError>}
+            <Button type="submit" loading={busy} disabled={busy}>
+              {busy ? "Guardando…" : "Guardar contraseña"}
+            </Button>
+            <div className="flex justify-center">
+              <TextLink tone="muted" onClick={() => router.replace("/")}>
+                Volver al inicio
+              </TextLink>
+            </div>
           </form>
         )}
       </div>
-    </div>
+    </FlowScreen>
   );
 }

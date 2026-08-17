@@ -12,9 +12,11 @@ import { getMyActiveHousehold, getMyMembership } from "@/lib/nido/membership";
 import { isInvitationTokenFormat } from "@/lib/nido/rules";
 import type { InvitationPreview } from "@/lib/nido/types";
 import { canStartExclusiveAction } from "@/lib/onboarding/validation";
-import { P } from "@/lib/palette";
+import { Button } from "@/components/nido/Button";
+import { FieldError, HelperText } from "@/components/nido/Field";
+import { FlowScreen, ScreenIntro } from "@/components/nido/Screen";
+import { TextLink } from "@/components/nido/TextLink";
 import { NidoHouse } from "@/components/shared/NidoHouse";
-import { OBtn2 } from "@/components/onboarding/OBtn2";
 
 export function JoinInvitationScreen({ token }: { token: string }) {
   const router = useRouter();
@@ -91,6 +93,7 @@ export function JoinInvitationScreen({ token }: { token: string }) {
   const copy = joinInvitationCopy({ preview, block });
   const canAccept = Boolean(sessionUser && preview?.status === "valid" && block === "none");
   const joinPath = `/join/${encodeURIComponent(token)}`;
+  const waiting = authLoading || loading;
 
   const handleAccept = async () => {
     if (!canStartExclusiveAction(busy) || busyRef.current) return;
@@ -109,60 +112,55 @@ export function JoinInvitationScreen({ token }: { token: string }) {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col overflow-hidden" style={{ backgroundColor: P.bgL, fontFamily: "Figtree, sans-serif" }}>
-      <div className="flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden px-6 pt-8 pb-8 flex flex-col">
-        <div className="flex-1 flex flex-col items-center justify-center text-center">
-          <NidoHouse />
-          <h1 className="text-3xl font-bold mt-4 mb-2" style={{ fontFamily: "Fraunces, serif", color: P.text }}>
-            {authLoading || loading ? "Revisando invitación…" : copy.title}
-          </h1>
-          <p className="text-sm leading-relaxed mb-6" style={{ color: P.muted }}>
-            {authLoading || loading ? "Un momento." : copy.body}
-          </p>
-          {sessionUser && identity?.email && (
-            <p className="text-[11px] mb-4" style={{ color: P.muted }}>
-              Conectado como <span className="font-semibold" style={{ color: P.text }}>{identity.email}</span>
-            </p>
-          )}
-          {error && (
-            <p className="text-[11px] mb-4 leading-relaxed" style={{ color: P.danger }}>
-              {error}
-            </p>
-          )}
-        </div>
-
-        {!authLoading && !loading && (
-          <div className="space-y-3">
-            {!sessionUser && preview?.status === "valid" && (
-              <AuthPanel
-                nextPath={joinPath}
-                onAttempt={() => {
-                  savePendingInvitationToken(token);
-                }}
-                onAuthenticated={() => undefined}
-                onEmailConfirmationPending={() => {
-                  savePendingInvitationToken(token);
-                }}
-              />
-            )}
-            {canAccept && (
-              <OBtn2
-                label={busy ? "Aceptando invitación…" : "Aceptar invitación"}
-                onClick={busy ? () => undefined : () => { void handleAccept(); }}
-                disabled={busy}
-              />
-            )}
-            <button
-              type="button"
-              onClick={() => router.replace("/")}
-              className="w-full py-3 text-xs font-semibold"
-              style={{ color: P.muted }}
-            >
-              Volver al inicio
-            </button>
+    <FlowScreen>
+      <div className="flex-1 flex flex-col items-center justify-center text-center">
+        <NidoHouse />
+        <ScreenIntro
+          className="mt-6"
+          align="center"
+          title={waiting ? "Revisando invitación…" : copy.title}
+          description={waiting ? "Un momento." : copy.body}
+        />
+        {sessionUser && identity?.email && (
+          <HelperText className="mt-4">
+            Conectado como <span className="font-semibold text-foreground">{identity.email}</span>
+          </HelperText>
+        )}
+        {error && (
+          <div className="mt-4 w-full">
+            <FieldError>{error}</FieldError>
           </div>
         )}
       </div>
-    </div>
+
+      <div className="space-y-3 mt-8">
+        {!waiting && !sessionUser && preview?.status === "valid" && (
+          <AuthPanel
+            nextPath={joinPath}
+            onAttempt={() => {
+              savePendingInvitationToken(token);
+            }}
+            onAuthenticated={() => undefined}
+            onEmailConfirmationPending={() => {
+              savePendingInvitationToken(token);
+            }}
+          />
+        )}
+        {!waiting && canAccept && (
+          <Button
+            loading={busy}
+            disabled={busy}
+            onClick={() => { void handleAccept(); }}
+          >
+            {busy ? "Aceptando invitación…" : "Aceptar invitación"}
+          </Button>
+        )}
+        <div className="flex justify-center">
+          <TextLink tone="muted" onClick={() => router.replace("/")}>
+            Volver al inicio
+          </TextLink>
+        </div>
+      </div>
+    </FlowScreen>
   );
 }

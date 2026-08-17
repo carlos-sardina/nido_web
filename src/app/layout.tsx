@@ -18,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es-MX" className="h-full">
-      <body className="h-full m-0">{children}</body>
+      <body className="h-full m-0 font-sans">{children}</body>
     </html>
   );
 }

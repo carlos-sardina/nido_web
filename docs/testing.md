@@ -14,7 +14,7 @@ With Confirm email enabled, a successful signup without a session can represent 
 
 ## A. New signup
 
-1. Abrir la app sin sesión → **Auth Landing**.
+1. Abrir la app sin sesión → **Auth Landing**: **Bienvenido** / **Crea una cuenta o inicia sesión para continuar.** Primary **Crear cuenta**, secondary **Iniciar sesión**. No redundant “Nido” eyebrow.
 2. **Crear cuenta** with a new email and a valid password (confirmation matching).
 3. Email is trimmed and lowercased on submit.
 4. Empty, malformed, or excessively long email is rejected in Spanish.
@@ -175,6 +175,7 @@ The 60-second cooldown is a UX protection. Real abuse protection remains in Supa
 1. From the dashboard, log out.
 2. **Cerrando sesión…** → Auth Landing.
 3. Onboarding draft is cleared. The Nido remains in Supabase.
+4. From **Nido Selection**, **Cerrar sesión** is also available so a signed-in user is not trapped.
 
 ## S. Re-login
 

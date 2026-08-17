@@ -15,16 +15,17 @@ import { useAuth } from "@/lib/auth/use-auth";
 import { isInvitationTokenFormat } from "@/lib/nido/rules";
 import { useMyNido } from "@/lib/nido/use-my-nido";
 import { clearOnboardingDraft } from "@/lib/onboarding/draft";
-import { P } from "@/lib/palette";
+import { Button } from "@/components/nido/Button";
+import { FlowScreen } from "@/components/nido/Screen";
+import { Text } from "@/components/nido/Typography";
 
 function BootScreen({ message = "Cargando…" }: { message?: string }) {
   return (
-    <div
-      className="min-h-screen flex items-center justify-center"
-      style={{ backgroundColor: P.bgL, fontFamily: "Figtree, sans-serif" }}
-    >
-      <p className="text-sm" style={{ color: P.muted }}>{message}</p>
-    </div>
+    <FlowScreen>
+      <div className="flex-1 flex items-center justify-center">
+        <Text size="body-sm" tone="muted">{message}</Text>
+      </div>
+    </FlowScreen>
   );
 }
 
@@ -88,21 +89,14 @@ export default function App() {
 
   if (nido.error && appUser && nido.status !== "active") {
     return (
-      <div
-        className="min-h-screen flex flex-col items-center justify-center px-6"
-        style={{ backgroundColor: P.bgL, fontFamily: "Figtree, sans-serif" }}
-      >
-        <p className="text-sm text-center mb-4" style={{ color: P.danger }}>
-          {nido.error.message}
-        </p>
-        <button
-          onClick={() => void nido.refresh()}
-          className="text-xs font-semibold"
-          style={{ color: P.brnDk }}
-        >
-          Reintentar
-        </button>
-      </div>
+      <FlowScreen>
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <Text size="body-sm" tone="danger" className="text-center mb-6">
+            {nido.error.message}
+          </Text>
+          <Button onClick={() => void nido.refresh()}>Reintentar</Button>
+        </div>
+      </FlowScreen>
     );
   }
 
@@ -133,6 +127,7 @@ export default function App() {
       onComplete={() => {
         void nido.refresh();
       }}
+      onLogout={handleLogout}
     />
   );
 }

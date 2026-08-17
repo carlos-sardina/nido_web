@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   CONFIRM_EMAIL_BACK_TO_LOGIN,
   CONFIRM_EMAIL_HAS_ACCOUNT_PROMPT,
@@ -34,8 +34,10 @@ import {
   signInWithPassword,
   signUpWithPassword,
 } from "@/lib/auth/session";
-import { P } from "@/lib/palette";
-import { OBtn2 } from "@/components/onboarding/OBtn2";
+import { Button } from "@/components/nido/Button";
+import { Field, FieldError, FieldLabel, HelperText, TextInput } from "@/components/nido/Field";
+import { TextLink } from "@/components/nido/TextLink";
+import { Text } from "@/components/nido/Typography";
 
 export type AuthView = "signup" | "login" | "forgot" | "confirm-email";
 
@@ -58,6 +60,11 @@ export function AuthPanel({
   const busyRef = useRef(false);
   const [, setCooldownTick] = useState(0);
   const [failureCode, setFailureCode] = useState<AuthFailureCode | null>(null);
+  const ids = useId();
+  const emailId = `${ids}-email`;
+  const passwordId = `${ids}-password`;
+  const confirmId = `${ids}-confirm`;
+  const messageId = `${ids}-message`;
 
   const showView = (next: AuthView) => {
     setView(next);
@@ -249,6 +256,26 @@ export function AuthPanel({
     }
   };
 
+  const submitLabel =
+    view === "signup" ? (busy ? "Creando cuenta…" : "Crear cuenta")
+      : view === "login" ? (busy ? "Entrando…" : "Iniciar sesión")
+        : view === "forgot"
+          ? busy
+            ? "Enviando…"
+            : recoveryRemaining > 0
+              ? emailCooldownCountdownLabel("Enviar", recoveryRemaining)
+              : "Enviar enlace"
+          : busy
+            ? "Enviando…"
+            : confirmationRemaining > 0
+              ? emailCooldownCountdownLabel("Reenviar", confirmationRemaining)
+              : "Reenviar correo";
+
+  const submitDisabled =
+    busy ||
+    (view === "forgot" && recoveryRemaining > 0) ||
+    (view === "confirm-email" && confirmationRemaining > 0);
+
   return (
     <form
       className="w-full text-left"
@@ -261,133 +288,89 @@ export function AuthPanel({
         else if (view === "confirm-email") void handleResendConfirmation();
       }}
     >
-      {view !== "confirm-email" && (
-        <>
-          <label className="text-xs font-semibold mb-2 block" style={{ color: P.muted }}>
-            Correo
-          </label>
-          <input
-            type="email"
-            autoComplete="email"
-            className="w-full py-3.5 px-4 rounded-2xl text-sm font-semibold border-2 outline-none mb-3"
-            style={{ backgroundColor: P.card, borderColor: email ? P.brnDk : P.sub, color: P.text }}
-            placeholder="tu@correo.com"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-        </>
-      )}
+      <div className="space-y-4">
+        {view !== "confirm-email" && (
+          <Field>
+            <FieldLabel htmlFor={emailId}>Correo</FieldLabel>
+            <TextInput
+              id={emailId}
+              type="email"
+              autoComplete="email"
+              placeholder="tu@correo.com"
+              value={email}
+              filled={Boolean(email)}
+              invalid={Boolean(error) && !email.trim()}
+              aria-describedby={error || info ? messageId : undefined}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </Field>
+        )}
 
-      {(view === "signup" || view === "login") && (
-        <>
-          <label className="text-xs font-semibold mb-2 block" style={{ color: P.muted }}>
-            Contraseña
-          </label>
-          <input
-            type="password"
-            autoComplete={view === "signup" ? "new-password" : "current-password"}
-            className="w-full py-3.5 px-4 rounded-2xl text-sm font-semibold border-2 outline-none mb-3"
-            style={{ backgroundColor: P.card, borderColor: password ? P.brnDk : P.sub, color: P.text }}
-            placeholder="Contraseña"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </>
-      )}
+        {(view === "signup" || view === "login") && (
+          <Field>
+            <FieldLabel htmlFor={passwordId}>Contraseña</FieldLabel>
+            <TextInput
+              id={passwordId}
+              type="password"
+              autoComplete={view === "signup" ? "new-password" : "current-password"}
+              placeholder="Contraseña"
+              value={password}
+              filled={Boolean(password)}
+              aria-describedby={error || info ? messageId : undefined}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </Field>
+        )}
 
-      {view === "signup" && (
-        <>
-          <label className="text-xs font-semibold mb-2 block" style={{ color: P.muted }}>
-            Confirmar contraseña
-          </label>
-          <input
-            type="password"
-            autoComplete="new-password"
-            className="w-full py-3.5 px-4 rounded-2xl text-sm font-semibold border-2 outline-none mb-4"
-            style={{
-              backgroundColor: P.card,
-              borderColor: confirmPassword ? P.brnDk : P.sub,
-              color: P.text,
-            }}
-            placeholder="Repite la contraseña"
-            value={confirmPassword}
-            onChange={(event) => setConfirmPassword(event.target.value)}
-          />
-        </>
-      )}
+        {view === "signup" && (
+          <Field>
+            <FieldLabel htmlFor={confirmId}>Confirmar contraseña</FieldLabel>
+            <TextInput
+              id={confirmId}
+              type="password"
+              autoComplete="new-password"
+              placeholder="Repite la contraseña"
+              value={confirmPassword}
+              filled={Boolean(confirmPassword)}
+              aria-describedby={error || info ? messageId : undefined}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+            />
+          </Field>
+        )}
 
-      {view === "confirm-email" && (
-        <div className="text-center mb-2">
-          <p className="text-sm leading-relaxed mb-3" style={{ color: P.muted }}>
-            {CONFIRM_EMAIL_INTRO}
-          </p>
-          <p className="text-sm font-semibold mb-3" style={{ color: P.text }}>
-            {confirmEmailDisplayAddress(email)}
-          </p>
-          <p className="text-sm leading-relaxed mb-4" style={{ color: P.muted }}>
-            {CONFIRM_EMAIL_NEXT_STEP}
-          </p>
-          <p className="text-xs mb-3" style={{ color: P.muted }}>
-            ¿No recibiste el correo?
-          </p>
-        </div>
-      )}
+        {view === "confirm-email" && (
+          <div className="text-center space-y-3">
+            <Text size="body-sm" tone="muted" className="leading-relaxed">
+              {CONFIRM_EMAIL_INTRO}
+            </Text>
+            <Text size="body-sm" className="font-semibold">
+              {confirmEmailDisplayAddress(email)}
+            </Text>
+            <Text size="body-sm" tone="muted" className="leading-relaxed">
+              {CONFIRM_EMAIL_NEXT_STEP}
+            </Text>
+            <HelperText>¿No recibiste el correo?</HelperText>
+          </div>
+        )}
 
-      {error && (
-        <p className="text-[11px] mb-3 leading-relaxed whitespace-pre-line" style={{ color: P.danger }}>
-          {error}
-        </p>
-      )}
-      {info && (
-        <p className="text-[11px] mb-3 leading-relaxed" style={{ color: P.text }}>
-          {info}
-        </p>
-      )}
-      {view === "forgot" && recoveryRemaining > 0 && (
-        <p className="text-[11px] mb-3 leading-relaxed" style={{ color: P.muted }}>
-          {emailCooldownRetryHint(recoveryRemaining)}
-        </p>
-      )}
+        {error && <FieldError id={messageId}>{error}</FieldError>}
+        {info && (
+          <Text id={error ? undefined : messageId} size="caption" className="leading-relaxed">
+            {info}
+          </Text>
+        )}
+        {view === "forgot" && recoveryRemaining > 0 && (
+          <HelperText>{emailCooldownRetryHint(recoveryRemaining)}</HelperText>
+        )}
 
-      {view === "signup" && (
-        <OBtn2 label={busy ? "Creando cuenta…" : "Crear cuenta"} onClick={() => undefined} disabled={busy} />
-      )}
-      {view === "login" && (
-        <OBtn2 label={busy ? "Entrando…" : "Iniciar sesión"} onClick={() => undefined} disabled={busy} />
-      )}
-      {view === "forgot" && (
-        <OBtn2
-          label={
-            busy
-              ? "Enviando…"
-              : recoveryRemaining > 0
-                ? emailCooldownCountdownLabel("Enviar", recoveryRemaining)
-                : "Enviar enlace"
-          }
-          onClick={() => undefined}
-          disabled={busy || recoveryRemaining > 0}
-        />
-      )}
-      {view === "confirm-email" && (
-        <OBtn2
-          label={
-            busy
-              ? "Enviando…"
-              : confirmationRemaining > 0
-                ? emailCooldownCountdownLabel("Reenviar", confirmationRemaining)
-                : "Reenviar correo"
-          }
-          onClick={() => undefined}
-          disabled={busy || confirmationRemaining > 0}
-        />
-      )}
+        <Button type="submit" loading={busy} disabled={submitDisabled}>
+          {submitLabel}
+        </Button>
+      </div>
 
-      <div className="mt-4 space-y-2 text-center">
+      <div className="mt-6 flex flex-col items-center gap-1">
         {showSignupExistsAction && (
-          <button
-            type="button"
-            className="block w-full text-xs font-semibold"
-            style={{ color: P.brnDk }}
+          <TextLink
             onClick={() => {
               resetMessages();
               clearPasswords();
@@ -395,13 +378,10 @@ export function AuthPanel({
             }}
           >
             Iniciar sesión
-          </button>
+          </TextLink>
         )}
         {showLoginResendAction && (
-          <button
-            type="button"
-            className="block w-full text-xs font-semibold"
-            style={{ color: P.brnDk }}
+          <TextLink
             disabled={busy || confirmationRemaining > 0}
             onClick={() => {
               if (!busy && confirmationRemaining <= 0) void handleResendConfirmation();
@@ -412,56 +392,45 @@ export function AuthPanel({
               : confirmationRemaining > 0
                 ? emailCooldownCountdownLabel("Reenviar", confirmationRemaining)
                 : "Reenviar correo de confirmación"}
-          </button>
+          </TextLink>
         )}
         {view === "signup" && !showSignupExistsAction && (
-          <button
-            type="button"
-            className="text-xs font-semibold"
-            style={{ color: P.brnDk }}
+          <TextLink
             onClick={() => {
               resetMessages();
               showView("login");
             }}
           >
             Ya tengo una cuenta
-          </button>
+          </TextLink>
         )}
         {view === "login" && (
           <>
-            <button
-              type="button"
-              className="block w-full text-xs font-semibold"
-              style={{ color: P.brnDk }}
+            <TextLink
               onClick={() => {
                 resetMessages();
                 showView("signup");
               }}
             >
               Crear cuenta
-            </button>
-            <button
-              type="button"
-              className="block w-full text-xs font-medium"
-              style={{ color: P.muted }}
+            </TextLink>
+            <TextLink
+              tone="muted"
               onClick={() => {
                 resetMessages();
                 showView("forgot");
               }}
             >
               ¿Olvidaste tu contraseña?
-            </button>
+            </TextLink>
           </>
         )}
         {view === "confirm-email" && (
-          <div className="space-y-2">
-            <p className="text-xs font-medium" style={{ color: P.muted }}>
+          <div className="flex flex-col items-center gap-1">
+            <Text size="caption" tone="muted">
               {CONFIRM_EMAIL_HAS_ACCOUNT_PROMPT}
-            </p>
-            <button
-              type="button"
-              className="block w-full text-xs font-semibold"
-              style={{ color: P.brnDk }}
+            </Text>
+            <TextLink
               onClick={() => {
                 const next = leaveConfirmEmailView(email);
                 resetMessages();
@@ -470,21 +439,18 @@ export function AuthPanel({
               }}
             >
               {CONFIRM_EMAIL_BACK_TO_LOGIN}
-            </button>
+            </TextLink>
           </div>
         )}
         {view === "forgot" && (
-          <button
-            type="button"
-            className="text-xs font-semibold"
-            style={{ color: P.brnDk }}
+          <TextLink
             onClick={() => {
               resetMessages();
               showView("login");
             }}
           >
             Volver a iniciar sesión
-          </button>
+          </TextLink>
         )}
       </div>
     </form>
