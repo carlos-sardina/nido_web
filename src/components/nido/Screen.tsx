@@ -19,23 +19,23 @@ export function FlowScreen({
   return (
     <div
       className={cn(
-        "relative flex flex-col overflow-x-hidden bg-card font-sans",
-        lockViewport ? "h-dvh min-h-dvh overflow-y-hidden" : "min-h-dvh overflow-y-hidden",
+        "relative flex flex-col bg-card font-sans",
+        lockViewport
+          ? "h-dvh min-h-dvh overflow-x-hidden overflow-y-hidden"
+          : "min-h-dvh overflow-x-clip",
         className,
       )}
     >
       <div
         className={cn(
-          "flex min-h-0 flex-1 flex-col",
-          lockViewport
-            ? "overflow-hidden"
-            : "overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden",
+          "flex flex-col",
+          lockViewport && "min-h-0 flex-1 overflow-hidden",
         )}
       >
         <div
           className={cn(
             "mx-auto flex w-full max-w-md flex-col px-6 pt-4",
-            lockViewport ? "min-h-0 flex-1 pb-0" : footer ? "min-h-full pb-8" : "min-h-dvh pb-8",
+            lockViewport ? "min-h-0 flex-1 pb-0" : "min-h-dvh pb-8",
           )}
         >
           {children}

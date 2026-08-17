@@ -216,6 +216,41 @@ If Supabase reports email-not-confirmed on login:
 
 ---
 
+## Scroll (Phase 8.10.4)
+
+Default Auth/Onboarding/Join screens use document scroll (`min-h-dvh`). Do **not** require selecting text to move the page. Wheel, trackpad, touch swipe, and keyboard must work when content exceeds the viewport.
+
+**Gastos mensuales estimados** is the exception: internal list scroll, header visible, **Continuar** always on screen.
+
+For each screen below, check a short desktop viewport, a large desktop viewport, and mobile. If content is taller than the viewport, scroll directly.
+
+Auth:
+- Crear cuenta
+- Iniciar sesión
+- Recuperar acceso
+- Nueva contraseña
+- Revisa tu correo
+
+Onboarding:
+- Nido Selection
+- Dale nombre a tu Nido
+- ¿Cómo te llamas?
+- Ingreso
+- Ahorros
+- Gastos mensuales estimados (internal scroll + sticky CTA)
+- División
+- Invitaciones
+- Crear mi Nido
+- error / loading shells
+
+Join:
+- preview
+- error
+- aceptación
+- loading
+
+---
+
 ## Manual runs actually executed
 
 None in this phase. Do not record production results here unless they were performed.

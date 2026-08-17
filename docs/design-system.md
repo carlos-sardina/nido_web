@@ -43,7 +43,8 @@ Shared shell: `FlowScreen`.
 
 - Background: cream card (`bg-card`)
 - Max width: `max-w-md` (28rem), centered
-- Min height: `min-h-dvh`
+- Default: `min-h-dvh`, document scroll. Do not use `h-dvh` + `overflow-hidden` on normal screens.
+- `lockViewport`: only for screens that need an internal scroll region and a persistent footer (e.g. Gastos).
 - Structure: back → heading + supporting text → content → primary action → secondary/text actions
 
 ## Buttons
