@@ -14,7 +14,7 @@ With Confirm email enabled, a successful signup without a session can represent 
 
 ## A. New signup
 
-1. Abrir la app sin sesión → **Auth Landing**: **Bienvenido** / **Crea una cuenta o inicia sesión para continuar.** Primary **Crear cuenta**, secondary **Iniciar sesión**. No redundant “Nido” eyebrow.
+1. Abrir la app sin sesión → **Auth Landing**: **Bienvenido** / **El lugar donde las personas construyen su patrimonio juntas.** / **Crea una cuenta o inicia sesión para continuar.** Primary **Crear cuenta**, secondary **Iniciar sesión**. No redundant “Nido” eyebrow.
 2. **Crear cuenta** with a new email and a valid password (confirmation matching).
 3. Email is trimmed and lowercased on submit.
 4. Empty, malformed, or excessively long email is rejected in Spanish.

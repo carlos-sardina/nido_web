@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "../styles/index.css";
 
 export const metadata: Metadata = {
@@ -9,6 +9,13 @@ export const metadata: Metadata = {
     index: false,
     follow: false,
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  userScalable: true,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

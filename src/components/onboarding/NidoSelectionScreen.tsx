@@ -23,7 +23,16 @@ export function NidoSelectionScreen({
           className="mt-6"
           align="center"
           title="Bienvenido a Nido 🪺"
-          description="Nido funciona alrededor de los hogares y comunidades que compartes."
+          description={
+            <>
+              <span className="block">
+                Nido funciona alrededor de los hogares y comunidades que compartes.
+              </span>
+              <span className="block mt-2">
+                Ideal para parejas, roommates, familias y más.
+              </span>
+            </>
+          }
         />
       </div>
       <div className="space-y-3 mt-8">

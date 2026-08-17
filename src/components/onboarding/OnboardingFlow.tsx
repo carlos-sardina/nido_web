@@ -291,6 +291,7 @@ export function OnboardingFlow({
 
   return (
     <FlowScreen
+      lockViewport={step === "p-expenses"}
       footer={step === "p-expenses" ? (
         <ScreenFooter>
           <Button
@@ -311,6 +312,13 @@ export function OnboardingFlow({
                   align="center"
                   titleSize="display"
                   title="Bienvenido"
+                  brand={
+                    <>
+                      El lugar donde las personas construyen
+                      <br />
+                      su patrimonio juntas.
+                    </>
+                  }
                   description="Crea una cuenta o inicia sesión para continuar."
                 />
               </div>
@@ -333,9 +341,6 @@ export function OnboardingFlow({
                   onViewChange={setAuthView}
                 />
               </div>
-              <Text size="caption" tone="muted" className="text-center mt-8 leading-relaxed">
-                Al continuar aceptas los Términos de uso y la Política de privacidad.
-              </Text>
             </div>
           )}
 
@@ -505,9 +510,18 @@ export function OnboardingFlow({
           )}
 
           {isPers && (
-            <div>
-              <BackLink onClick={() => goTo(data.flow==="join"&&step==="p-name"?"join":PERSONAL[pIdx-1]||"c-name")} />
-              <OProgress2 step={pIdx+2} total={CREATE_STEPS} />
+            <div className={step === "p-expenses" ? "flex min-h-0 flex-1 flex-col" : undefined}>
+              <div className={step === "p-expenses" ? "shrink-0" : undefined}>
+                <BackLink onClick={() => goTo(data.flow==="join"&&step==="p-name"?"join":PERSONAL[pIdx-1]||"c-name")} />
+                <OProgress2 step={pIdx+2} total={CREATE_STEPS} />
+                {step === "p-expenses" && (
+                  <ScreenIntro
+                    className="mb-4"
+                    title="Gastos mensuales estimados"
+                    description="Toca un gasto para agregar el monto mensual y definir si es personal o compartido."
+                  />
+                )}
+              </div>
 
               {step === "p-name" && (
                 <>
@@ -516,13 +530,6 @@ export function OnboardingFlow({
                     title="¿Cómo te llamas?"
                     description="Este es el nombre que verán los demás miembros de tu Nido."
                   />
-                  {identity?.email && (
-                    <div className="flex items-center gap-2 mb-6 px-4 py-3 rounded-2xl" style={{ backgroundColor: P.sub }}>
-                      <HelperText>
-                        Conectado como <span className="font-semibold text-foreground">{identity.email}</span>
-                      </HelperText>
-                    </div>
-                  )}
                   <div className="flex justify-center mb-6">
                     <div
                       className="w-20 h-20 rounded-full flex items-center justify-center text-h1 font-bold text-white shadow-md overflow-hidden"
@@ -695,6 +702,9 @@ export function OnboardingFlow({
                           <span className="text-body-sm flex-shrink-0 ml-1" aria-hidden="true">
                             {exp.type === "personal" ? "👤" : "🏠"}
                           </span>
+                          <span className="sr-only">
+                            {exp.type === "personal" ? "Personal" : "Compartido"}
+                          </span>
                         </>
                       )}
                     </button>
@@ -709,13 +719,11 @@ export function OnboardingFlow({
                   .filter(({ exp }) => exp.kind === "variable");
 
                 return (
-                  <>
-                    <ScreenIntro
-                      className="mb-6"
-                      title="Gastos mensuales estimados"
-                      description="Toca un gasto para agregar el monto mensual y definir si es personal o compartido."
-                    />
-
+                  <div
+                    className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-6"
+                    role="region"
+                    aria-label="Lista de gastos mensuales"
+                  >
                     <SectionLabel>Recurrentes / fijos</SectionLabel>
                     <div className="space-y-2 mb-6">
                       {recurring.map(({ exp, i }) => renderExpense(exp, i))}
@@ -817,7 +825,7 @@ export function OnboardingFlow({
                         {fieldError && <FieldError className="mt-3">{fieldError}</FieldError>}
                       </div>
                     )}
-                  </>
+                  </div>
                 );
               })()}
               {step === "p-contrib" && (

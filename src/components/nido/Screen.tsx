@@ -9,23 +9,33 @@ export function FlowScreen({
   children,
   footer,
   className,
+  lockViewport = false,
 }: {
   children: ReactNode;
   footer?: ReactNode;
   className?: string;
+  lockViewport?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "relative min-h-dvh flex flex-col overflow-x-hidden overflow-y-hidden bg-card font-sans",
+        "relative flex flex-col overflow-x-hidden bg-card font-sans",
+        lockViewport ? "h-dvh min-h-dvh overflow-y-hidden" : "min-h-dvh overflow-y-hidden",
         className,
       )}
     >
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden">
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col",
+          lockViewport
+            ? "overflow-hidden"
+            : "overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden",
+        )}
+      >
         <div
           className={cn(
-            "mx-auto w-full max-w-md px-6 pt-4 pb-8 flex flex-col",
-            footer ? "min-h-full" : "min-h-dvh",
+            "mx-auto flex w-full max-w-md flex-col px-6 pt-4",
+            lockViewport ? "min-h-0 flex-1 pb-0" : footer ? "min-h-full pb-8" : "min-h-dvh pb-8",
           )}
         >
           {children}
@@ -39,7 +49,7 @@ export function FlowScreen({
 export function ScreenFooter({ children }: { children: ReactNode }) {
   return (
     <div className="flex-shrink-0 border-t border-border bg-card">
-      <div className="mx-auto w-full max-w-md px-6 pb-6 pt-3">
+      <div className="mx-auto w-full max-w-md px-6 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         {children}
       </div>
     </div>
@@ -67,6 +77,7 @@ export function BackLink({
 
 export function ScreenIntro({
   title,
+  brand,
   description,
   emoji,
   align = "left",
@@ -74,6 +85,7 @@ export function ScreenIntro({
   className,
 }: {
   title: ReactNode;
+  brand?: ReactNode;
   description?: ReactNode;
   emoji?: string;
   align?: "left" | "center";
@@ -88,6 +100,11 @@ export function ScreenIntro({
         </p>
       )}
       <Heading size={titleSize}>{title}</Heading>
+      {brand && (
+        <Heading as="p" size="h3" className="mt-2 leading-snug">
+          {brand}
+        </Heading>
+      )}
       {description && (
         <Text size="body-sm" tone="muted" className="mt-2 leading-relaxed">
           {description}
