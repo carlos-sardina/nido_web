@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { AuthPanel, type AuthView } from "@/components/auth/AuthPanel";
+import { CONFIRM_EMAIL_HEADING } from "@/lib/auth/credentials";
 import { resolveNidoChoice } from "@/lib/auth/destination";
 import { identityFromUser } from "@/lib/auth/identity";
 import { createHousehold } from "@/lib/nido/household";
@@ -270,7 +271,7 @@ export function OnboardingFlow({
   };
 
   const authHeading =
-    authView === "confirm-email" ? "Revisa tu correo"
+    authView === "confirm-email" ? CONFIRM_EMAIL_HEADING
       : authView === "forgot" ? "Recupera tu acceso"
         : "Bienvenido";
   const authSub =

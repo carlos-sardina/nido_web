@@ -1,6 +1,6 @@
 # Nido membership and invitations
 
-This document describes household (Nido) creation, membership, leaving, invitations, and the pre-dashboard flow. Phase 8.10 hardens validation on the existing auth, onboarding, invitation, and draft paths.
+This document describes household (Nido) creation, membership, leaving, invitations, and the pre-dashboard flow. Phase 8.10.2 hardens the signup confirmation copy so an ambiguous `signUp()` success is not treated as proof that an email was sent.
 
 The schema in [database.md](./database.md) remains the source of truth. RLS in [security.md](./security.md) is unchanged. Application services and four Postgres functions live in this phase. It does not change tables or weaken policies.
 
@@ -13,7 +13,7 @@ Phase 9 (real financial data and a live dashboard) has **not** started.
 Unauthenticated visitors see only authentication:
 
 1. Landing: **Crear cuenta** / **Iniciar sesión**. It does not offer “Crear un Nido” or “Unirme a un Nido”.
-2. Signup with email, password, and confirmation. Email is trimmed and lowercased. If Supabase requires email confirmation, the UI shows **Revisa tu correo** and does not treat the user as authenticated. A Nido is not created. Duplicate-account signup uses a generic message and **Iniciar sesión** — it does not say the email is already registered. **Reenviar correo** uses a 60-second UX cooldown (persisted in `sessionStorage` as action + normalized email + timestamp, never tokens or passwords) and the same auth error classifier; success copy does not reveal whether the address exists. The cooldown is a frontend guard, not a substitute for Supabase/Brevo rate limits.
+2. Signup with email, password, and confirmation. Email is trimmed and lowercased. The UI only validates format; it does not look up whether the address exists. Email uniqueness is owned by Supabase Auth. With Confirm email enabled, a successful `signUp()` without a session can be a new registration **or** an obfuscated response for an existing account. The UI uses the same **Revisa tu correo** screen for both and does **not** distinguish them, to avoid user enumeration. Copy does not claim that a confirmation email was sent. A Nido is not created. If Supabase returns an explicit `user_already_exists` error, the generic message and **Iniciar sesión** are shown — it does not say the email is already registered. **Reenviar correo** uses a 60-second UX cooldown (persisted in `sessionStorage` as action + normalized email + timestamp, never tokens or passwords) and the same auth error classifier; success copy does not reveal whether the address exists. The cooldown is a frontend guard, not a substitute for Supabase/Brevo rate limits. **¿Ya tienes una cuenta?** / **Volver a iniciar sesión** returns to login with the same email and does not create a session.
 3. Login with email and password. Invalid credentials stay generic. Unconfirmed email offers **Reenviar correo de confirmación**. Rate limits and network errors have their own Spanish copy. Raw Supabase errors are never shown.
 4. Recovery: forgot password → email → `/auth/callback` → `/auth/update-password`. The same 60-second UX cooldown applies per normalized email, independently from confirmation resend. The callback marks the session as password recovery so other tabs do not treat it as a normal login. `next` is sanitized with `safeNextPath`. Tokens stay in cookies, not URLs or `localStorage`. After `updateUser({ password })`, routing is the normal authenticated destination (MainApp or Nido selection).
 5. Logout: `signOut()`, clear the invitation token and the onboarding draft, return to the auth landing. It does not delete Supabase rows.
@@ -83,7 +83,7 @@ A Nido may have one person, two people, or many people. There is no couple assum
 
 The UI must never imply that multiple active Nidos are supported.
 
-Household **names** are not unique. `households.id` is the identity. `profiles.display_name` is not unique. Invitation `token` is unique. Pending invitation email is unique per Nido while `accepted_at` is null. Auth email uniqueness stays with Supabase Auth.
+Household **names** are not unique. `households.id` is the identity. `profiles.display_name` is not unique. Invitation `token` is unique. Pending invitation email is unique per Nido while `accepted_at` is null. Auth email uniqueness stays with Supabase Auth. The frontend never queries `auth.users` and never exposes an “email exists” check.
 
 ---
 

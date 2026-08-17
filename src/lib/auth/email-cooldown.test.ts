@@ -241,4 +241,13 @@ describe("email cooldown", () => {
     assert.equal(emailCooldownCountdownLabel("Enviar", 1), "Enviar en 1 s");
     assert.equal(emailCooldownRetryHint(59), "Podrás solicitar otro en 59 s.");
   });
+
+  it("keeps the confirmation cooldown after returning to login with the same email", () => {
+    installSessionStorage();
+    const sentAt = 10_000;
+    startCooldown("confirmation", "  Alex@Example.COM ", sentAt);
+    const remaining = getRemainingCooldown("confirmation", "alex@example.com", sentAt + 1_000);
+    assert.equal(remaining, 59);
+    assert.equal(isCoolingDown("confirmation", "alex@example.com", sentAt + 1_000), true);
+  });
 });

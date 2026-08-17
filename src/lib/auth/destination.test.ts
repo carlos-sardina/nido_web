@@ -68,7 +68,7 @@ describe("resolveAppEntry", () => {
     );
   });
 
-  it("sends email confirmation with no Nido to Nido selection, not create-Nido", () => {
+  it("H: after email confirmation with no Nido, destination is Nido selection", () => {
     assert.deepEqual(
       resolveAppEntry({
         authStatus: "authenticated",
@@ -79,7 +79,7 @@ describe("resolveAppEntry", () => {
     );
   });
 
-  it("sends email confirmation with an active Nido to MainApp", () => {
+  it("I: after email confirmation with an active Nido, destination is MainApp", () => {
     assert.deepEqual(
       resolveAppEntry({
         authStatus: "authenticated",

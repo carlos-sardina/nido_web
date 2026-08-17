@@ -152,7 +152,7 @@ describe("interpretSignupResponse", () => {
     assert.equal(outcome.kind, "error");
   });
 
-  it("keeps confirm-email only when signUp succeeded without a session", () => {
+  it("A: new signup without a session is the generic confirm-email flow", () => {
     const outcome = interpretSignupResponse({
       data: { session: null },
       error: null,
@@ -160,7 +160,33 @@ describe("interpretSignupResponse", () => {
     assert.equal(outcome.kind, "confirm_email");
   });
 
-  it("treats an existing account as a failed signup, not confirm-email", () => {
+  it("B: obfuscated existing confirmed user stays on the same confirm-email flow", () => {
+    // Mock of the GoTrue/docs shape (Confirm email on). Not a live capture.
+    // identities are present in the payload and must be ignored.
+    const outcome = interpretSignupResponse({
+      data: { session: null, user: { identities: [] } },
+      error: null,
+    });
+    assert.equal(outcome.kind, "confirm_email");
+    assert.notEqual(outcome.kind, "error");
+  });
+
+  it("C: existing unconfirmed user without a session stays on the same confirm-email flow", () => {
+    // Mock: existing unconfirmed user returned without a session. The frontend
+    // must not assume a new account, Nido, or profile was created.
+    const outcome = interpretSignupResponse({
+      data: {
+        session: null,
+        user: { identities: [{ provider: "email" }] },
+      },
+      error: null,
+    });
+    assert.equal(outcome.kind, "confirm_email");
+    assert.notEqual(outcome.kind, "authenticated");
+    assert.notEqual(outcome.kind, "error");
+  });
+
+  it("D: explicit user_already_exists is a generic failed signup, not confirm-email", () => {
     const outcome = interpretSignupResponse({
       data: { session: null },
       error: authError({ message: "User already registered", code: "user_already_exists" }),
@@ -168,6 +194,8 @@ describe("interpretSignupResponse", () => {
     assert.equal(outcome.kind, "error");
     if (outcome.kind !== "error") return;
     assert.equal(outcome.error.code, "already_registered");
+    assert.match(outcome.error.message, /Si ya tienes una cuenta/i);
+    assert.doesNotMatch(outcome.error.message, /ya está registrado/i);
     assert.equal(isTechnicalAuthLeak(outcome.error.message), false);
   });
 });

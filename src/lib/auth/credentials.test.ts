@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  CONFIRM_EMAIL_BACK_TO_LOGIN,
+  CONFIRM_EMAIL_HAS_ACCOUNT_PROMPT,
+  CONFIRM_EMAIL_HEADING,
+  CONFIRM_EMAIL_INTRO,
+  CONFIRM_EMAIL_NEXT_STEP,
+  confirmEmailDisplayAddress,
   isValidEmail,
+  leaveConfirmEmailView,
   MAX_EMAIL_LENGTH,
   MIN_PASSWORD_LENGTH,
   normalizeEmail,
@@ -127,5 +134,29 @@ describe("publicAuthErrorMessage", () => {
     assert.equal(publicAuthErrorMessage("signup"), SIGNUP_EXISTS_MESSAGE);
     assert.match(RECOVERY_SENT_MESSAGE, /Si el correo está registrado/);
     assert.equal(SIGNUP_EXISTS_MESSAGE.includes("ya está registrado"), false);
+  });
+});
+
+describe("confirm-email copy and login return", () => {
+  it("does not claim that a confirmation email was sent", () => {
+    assert.match(CONFIRM_EMAIL_HEADING, /Revisa tu correo/);
+    assert.match(CONFIRM_EMAIL_INTRO, /Si podemos crear una cuenta/i);
+    assert.doesNotMatch(CONFIRM_EMAIL_INTRO, /Te enviamos/i);
+    assert.doesNotMatch(CONFIRM_EMAIL_NEXT_STEP, /Te enviamos/i);
+    assert.doesNotMatch(CONFIRM_EMAIL_INTRO, /ya está registrado/i);
+    assert.doesNotMatch(CONFIRM_EMAIL_HAS_ACCOUNT_PROMPT, /ya está registrado/i);
+  });
+
+  it("renders the signup email as normalized text", () => {
+    assert.equal(confirmEmailDisplayAddress("  Alex@Example.COM "), "alex@example.com");
+    assert.equal(confirmEmailDisplayAddress(""), "tu correo");
+  });
+
+  it("G: returning to login keeps the normalized email and does not invent a session", () => {
+    const next = leaveConfirmEmailView("  Alex@Example.COM ");
+    assert.equal(next.view, "login");
+    assert.equal(next.email, "alex@example.com");
+    assert.equal(CONFIRM_EMAIL_BACK_TO_LOGIN, "Volver a iniciar sesión");
+    assert.equal("session" in next, false);
   });
 });

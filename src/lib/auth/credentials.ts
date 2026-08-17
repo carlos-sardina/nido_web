@@ -74,6 +74,30 @@ export const RECOVERY_SENT_MESSAGE =
 export const SIGNUP_EXISTS_MESSAGE =
   "No pudimos crear la cuenta con ese correo. Si ya tienes una cuenta, intenta iniciar sesión.";
 
+export const CONFIRM_EMAIL_HEADING = "Revisa tu correo 📬";
+
+export const CONFIRM_EMAIL_INTRO =
+  "Si podemos crear una cuenta con este correo, recibirás un enlace de confirmación en:";
+
+export const CONFIRM_EMAIL_NEXT_STEP =
+  "Confirma tu correo para continuar con Nido.";
+
+export const CONFIRM_EMAIL_HAS_ACCOUNT_PROMPT = "¿Ya tienes una cuenta?";
+
+export const CONFIRM_EMAIL_BACK_TO_LOGIN = "Volver a iniciar sesión";
+
+export function confirmEmailDisplayAddress(email: string): string {
+  return normalizeEmail(email) || "tu correo";
+}
+
+/**
+ * Leaving the generic confirmation screen returns to login with the same
+ * normalized email. It does not create a session or clear the UX cooldown.
+ */
+export function leaveConfirmEmailView(email: string): { view: "login"; email: string } {
+  return { view: "login", email: normalizeEmail(email) };
+}
+
 export function publicAuthErrorMessage(context: AuthContext): string {
   switch (context) {
     case "login":

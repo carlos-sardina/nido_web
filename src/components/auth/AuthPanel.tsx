@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  CONFIRM_EMAIL_BACK_TO_LOGIN,
+  CONFIRM_EMAIL_HAS_ACCOUNT_PROMPT,
+  CONFIRM_EMAIL_INTRO,
+  CONFIRM_EMAIL_NEXT_STEP,
   RECOVERY_SENT_MESSAGE,
+  confirmEmailDisplayAddress,
+  leaveConfirmEmailView,
+  normalizeEmail,
   validateLoginInput,
   validateRecoveryEmail,
   validateSignupInput,
@@ -131,8 +138,10 @@ export function AuthPanel({
         onAuthenticated();
         return;
       }
+      const normalized = normalizeEmail(email);
+      setEmail(normalized);
       clearPasswords();
-      beginEmailCooldown("confirmation", email);
+      beginEmailCooldown("confirmation", normalized);
       onEmailConfirmationPending?.();
       showView("confirm-email");
     } catch (error) {
@@ -310,13 +319,13 @@ export function AuthPanel({
       {view === "confirm-email" && (
         <div className="text-center mb-2">
           <p className="text-sm leading-relaxed mb-3" style={{ color: P.muted }}>
-            Te enviamos un enlace de confirmación a:
+            {CONFIRM_EMAIL_INTRO}
           </p>
           <p className="text-sm font-semibold mb-3" style={{ color: P.text }}>
-            {email || "tu correo"}
+            {confirmEmailDisplayAddress(email)}
           </p>
           <p className="text-sm leading-relaxed mb-4" style={{ color: P.muted }}>
-            Confirma tu correo para continuar con Nido.
+            {CONFIRM_EMAIL_NEXT_STEP}
           </p>
           <p className="text-xs mb-3" style={{ color: P.muted }}>
             ¿No recibiste el correo?
@@ -444,7 +453,27 @@ export function AuthPanel({
             </button>
           </>
         )}
-        {(view === "forgot" || view === "confirm-email") && (
+        {view === "confirm-email" && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium" style={{ color: P.muted }}>
+              {CONFIRM_EMAIL_HAS_ACCOUNT_PROMPT}
+            </p>
+            <button
+              type="button"
+              className="block w-full text-xs font-semibold"
+              style={{ color: P.brnDk }}
+              onClick={() => {
+                const next = leaveConfirmEmailView(email);
+                resetMessages();
+                setEmail(next.email);
+                showView(next.view);
+              }}
+            >
+              {CONFIRM_EMAIL_BACK_TO_LOGIN}
+            </button>
+          </div>
+        )}
+        {view === "forgot" && (
           <button
             type="button"
             className="text-xs font-semibold"

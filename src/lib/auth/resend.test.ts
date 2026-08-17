@@ -70,6 +70,8 @@ describe("interpretResendResponse", () => {
     assert.equal(outcome.message, RESEND_SUCCESS_MESSAGE);
     assert.doesNotMatch(outcome.message, /AuthApiError/i);
     assert.doesNotMatch(outcome.message, /not found/i);
+    assert.doesNotMatch(outcome.message, /ya está registrado/i);
+    assert.doesNotMatch(outcome.message, /el correo existe/i);
     assert.equal(shouldStartEmailCooldown(null), true);
   });
 });

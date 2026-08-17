@@ -1,4 +1,4 @@
-# Manual test checklist (Phase 8.10.1)
+# Manual test checklist (Phase 8.10.2)
 
 Use this against a real Vercel + Supabase + SMTP environment. Automated unit tests do not replace these flows.
 
@@ -8,6 +8,8 @@ Phase 9 has **not** started. Dashboard financial data remains mock.
 
 The 60-second email cooldown is a **UX protection**. It prevents accidental repeat clicks and shows a countdown. The real protection against abuse remains in **Supabase Auth rate limits** and **Brevo SMTP limits**. The frontend cooldown does not replace or weaken those provider limits.
 
+With Confirm email enabled, a successful signup without a session can represent either a new registration or an obfuscated Supabase response for an existing account. The UI does not distinguish those cases, to avoid user enumeration. The frontend only validates email format. It does not look up existence. Email uniqueness is owned by Supabase Auth.
+
 ---
 
 ## A. New signup
@@ -16,14 +18,14 @@ The 60-second email cooldown is a **UX protection**. It prevents accidental repe
 2. **Crear cuenta** with a new email and a valid password (confirmation matching).
 3. Email is trimmed and lowercased on submit.
 4. Empty, malformed, or excessively long email is rejected in Spanish.
-5. See **Revisa tu correo** with the email used. No Nido is created.
+5. See **Revisa tu correo** with generic copy: **Si podemos crear una cuenta con este correo, recibirás un enlace de confirmación en:** plus the normalized email. Do **not** see “Te enviamos un enlace”. No Nido is created. The user is not authenticated.
 
 ## B. Duplicate signup attempt
 
-1. Sign up again with an email that already exists.
-2. See: **No pudimos crear la cuenta con ese correo. Si ya tienes una cuenta, intenta iniciar sesión.**
-3. Do **not** see “Este correo ya está registrado”.
-4. **Iniciar sesión** is offered and switches to login without enumerating the account.
+1. Sign up again with an email that already exists (confirmed or not).
+2. With Confirm email enabled, the same generic **Revisa tu correo** screen is expected. The UI does **not** say the email is already registered and does **not** claim a confirmation email was sent.
+3. If Supabase instead returns an explicit `user_already_exists` error, see: **No pudimos crear la cuenta con ese correo. Si ya tienes una cuenta, intenta iniciar sesión.**
+4. **¿Ya tienes una cuenta?** / **Volver a iniciar sesión** switches to login, keeps the email, and does not create a session.
 
 ## C. Confirm email
 
@@ -38,7 +40,7 @@ The 60-second email cooldown is a **UX protection**. It prevents accidental repe
 3. Immediate second tap is blocked by the 60-second UX cooldown. The button shows **Reenviar en 59 s**, then 58 s, and does not call Supabase while the countdown is active.
 4. If rate limited: **Has solicitado demasiados correos recientemente. Espera unos minutos antes de volver a intentarlo.** The 60-second UX cooldown does **not** start on a provider rate-limit rejection.
 5. Raw `AuthApiError` is never shown.
-6. **Volver a iniciar sesión** keeps the email in the form.
+6. **Volver a iniciar sesión** keeps the email in the form. The confirmation cooldown for that email remains.
 
 ## Email send cooldown (Phase 8.10.1)
 
@@ -47,7 +49,7 @@ The 60-second cooldown is a UX protection. Real abuse protection remains in Supa
 ### A. Signup → confirmation
 
 1. Sign up with a new email.
-2. See **Revisa tu correo**. Confirmation email is sent.
+2. See **Revisa tu correo** with generic copy that does not claim the email was sent.
 3. **Reenviar correo** is disabled with a 60-second countdown (`Reenviar en 59 s`).
 
 ### B. Resend confirmation
@@ -207,6 +209,8 @@ If Supabase reports email-not-confirmed on login:
 - Recovery marker still distinguishes recovery from login
 - RLS unchanged
 - No account enumeration on signup, resend, or recovery
+- No “email exists” lookup, RPC, or client query to `auth.users`
+- Signup does not inspect `identities` / user id to branch the UI
 - Raw Supabase / Postgres errors are never shown
 
 ---

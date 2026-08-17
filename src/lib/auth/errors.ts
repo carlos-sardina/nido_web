@@ -229,8 +229,15 @@ export function classifyAuthError(error: unknown, context: AuthContext): Classif
   };
 }
 
+/**
+ * A missing error and missing session is an ambiguous provider success.
+ * With Confirm email enabled this covers a new signup, an obfuscated
+ * existing confirmed user, and a repeat signup of an unconfirmed user.
+ * `data.user` / identities are ignored on purpose to avoid enumeration.
+ * The UI must not treat this as proof that an email was sent.
+ */
 export function interpretSignupResponse(result: {
-  data?: { session?: unknown } | null;
+  data?: { session?: unknown; user?: unknown } | null;
   error?: unknown;
 }): SignupOutcome {
   if (result.error) {
