@@ -101,9 +101,9 @@ export function ScreenIntro({
       )}
       <Heading size={titleSize}>{title}</Heading>
       {brand && (
-        <Heading as="p" size="h3" className="mt-2 leading-snug">
+        <Text size="body-sm" tone="muted" className="mt-2 font-normal leading-relaxed">
           {brand}
-        </Heading>
+        </Text>
       )}
       {description && (
         <Text size="body-sm" tone="muted" className="mt-2 leading-relaxed">
