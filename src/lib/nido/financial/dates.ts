@@ -103,6 +103,24 @@ export function isDateInRange(iso: string, range: Pick<MonthRange, "start" | "en
   return iso >= range.start && iso <= range.end;
 }
 
+/** Calendar date YYYY-MM-DD. Rejects impossible days such as 2026-02-31. */
+export function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || month < 1 || month > 12 || day < 1) return false;
+  if (day > daysInMonth(year, month)) return false;
+  return isoDate(year, month, day) === value;
+}
+
+/** Today's calendar date in the Nido timezone, not UTC. */
+export function todayIso(
+  now: Date = new Date(),
+  timeZone: string = NIDO_TIMEZONE,
+): string {
+  const parts = zonedDateParts(now, timeZone);
+  return isoDate(parts.year, parts.month, parts.day);
+}
+
 export type DayGreeting = "Buenos días" | "Buenas tardes" | "Buenas noches";
 
 export function greetingForNow(

@@ -207,4 +207,99 @@ describe("dashboard view model", () => {
     });
     assert.equal(model.periodIncome, 30000);
   });
+
+  it("adds a confirmed expense to monthly spent and activity without using splits twice", () => {
+    const expense: ExpenseRow = {
+      id: "e-new",
+      householdId: "h1",
+      categoryId: "c1",
+      amount: 1200,
+      description: "Supermercado",
+      occurredAt: "2026-08-21",
+      payerId: "diana",
+      scope: "personal",
+      distributionMethod: "fixed",
+      recurringId: null,
+      createdBy: "diana",
+      createdAt: "2026-08-21T18:00:00.000Z",
+      deletedAt: null,
+      category: { id: "c1", name: "Despensa", icon: "🛒" },
+      payer: { id: "diana", displayName: "Diana Vega" },
+      splits: [{ id: "s1", expenseId: "e-new", memberId: "diana", amount: 1200, percentage: 100 }],
+    };
+
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        expenses: [expense],
+        periodExpenses: [expense],
+      }),
+      members,
+      range,
+      now: new Date("2026-08-21T20:00:00.000Z"),
+    });
+
+    assert.equal(model.periodSpent, 1200);
+    assert.equal(model.activity.length, 1);
+    assert.equal(model.activity[0].id, "expense:e-new");
+    assert.match(model.activity[0].title, /Supermercado/);
+    assert.equal(model.empty.expenses, false);
+    assert.equal(model.empty.activity, false);
+  });
+
+  it("does not add an out-of-month expense to the monthly total", () => {
+    const july: ExpenseRow = {
+      id: "e-july",
+      householdId: "h1",
+      categoryId: "c1",
+      amount: 5000,
+      description: "Renta",
+      occurredAt: "2026-07-31",
+      payerId: "diana",
+      scope: "personal",
+      distributionMethod: "fixed",
+      recurringId: null,
+      createdBy: "diana",
+      createdAt: "2026-07-31T12:00:00.000Z",
+      deletedAt: null,
+      category: { id: "c1", name: "Vivienda", icon: "🏠" },
+      payer: null,
+      splits: [{ id: "s1", expenseId: "e-july", memberId: "diana", amount: 5000, percentage: 100 }],
+    };
+
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        expenses: [july],
+        periodExpenses: [],
+      }),
+      members,
+      range,
+    });
+
+    assert.equal(model.periodSpent, 0);
+    assert.equal(model.activity[0]?.id, "expense:e-july");
+  });
+
+  it("does not treat recurring_expenses templates as confirmed spending", () => {
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        recurringExpenses: [
+          {
+            id: "re1",
+            householdId: "h1",
+            amount: 8000,
+            description: "Renta",
+            scope: "shared",
+            isActive: true,
+            frequency: "monthly",
+          },
+        ],
+      }),
+      members,
+      range,
+    });
+
+    assert.equal(model.periodSpent, 0);
+    assert.equal(model.hasAnyFinancialData, false);
+    assert.deepEqual(model.activity, []);
+  });
 });

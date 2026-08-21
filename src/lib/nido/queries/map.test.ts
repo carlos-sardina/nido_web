@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { NidoError } from "../errors.ts";
 import {
   contributionHouseholdId,
+  mapCategoryRow,
   mapContributionRow,
   mapExpenseRow,
   mapGoalRow,
@@ -101,6 +102,21 @@ describe("query row mapping", () => {
     assert.equal(contributionHouseholdId(row), "other-nido");
     assert.notEqual(contributionHouseholdId(row), "h1");
     assert.equal(mapContributionRow(row).goalId, "g1");
+  });
+
+  it("maps household category fields including is_default", () => {
+    const category = mapCategoryRow({
+      id: "c1",
+      household_id: "h1",
+      name: "Vivienda",
+      icon: "🏠",
+      type: "expense",
+      is_default: true,
+      archived_at: null,
+    });
+    assert.equal(category.householdId, "h1");
+    assert.equal(category.isDefault, true);
+    assert.equal(category.name, "Vivienda");
   });
 });
 

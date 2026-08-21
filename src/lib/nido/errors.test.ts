@@ -57,5 +57,18 @@ describe("nidoErrorFromUnknown", () => {
     assert.match(userMessageFor("already_in_nido"), /un Nido/i);
     assert.match(userMessageFor("already_member"), /este Nido/i);
     assert.match(userMessageFor("self_invite"), /ti mismo/i);
+    assert.match(userMessageFor("invalid_amount"), /monto válido/i);
+    assert.match(userMessageFor("invalid_category"), /categoría/i);
+    assert.match(userMessageFor("invalid_split"), /división/i);
+  });
+
+  it("maps expense RPC messages without exposing Postgres", () => {
+    assert.equal(nidoErrorFromUnknown({ message: "nido.invalid_amount" }).code, "invalid_amount");
+    assert.equal(nidoErrorFromUnknown({ message: "nido.invalid_category" }).code, "invalid_category");
+    assert.equal(nidoErrorFromUnknown({ message: "nido.invalid_split" }).code, "invalid_split");
+    assert.equal(
+      nidoErrorFromUnknown({ message: "nido.forbidden" }).message.includes("auth.uid"),
+      false,
+    );
   });
 });

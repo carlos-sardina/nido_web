@@ -257,7 +257,7 @@ Still application/service work:
 - Leave / invite accept (`leave_household`, `accept_invitation`)
 - Owner transfer (not implemented)
 - At-least-one-owner invariant (enforced on leave; not an RLS trigger)
-- Expense + all splits in one transaction, including sum and personal-expense cardinality
+- Expense + all splits in one transaction, including sum and personal-expense cardinality (`create_expense`)
 - Recurring generate / edit / skip / confirm
 - Soft-delete via `deleted_at`, deactivate via `is_active`, archive via `archived_at` / goal `status`
 - Do not use archived categories on new transactions

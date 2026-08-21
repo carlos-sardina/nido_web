@@ -6,8 +6,10 @@ export {
   getCurrentMonthRange,
   getMonthRange,
   greetingForNow,
+  isCalendarDate,
   isDateInRange,
   NIDO_TIMEZONE,
+  todayIso,
   type MonthRange,
 } from "./dates.ts";
 export {
@@ -18,6 +20,24 @@ export {
   memberOwed,
   memberPaid,
 } from "./expenses.ts";
+export {
+  activeExpenseCategories,
+  DEFAULT_EXPENSE_CATEGORIES,
+  normalizeCategoryName,
+  type HouseholdCategory,
+} from "./categories.ts";
+export {
+  allocateEqualSplits,
+  personalSplit,
+  splitIssue,
+} from "./splits.ts";
+export {
+  buildCreateExpensePayload,
+  expenseAmountMessage,
+  expenseDescriptionMessage,
+  normalizeExpenseDescription,
+  parseExpenseAmountInput,
+} from "./expense-input.ts";
 export {
   activeGoalProgress,
   contributionsTotal,
@@ -49,6 +69,7 @@ export type {
   DashboardSnapshot,
   DashboardViewModel,
   ExpenseRow,
+  ExpenseScope,
   GoalProgress,
   GoalRow,
   HealthView,

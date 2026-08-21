@@ -4,7 +4,7 @@ Use this against a real Vercel + Supabase + SMTP environment. Automated unit tes
 
 Confirm email stays enabled. Google OAuth stays disabled. Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
 
-Phase 9.1.1 connects Home to live Supabase reads. Gastos / Metas / Actividad screens remain prototype until 9.1.3. See [financial.md](./financial.md).
+Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Gastos / Metas / Actividad screens remain prototype until 9.1.3. See [financial.md](./financial.md).
 
 The 60-second email cooldown is a **UX protection**. It prevents accidental repeat clicks and shows a countdown. The real protection against abuse remains in **Supabase Auth rate limits** and **Brevo SMTP limits**. The frontend cooldown does not replace or weaken those provider limits.
 
@@ -200,6 +200,27 @@ The 60-second cooldown is a UX protection. Real abuse protection remains in Supa
 
 ---
 
+## Registrar un gasto (Phase 9.1.2A)
+
+Requires migration `20260821000000_nido_categories_and_create_expense.sql` on the linked project. Unit tests do **not** replace this checklist. SQL RLS cases `X01`–`X07` in `supabase/tests/rls_security_matrix.sql` also need a real Supabase database.
+
+1. Create or open an active Nido. Confirm it has default expense categories (Vivienda, Despensa, …).
+2. Home `+` → bottom sheet with Registrar un gasto, Crear una meta, Registrar una aportación.
+3. **Crear una meta** / **Registrar una aportación** → **Esta función estará disponible próximamente.** No mock rows.
+4. **Registrar un gasto** opens the form. Categories are the Nido’s active expense categories, not another household’s.
+5. Empty amount, `0`, negative, and malformed amounts are rejected in Spanish. Invalid input is not coerced to `0`.
+6. Empty / whitespace description is rejected. Unicode is kept.
+7. Register a **personal** gasto for today → it appears in Home spent this month and activity.
+8. Register a **shared** gasto with at least two active members → `expense_splits` amounts sum to the expense.
+9. Double-tap **Guardar gasto** → one row. Button shows **Guardando…** and stays disabled.
+10. A date in a previous month updates activity if recent, but does not change “este mes” totals.
+11. A user who already left the Nido cannot register a gasto there.
+12. Errors stay in Spanish. No PostgREST / `nido.*` raw codes.
+
+Manual runs actually executed for this checklist: none in this phase.
+
+---
+
 ## Unconfirmed login
 
 If Supabase reports email-not-confirmed on login:
@@ -218,7 +239,7 @@ If Supabase reports email-not-confirmed on login:
 - No sensitive auth data in `sessionStorage` (draft is onboarding fields only; pending invite is a join token, not an access token; email cooldown stores only action, normalized email, and a timestamp)
 - `?next=` rejects absolute URLs (`safeNextPath`)
 - Recovery marker still distinguishes recovery from login
-- RLS unchanged
+- RLS unchanged except additive `create_expense` coverage in the SQL matrix (`X01`–`X07`); no new policies
 - No account enumeration on signup, resend, or recovery
 - No “email exists” lookup, RPC, or client query to `auth.users`
 - Signup does not inspect `identities` / user id to branch the UI
@@ -230,7 +251,7 @@ If Supabase reports email-not-confirmed on login:
 
 Default Auth/Onboarding/Join screens use document scroll (`min-h-dvh`). Do **not** require selecting text to move the page. Wheel, trackpad, touch swipe, and keyboard must work when content exceeds the viewport.
 
-**Gastos mensuales estimados** is the exception: internal list scroll, header visible, **Continuar** always on screen.
+**Registrar un gasto** (Phase 9.1.2A): internal scroll + sticky **Guardar gasto** (safe-area footer). Wheel, trackpad, and touch must move the fields. The footer must not cover the last field.
 
 For each screen below, check a short desktop viewport, a large desktop viewport, and mobile. If content is taller than the viewport, scroll directly.
 
@@ -248,6 +269,7 @@ Onboarding:
 - Ingreso
 - Ahorros
 - Gastos mensuales estimados (internal scroll + sticky CTA)
+- Registrar un gasto (internal scroll + sticky Guardar gasto)
 - División
 - Invitaciones
 - Crear mi Nido

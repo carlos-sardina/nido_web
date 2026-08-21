@@ -5,9 +5,11 @@ import {
   getCurrentMonthRange,
   getMonthRange,
   greetingForNow,
+  isCalendarDate,
   isDateInRange,
   isoDate,
   NIDO_TIMEZONE,
+  todayIso,
   zonedDateParts,
 } from "./dates.ts";
 
@@ -97,10 +99,17 @@ describe("formatRelativeActivityDate", () => {
   });
 });
 
-describe("zonedDateParts / isoDate", () => {
-  it("does not shift a local afternoon into the next UTC day", () => {
-    const parts = zonedDateParts(new Date("2026-08-21T23:30:00.000Z"));
-    assert.equal(isoDate(parts.year, parts.month, parts.day), "2026-08-21");
-    assert.equal(parts.hour, 17);
+describe("isCalendarDate / todayIso", () => {
+  it("accepts a real calendar day and rejects impossible dates", () => {
+    assert.equal(isCalendarDate("2026-08-21"), true);
+    assert.equal(isCalendarDate("2026-02-31"), false);
+    assert.equal(isCalendarDate("2026-13-01"), false);
+    assert.equal(isCalendarDate("08-21-2026"), false);
+  });
+
+  it("uses America/Mexico_City for today, not UTC", () => {
+    // 2026-08-22 05:00 UTC = 2026-08-21 23:00 in Mexico City (UTC-6).
+    assert.equal(todayIso(new Date("2026-08-22T05:00:00.000Z")), "2026-08-21");
+    assert.equal(todayIso(new Date("2026-08-22T07:00:00.000Z")), "2026-08-22");
   });
 });

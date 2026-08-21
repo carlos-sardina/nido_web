@@ -1,3 +1,4 @@
+import type { HouseholdCategory } from "../financial/categories.ts";
 import { moneyOrZero, parseMoney } from "../financial/money.ts";
 import type {
   BudgetRow,
@@ -245,4 +246,26 @@ export function mapGoalRow(row: GoalQueryRow): GoalRow {
 
 export function contributionHouseholdId(row: ContributionQueryRow): string | null {
   return unwrapOne(row.goals)?.household_id ?? null;
+}
+
+export type CategoryQueryRow = {
+  id: string;
+  household_id: string;
+  name: string;
+  icon: string | null;
+  type: "income" | "expense";
+  is_default: boolean | null;
+  archived_at: string | null;
+};
+
+export function mapCategoryRow(row: CategoryQueryRow): HouseholdCategory {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    name: row.name,
+    icon: row.icon,
+    type: row.type,
+    isDefault: Boolean(row.is_default),
+    archivedAt: row.archived_at,
+  };
 }

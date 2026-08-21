@@ -6,7 +6,7 @@
 --
 -- Required environment:
 --   1. Supabase local (`supabase start`) or a linked Supabase database
---   2. Both migrations applied (foundation + RLS)
+--   2. Migrations applied (foundation, RLS, lifecycle, categories/create_expense)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -919,6 +919,141 @@ END;
 $$;
 
 -- -----------------------------------------------------------------------------
+-- Phase 9.1.2A — create_expense RPC (while Carlos is still active in A)
+-- These assertions require migration 20260821000000. They are not a substitute
+-- for a live app session; they exercise Postgres + RLS with set_auth().
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_cat_expense_a uuid;
+  v_cat_expense_b uuid;
+  v_before integer;
+  v_after integer;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+  SELECT id INTO v_cat_expense_a FROM rls_ids WHERE key = 'cat_expense_a';
+  SELECT id INTO v_cat_expense_b FROM rls_ids WHERE key = 'cat_expense_b';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+
+  PERFORM pg_temp.record_result(
+    'X01', 'Carlos', 'A', 'active', 'create_expense personal',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_expense(
+          %L::uuid, %L::uuid, 25, 'Cafe', DATE '2026-08-21', %L::uuid, 'personal',
+          jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 25, 'percentage', 100))
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_carlos, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'X02', 'Carlos', 'A', 'active', 'create_expense shared with Diana',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_expense(
+          %L::uuid, %L::uuid, 40, 'Cena', DATE '2026-08-21', %L::uuid, 'shared',
+          jsonb_build_array(
+            jsonb_build_object('member_id', %L, 'amount', 20, 'percentage', 50),
+            jsonb_build_object('member_id', %L, 'amount', 20, 'percentage', 50)
+          )
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_carlos, v_carlos, v_diana
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'X03', 'Carlos', 'B', 'never member', 'create_expense other household',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_expense(
+          %L::uuid, %L::uuid, 10, 'Cruzado', DATE '2026-08-21', %L::uuid, 'personal',
+          jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 10, 'percentage', 100))
+        )
+      $sql$,
+      v_nido_b, v_cat_expense_b, v_carlos, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'X04', 'Carlos', 'A', 'active', 'create_expense category of other Nido',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_expense(
+          %L::uuid, %L::uuid, 10, 'Categoria ajena', DATE '2026-08-21', %L::uuid, 'personal',
+          jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 10, 'percentage', 100))
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_b, v_carlos, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'X05', 'Carlos', 'A', 'active', 'create_expense split for Luis',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_expense(
+          %L::uuid, %L::uuid, 10, 'Split ajeno', DATE '2026-08-21', %L::uuid, 'shared',
+          jsonb_build_array(
+            jsonb_build_object('member_id', %L, 'amount', 5, 'percentage', 50),
+            jsonb_build_object('member_id', %L, 'amount', 5, 'percentage', 50)
+          )
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_carlos, v_carlos, v_luis
+    ))
+  );
+
+  SELECT count(*) INTO v_before FROM public.expenses WHERE household_id = v_nido_a;
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  BEGIN
+    PERFORM public.create_expense(
+      v_nido_a,
+      v_cat_expense_a,
+      12,
+      'Huerfano',
+      DATE '2026-08-21',
+      v_carlos,
+      'personal',
+      jsonb_build_array(
+        jsonb_build_object('member_id', v_carlos, 'amount', 7, 'percentage', 50),
+        jsonb_build_object('member_id', v_diana, 'amount', 5, 'percentage', 50)
+      )
+    );
+  EXCEPTION
+    WHEN OTHERS THEN
+      NULL;
+  END;
+
+  SELECT count(*) INTO v_after FROM public.expenses WHERE household_id = v_nido_a;
+
+  PERFORM pg_temp.record_result(
+    'X06', 'Carlos', 'A', 'active', 'invalid split leaves no orphan expense',
+    'allow',
+    CASE WHEN v_after = v_before THEN 'allow' ELSE 'deny' END
+  );
+END;
+$$;
+
 -- Scenario C — Carlos leaves Nido A
 -- Membership write is service_role / table-owner work, matching the
 -- chosen RLS model (clients cannot UPDATE household_members).
@@ -1028,6 +1163,20 @@ BEGIN
           scope, distribution_method, created_by
         ) VALUES (
           %L, %L, 10, DATE '2026-08-02', %L, 'personal', 'fixed', %L
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_carlos, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'X07', 'Carlos', 'A', 'left', 'create_expense after leave',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_expense(
+          %L::uuid, %L::uuid, 10, 'Ya no miembro', DATE '2026-08-21', %L::uuid, 'personal',
+          jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 10, 'percentage', 100))
         )
       $sql$,
       v_nido_a, v_cat_expense_a, v_carlos, v_carlos

@@ -16,6 +16,11 @@ const USER_MESSAGES: Record<NidoErrorCode, string> = {
   not_a_member: "No perteneces a un Nido activo.",
   last_owner: "No puedes salir siendo el único propietario del Nido.",
   forbidden: "No tienes permiso para hacer esto.",
+  invalid_amount: "Ingresa un monto válido.",
+  invalid_description: "Ingresa una descripción del gasto.",
+  invalid_category: "Esta categoría no está disponible.",
+  invalid_split: "La división del gasto no es válida.",
+  invalid_date: "La fecha no es válida.",
   network: "No pudimos completar la operación. Inténtalo de nuevo.",
 };
 
@@ -60,6 +65,12 @@ const MESSAGE_CODES: Record<string, NidoErrorCode> = {
   "nido.invite_pending": "invite_pending",
   "nido.not_a_member": "not_a_member",
   "nido.last_owner": "last_owner",
+  "nido.forbidden": "forbidden",
+  "nido.invalid_amount": "invalid_amount",
+  "nido.invalid_description": "invalid_description",
+  "nido.invalid_category": "invalid_category",
+  "nido.invalid_split": "invalid_split",
+  "nido.invalid_date": "invalid_date",
 };
 
 function readErrorField(error: unknown, key: string): string | null {

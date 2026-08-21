@@ -53,4 +53,9 @@ export type NidoErrorCode =
   | "not_a_member"
   | "last_owner"
   | "forbidden"
+  | "invalid_amount"
+  | "invalid_description"
+  | "invalid_category"
+  | "invalid_split"
+  | "invalid_date"
   | "network";

@@ -7,9 +7,8 @@ import {
 import { ActivityScreen } from "@/components/activity/ActivityScreen";
 import { BudgetScreen } from "@/components/budget/BudgetScreen";
 import { ActionSheet } from "@/components/flows/ActionSheet";
-import { ContribFlow } from "@/components/flows/ContribFlow";
+import { ComingSoon } from "@/components/flows/ComingSoon";
 import { ExpenseFlow } from "@/components/flows/ExpenseFlow";
-import { GoalFlow } from "@/components/flows/GoalFlow";
 import { ProfilePanel } from "@/components/flows/ProfilePanel";
 import { GoalsScreen } from "@/components/goals/GoalsScreen";
 import { HomeScreen } from "@/components/home/HomeScreen";
@@ -58,6 +57,12 @@ export function MainApp({
 
   const handleFlowDone = () => {
     setActiveFlow(null);
+    void dashboard.refresh();
+  };
+
+  const openFlow = (flow: Flow) => {
+    setShowSheet(false);
+    setActiveFlow(flow);
   };
 
   return (
@@ -118,24 +123,22 @@ export function MainApp({
         {/* Action sheet */}
         {showSheet && (
           <ActionSheet
-            onSelect={(f) => { setShowSheet(false); setActiveFlow(f); }}
+            onSelect={openFlow}
             onClose={() => setShowSheet(false)}
           />
         )}
 
-        {/* Expense flow */}
         {activeFlow === "expense" && (
-          <ExpenseFlow onClose={() => setActiveFlow(null)} onDone={() => handleFlowDone()} />
+          <ExpenseFlow
+            householdId={household.id}
+            members={members}
+            onClose={() => setActiveFlow(null)}
+            onDone={handleFlowDone}
+          />
         )}
 
-        {/* Goal flow */}
-        {activeFlow === "goal" && (
-          <GoalFlow onClose={() => setActiveFlow(null)} />
-        )}
-
-        {/* Contribution flow */}
-        {activeFlow === "contrib" && (
-          <ContribFlow onClose={() => setActiveFlow(null)} />
+        {(activeFlow === "goal" || activeFlow === "contrib") && (
+          <ComingSoon onClose={() => setActiveFlow(null)} />
         )}
 
         {/* Profile panel */}

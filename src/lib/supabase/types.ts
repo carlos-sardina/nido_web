@@ -93,6 +93,7 @@ export type Database = {
           household_id: string
           icon: string | null
           id: string
+          is_default: boolean
           name: string
           type: Database["public"]["Enums"]["category_type"]
           updated_at: string
@@ -104,6 +105,7 @@ export type Database = {
           household_id: string
           icon?: string | null
           id?: string
+          is_default?: boolean
           name: string
           type: Database["public"]["Enums"]["category_type"]
           updated_at?: string
@@ -115,6 +117,7 @@ export type Database = {
           household_id?: string
           icon?: string | null
           id?: string
+          is_default?: boolean
           name?: string
           type?: Database["public"]["Enums"]["category_type"]
           updated_at?: string
@@ -869,6 +872,26 @@ export type Database = {
       category_belongs_to_household: {
         Args: { p_category_id: string; p_household_id: string }
         Returns: boolean
+      }
+      default_expense_category_catalog: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          icon: string
+          name: string
+        }[]
+      }
+      create_expense: {
+        Args: {
+          p_amount: number
+          p_category_id: string
+          p_description: string
+          p_household_id: string
+          p_occurred_at: string
+          p_payer_id: string
+          p_scope: Database["public"]["Enums"]["expense_scope"]
+          p_splits: Json
+        }
+        Returns: string
       }
       create_household: {
         Args: { p_name: string }

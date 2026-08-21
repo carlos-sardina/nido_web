@@ -4,7 +4,7 @@ This document describes household (Nido) creation, membership, leaving, invitati
 
 The schema in [database.md](./database.md) remains the source of truth. RLS in [security.md](./security.md) is unchanged. Application services and four Postgres functions live in this phase. It does not change tables or weaken policies.
 
-Phase 9.1.1 connects the Home dashboard to live Supabase reads. Auth, recovery, onboarding, RLS, and invitations are unchanged. See [financial.md](./financial.md). Auth and onboarding visuals use the tokens in [design-system.md](./design-system.md).
+Phase 9.1.1 connects the Home dashboard to live Supabase reads. Phase 9.1.2A adds household default expense categories and **Registrar un gasto**. Auth, recovery, onboarding, and RLS policies are unchanged. See [financial.md](./financial.md). Auth and onboarding visuals use the tokens in [design-system.md](./design-system.md).
 
 ---
 
@@ -50,14 +50,14 @@ Nido selection
   → invitaciones
   → Crear mi Nido
   → create_household + profiles.display_name
-  → dashboard (live reads; empty until financial rows exist)
+  → dashboard (live reads; empty financial rows until the user registers a gasto)
 ```
 
 Draft fields (household name, display name, income, savings, expenses, classification, amounts, division method, invite UI) stay in React state and `sessionStorage` (`nido.onboardingDraft`). That key is not used for auth tokens.
 
 Abandoning before **Crear mi Nido** leaves no household, no membership, and no financial rows. Refresh during a draft step restores the local draft; it does not create a Nido. Logout clears the draft.
 
-`profiles.display_name` is written when the Nido is finalized, not when the name step is shown.
+`profiles.display_name` is written when the Nido is finalized, not when the name step is shown. Default expense categories are inserted by `create_household` in the same transaction.
 
 ---
 
@@ -65,7 +65,7 @@ Abandoning before **Crear mi Nido** leaves no household, no membership, and no f
 
 The household is **not** created when the user enters onboarding.
 
-It is created on the invitations step, when the user taps **Crear mi Nido**, **Invitar por enlace**, or **Invitar por QR**. Those actions call `create_household(p_name)` (atomic household + owner membership) and then `updateMyDisplayName`. Optional invitation rows are inserted only after that RPC succeeds.
+It is created on the invitations step, when the user taps **Crear mi Nido**, **Invitar por enlace**, or **Invitar por QR**. Those actions call `create_household(p_name)` (atomic household + owner membership + default expense categories) and then `updateMyDisplayName`. Optional invitation rows are inserted only after that RPC succeeds.
 
 Invitation links need a `household_id`, so generating a real link or QR finalizes the Nido first. Financial onboarding data is still not persisted.
 
@@ -177,6 +177,8 @@ Accepted invitations stay accepted even if they would also be expired.
 | Display name | `profiles.display_name` |
 | Invitation | `household_invitations` (token, optional email, expiry, accepted_at) |
 | Leave | `household_members.left_at` |
+| Default expense categories | `categories` (`is_default = true`) via `create_household` |
+| Confirmed expense | `expenses` + `expense_splits` via `create_expense` |
 
 Auth identity still comes from Supabase Auth. The profile is the canonical application display name. Auth user metadata is not updated.
 
@@ -188,17 +190,17 @@ Intentionally not persisted by onboarding (still true):
 
 - onboarding income, savings, expenses, classification, and distribution preference
 
-Live on Home (Phase 9.1.1), empty when the Nido has no rows:
+Live on Home, empty when the Nido has no financial rows:
 
-- confirmed incomes and expenses
+- confirmed incomes and expenses (gastos registered from `+` are live)
 - goals and contribution progress
 - Nido budgets for the current month
 - activity derived from those tables
 
-Still prototype UI (not wired in 9.1.1):
+Still prototype UI (not wired):
 
 - Gastos, Metas, and Actividad screens
-- “+” mutations (registrar gasto, crear meta, aportación)
+- Crear una meta / Registrar una aportación (visible in `+`, show **Próximamente**)
 - household planning widgets (capacity / split model)
 - Profile personal-expense lists
 - email or push delivery
@@ -210,16 +212,17 @@ Household name, member list, membership role, and `profiles.display_name` come f
 
 ## Transactions and RPCs
 
-The PostgREST client cannot run a multi-statement transaction. These operations use Postgres functions in `supabase/migrations/20260818000000_nido_household_lifecycle.sql`.
+The PostgREST client cannot run a multi-statement transaction. These operations use Postgres functions.
 
 | Function | Security | Why |
 | --- | --- | --- |
-| `create_household(p_name)` | `SECURITY INVOKER` | Household insert + first owner insert must be atomic. RLS still applies. |
+| `create_household(p_name)` | `SECURITY INVOKER` | Household + first owner + default expense categories must be atomic. RLS still applies. |
+| `create_expense(...)` | `SECURITY INVOKER` | Expense + splits must be atomic. Split sums and personal cardinality are enforced here. RLS still applies. |
 | `lookup_invitation(p_token)` | `SECURITY DEFINER` | Invitation SELECT is owner-only. Invitees and anonymous users need a name/status preview. |
 | `accept_invitation(p_token)` | `SECURITY DEFINER` | No client UPDATE on invitations and no client INSERT of a non-owner membership. |
 | `leave_household()` | `SECURITY DEFINER` | No client UPDATE on `household_members`. |
 
-`SECURITY DEFINER` functions set `search_path = public`, require `auth.uid()`, and never take a user-supplied `user_id`. They do not bypass the one-active-Nido unique index.
+`create_household` and `create_expense` live in `supabase/migrations/20260818000000_nido_household_lifecycle.sql` and `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`. `SECURITY DEFINER` functions set `search_path = public`, require `auth.uid()`, and never take a user-supplied `user_id`. They do not bypass the one-active-Nido unique index.
 
 There is no service-role client.
 
@@ -237,8 +240,11 @@ Code lives in `src/lib/nido/`.
 | `profile.ts` | `getMyProfile`, `updateMyDisplayName` |
 | `rules.ts` | Pure classification and token/email helpers |
 | `invitation-copy.ts` | Safe invitation status copy for `/join/<token>` |
-| `financial/` | Date range, money, splits, goal progress, budget spent, activity, dashboard view model |
-| `queries/dashboard.ts` | `fetchDashboardSnapshot` (read-only) |
+| `financial/` | Date range, money, splits, categories, expense input, goal progress, budget spent, activity, dashboard view model |
+| `queries/dashboard.ts` | `fetchDashboardSnapshot` |
+| `queries/categories.ts` | `fetchActiveExpenseCategories` |
+| `create-expense.ts` | `createExpenseWithAuth`, `canSubmitExpense` |
+| `expenses.ts` | `createExpense` (Supabase wrapper) |
 | `use-dashboard.ts` | Home data hook; uses the active household from `useMyNido` |
 
 Onboarding draft helpers live in `src/lib/onboarding/` (`draft`, `validation`). They do not write to Supabase.
@@ -277,20 +283,20 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ---
 
-## What remains after 9.1.1
+## What remains after 9.1.2A
 
-- 9.1.2: bottom sheet “+” and first mutations (gasto, meta, aportación)
-- 9.1.3: Gastos, Metas, Actividad screens on the same data layer
+- 9.1.3: Gastos, Metas, and Actividad screens on the same data layer
 - 9.1.4: Hogar / Perfil refinement
+- Crear meta / registrar aportación / ingresos / presupuestos / recurrencias
 - invitation email delivery
 - owner transfer
 - Google OAuth
-- default category catalog (needed before users can register expenses)
+- category CRUD (create / rename / archive) beyond the default catalog
 
 ---
 
 ## Apply the migration
 
-This workspace does not apply SQL to a live project. After pulling this phase, apply `20260818000000_nido_household_lifecycle.sql` with the same process used for the foundation and RLS migrations.
+This workspace does not apply SQL to a live project. After pulling this phase, apply `20260821000000_nido_categories_and_create_expense.sql` with the same process used for the foundation, RLS, and lifecycle migrations.
 
-Until that function migration is applied, household create/accept/leave RPCs will fail at runtime.
+Until that migration is applied, default categories will be missing on new Nidos and `create_expense` will fail at runtime.

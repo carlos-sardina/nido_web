@@ -166,10 +166,13 @@ Household-scoped classification for income and expense.
 | `created_at` | `timestamptz` | |
 | `updated_at` | `timestamptz` | |
 | `archived_at` | `timestamptz` nullable | Archive instead of delete. |
+| `is_default` | `boolean` | Default `false`. True for catalog rows seeded at household creation. |
 
 Active category names are unique per household and type. Archived names may be reused.
 
-Using an archived category on a **new** transaction is allowed at the database level and should be rejected by the application.
+Using an archived category on a **new** transaction is allowed at the database level and is rejected by `create_expense` and the application.
+
+Default expense categories are inserted by `create_household` from `default_expense_category_catalog()`. There is no global categories table.
 
 ### 3.6 `recurring_incomes`
 
@@ -881,18 +884,18 @@ These remain out of scope for the current schema and RLS migrations:
 3. **Invitation acceptance, leave, join, and owner transfer** as service-layer operations. RLS denies arbitrary client writes to `household_members`.
 4. **Occurrence queue** — `next_occurrence` is sufficient.
 5. **Advanced recurrence** — extra frequencies, timezones, month-end rules, skipped-date history.
-6. **Split-sum triggers** — enforce in application transactions first.
+6. **Split-sum table triggers** — `create_expense` enforces the sum in one transaction. A row-level trigger that would block incremental inserts is still deferred.
 7. **Pairwise settlements / payments** between members (reimbursements as first-class rows).
 8. **Refunds or negative amounts** — money is non-negative; reversals can be modeled later.
 9. **Personal-budget spend attribution** — payer vs participant.
 10. **Automatic owner membership** on household insert.
 11. **Invitation acceptance workflow details**, including expiry checks and the one-active-Nido conflict when the invitee already belongs elsewhere. RLS does not allow the invitee to UPDATE the invitation row.
 12. **Owner-count trigger** — at least one owner is an application rule.
-13. **Default category catalogs** and seed data.
+13. **Default income category catalog.** Expense defaults are seeded by `create_household` (Phase 9.1.2A).
 14. **Audit log** of edits.
 15. **Hard-delete prevention triggers** — application must use `deleted_at` / `is_active` / `archived_at` / goal `status`.
 16. **`created_by` must be an active member** — enforced by RLS on INSERT (`created_by = auth.uid()` plus active membership). Application should still set the column to the acting user.
-17. **Using archived categories on new transactions** — allowed at the database level.
+17. **Using archived categories on new transactions** — allowed at the database CHECK level; `create_expense` rejects them.
 18. **Goal contribution soft delete** and goal-to-category linkage.
 19. **Multi-currency.**
 20. **Notifications, activity feed persistence, and insights.**
@@ -906,6 +909,7 @@ These remain out of scope for the current schema and RLS migrations:
 - Schema: `supabase/migrations/20260816000000_nido_foundation_schema.sql`
 - RLS: `supabase/migrations/20260817000000_nido_rls.sql`
 - Household lifecycle RPCs: `supabase/migrations/20260818000000_nido_household_lifecycle.sql`
+- Categories catalog + `create_expense`: `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`
 - Security model: [docs/security.md](./security.md)
 - Application clients: [docs/supabase.md](./supabase.md)
 - These migrations are applied on the linked hosted project. See [docs/supabase.md](./supabase.md).
