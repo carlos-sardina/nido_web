@@ -45,7 +45,7 @@ export function emptyOnboardingData(): OData {
     savingsType: "personal",
     savingsShared: "",
     expenses: [],
-    contrib: "capacity",
+    contrib: "proportional",
   };
 }
 
@@ -79,7 +79,7 @@ function asSavingsType(value: unknown): OData["savingsType"] {
 }
 
 function asContrib(value: unknown): Model {
-  return value === "equal" || value === "proportional" || value === "capacity" ? value : "capacity";
+  return value === "equal" || value === "proportional" ? value : "proportional";
 }
 
 function objectHasSecretKey(value: unknown): boolean {

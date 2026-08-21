@@ -837,9 +837,8 @@ export function OnboardingFlow({
                   />
                   <div className="space-y-3 mb-6">
                     {([
-                      { id:"equal" as Model,        emoji:"⚖️", label:"Por partes iguales",         sub:"Los gastos compartidos se dividen en partes iguales." },
-                      { id:"proportional" as Model, emoji:"📊", label:"Proporcional al ingreso",     sub:"Cada persona aporta según su porcentaje del ingreso total." },
-                      { id:"capacity" as Model,     emoji:"💡", label:"Capacidad de aportación",     sub:"Cada persona aporta según lo que le queda después de cubrir sus gastos personales.", rec:true },
+                      { id:"equal" as Model,        emoji:"⚖️", label:"Por partes iguales",         sub:"Los gastos compartidos se dividen en partes iguales.", badge:"Ideal para roomies" },
+                      { id:"proportional" as Model, emoji:"📊", label:"Proporcional al ingreso",     sub:"Cada persona aporta según su porcentaje del ingreso total.", badge:"Ideal para parejas" },
                     ] as const).map(opt => (
                       <ChoiceCard
                         key={opt.id}
@@ -847,9 +846,11 @@ export function OnboardingFlow({
                         title={opt.label}
                         description={opt.sub}
                         selected={data.contrib === opt.id}
-                        badge={"rec" in opt && opt.rec ? (
-                          <span className="text-caption font-bold rounded-full px-2 py-0.5 flex-shrink-0" style={{ backgroundColor: P.brnDk, color:"#fff" }}>Ideal</span>
-                        ) : undefined}
+                        badge={
+                          <span className="text-[9px] font-bold rounded-full px-2 py-1 flex-shrink-0 text-center leading-tight max-w-[4.75rem]" style={{ backgroundColor: P.brnDk, color:"#fff" }}>
+                            {opt.badge}
+                          </span>
+                        }
                         onClick={() => set("contrib", opt.id)}
                       />
                     ))}
