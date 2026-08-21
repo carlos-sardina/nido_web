@@ -1,153 +1,497 @@
+"use client";
+
 import { Shield } from "lucide-react";
 import type { AuthIdentity } from "@/lib/auth/identity";
-import { CATS, FEED, GOALS, TOT_B, TOT_S } from "@/lib/constants";
-import { $k, pct } from "@/lib/helpers";
+import {
+  formatCompactMoney,
+  formatRelativeActivityDate,
+  formatWholeMoney,
+} from "@/lib/nido/financial";
+import type { DashboardQuery } from "@/lib/nido/use-dashboard";
 import { P } from "@/lib/palette";
 import type { Tab } from "@/lib/types";
+import { Button } from "@/components/nido/Button";
+import { EmptyState } from "@/components/nido/EmptyState";
+import { Text } from "@/components/nido/Typography";
 import { HealthGauge } from "@/components/home/HealthGauge";
 
-export function HomeScreen({ identity, onProfileOpen, onNavigate }: { identity: AuthIdentity | null; onProfileOpen: () => void; onNavigate: (tab: Tab) => void }) {
-  const over = TOT_S > TOT_B;
-  const diff = Math.abs(TOT_S - TOT_B);
+const GOAL_STYLES = [
+  { color: P.sage, bg: "#E8F4EF" },
+  { color: P.brn, bg: "#FDEEF1" },
+  { color: P.sageLt, bg: "#EFF5EE" },
+  { color: P.warn, bg: "#FAF0EC" },
+] as const;
+
+function SkeletonBlock({ className }: { className: string }) {
+  return (
+    <div
+      className={`animate-pulse rounded-[1.5rem] ${className}`}
+      style={{ backgroundColor: P.sub }}
+    />
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="px-6 pt-3 space-y-3" aria-busy="true" aria-live="polite">
+      <Text size="caption" tone="muted">
+        Cargando tu Nido…
+      </Text>
+      <SkeletonBlock className="h-36" />
+      <SkeletonBlock className="h-40" />
+      <SkeletonBlock className="h-24" />
+      <SkeletonBlock className="h-28" />
+    </div>
+  );
+}
+
+export function HomeScreen({
+  identity,
+  householdName,
+  dashboard,
+  onProfileOpen,
+  onNavigate,
+}: {
+  identity: AuthIdentity | null;
+  householdName: string;
+  dashboard: DashboardQuery;
+  onProfileOpen: () => void;
+  onNavigate: (tab: Tab) => void;
+}) {
+  const { isLoading, error, model, refresh } = dashboard;
+
   return (
     <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:hidden pb-4">
       <div className="px-6 pt-3 pb-1 flex items-center justify-between">
         <div>
-          <p className="text-xs font-medium" style={{ color: P.muted }}>Buenos días</p>
-          <h1 className="text-[22px] font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{identity ? `${identity.firstName} 👋` : "Hola 👋"}</h1>
+          <p className="text-xs font-medium" style={{ color: P.muted }}>
+            {model?.greeting ?? "Buenos días"}
+          </p>
+          <h1
+            className="text-[22px] font-bold"
+            style={{ fontFamily: "Fraunces, serif", color: P.text }}
+          >
+            {identity ? `${identity.firstName} 👋` : "Hola 👋"}
+          </h1>
+          {householdName ? (
+            <p className="text-[11px] mt-0.5" style={{ color: P.muted }}>
+              {householdName}
+            </p>
+          ) : null}
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={onProfileOpen} className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm active:scale-95 transition-transform overflow-hidden" style={{ backgroundColor: P.sage }}>
-            {identity?.avatarUrl
-              ? <img src={identity.avatarUrl} alt="" className="w-full h-full object-cover" />
-              : (identity?.initials ?? "?")}
+        <button
+          type="button"
+          onClick={onProfileOpen}
+          aria-label="Abrir perfil"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm active:scale-95 transition-transform overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          style={{ backgroundColor: P.sage }}
+        >
+          {identity?.avatarUrl ? (
+            <img src={identity.avatarUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            (identity?.initials ?? "?")
+          )}
+        </button>
+      </div>
+
+      {isLoading && !model ? (
+        <DashboardSkeleton />
+      ) : error && !model ? (
+        <div className="px-6 pt-4">
+          <div className="rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
+            <Text size="body-sm" tone="danger" className="mb-4">
+              {error.message}
+            </Text>
+            <Button onClick={() => void refresh()} loading={isLoading}>
+              Reintentar
+            </Button>
+          </div>
+        </div>
+      ) : model ? (
+        <DashboardBody
+          model={model}
+          error={error}
+          onRetry={() => void refresh()}
+          retrying={isLoading}
+          onNavigate={onNavigate}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function DashboardBody({
+  model,
+  error,
+  onRetry,
+  retrying,
+  onNavigate,
+}: {
+  model: NonNullable<DashboardQuery["model"]>;
+  error: DashboardQuery["error"];
+  onRetry: () => void;
+  retrying: boolean;
+  onNavigate: (tab: Tab) => void;
+}) {
+  const { health, budget, featuredGoal, activeGoals, activity, empty, range } = model;
+  const diff = Math.abs(budget.remaining);
+
+  return (
+    <>
+      {error ? (
+        <div className="mx-6 mb-3 rounded-2xl px-4 py-3" style={{ backgroundColor: P.dangerBg }}>
+          <Text size="caption" tone="danger">
+            {error.message}
+          </Text>
+          <button
+            type="button"
+            onClick={onRetry}
+            disabled={retrying}
+            className="mt-1 text-caption font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+            style={{ color: P.danger }}
+          >
+            Reintentar
           </button>
         </div>
-      </div>
-      {/* Health score */}
-      <div className="mx-6 mb-3 rounded-[1.5rem] overflow-hidden" style={{ background: "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)" }}>
-        <div className="p-5">
-          <div className="flex items-start justify-between mb-2">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest mb-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>Salud Financiera</p>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold" style={{ color: P.sageLt }}>Excelente</span>
-                <span className="text-[10px] rounded-full px-2 py-0.5 font-medium" style={{ backgroundColor: `${P.sageLt}25`, color: P.sageLt }}>↑ +3 pts</span>
-              </div>
-            </div>
-            <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.3)" }}>Junio 2026</span>
-          </div>
-          <div className="flex items-end justify-between gap-4">
-            <HealthGauge score={92} />
-            <div className="flex flex-col gap-2">
-              {[
-                { label: "Tasa ahorro",  value: "18%"     },
-                { label: "Fondo emerg.", value: "4.2 mes" },
-              ].map(s => (
-                <div key={s.label} className="rounded-xl px-3 py-2 flex items-center gap-2.5" style={{ backgroundColor: "rgba(255,255,255,0.1)" }}>
-                  <span className="text-xs font-bold" style={{ color: P.sageLt }}>{s.value}</span>
-                  <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.4)" }}>{s.label}</span>
+      ) : null}
+
+      {health.available ? (
+        <div
+          className="mx-6 mb-3 rounded-[1.5rem] overflow-hidden"
+          style={{ background: "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)" }}
+        >
+          <div className="p-5">
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <p
+                  className="text-[10px] font-semibold uppercase tracking-widest mb-0.5"
+                  style={{ color: "rgba(255,255,255,0.45)" }}
+                >
+                  Salud Financiera
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold" style={{ color: P.sageLt }}>
+                    {health.label}
+                  </span>
                 </div>
-              ))}
+              </div>
+              <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.3)" }}>
+                {range.label}
+              </span>
+            </div>
+            <div className="flex items-end justify-between gap-4">
+              <HealthGauge score={health.score} />
+              <div className="flex flex-col gap-2">
+                {[
+                  health.savingsRatePercent != null
+                    ? { label: "Tasa ahorro", value: `${health.savingsRatePercent}%` }
+                    : null,
+                  health.emergencyMonths != null
+                    ? { label: "Fondo emerg.", value: `${health.emergencyMonths} mes` }
+                    : null,
+                  health.budgetUsagePercent != null
+                    ? { label: "Presupuesto", value: `${health.budgetUsagePercent}%` }
+                    : null,
+                  health.activeGoalCount > 0
+                    ? {
+                        label: health.activeGoalCount === 1 ? "meta activa" : "metas activas",
+                        value: String(health.activeGoalCount),
+                      }
+                    : null,
+                ]
+                  .filter((chip): chip is { label: string; value: string } => chip != null)
+                  .slice(0, 2)
+                  .map((chip) => (
+                    <div
+                      key={chip.label}
+                      className="rounded-xl px-3 py-2 flex items-center gap-2.5"
+                      style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+                    >
+                      <span className="text-xs font-bold font-sans" style={{ color: P.sageLt }}>
+                        {chip.value}
+                      </span>
+                      <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                        {chip.label}
+                      </span>
+                    </div>
+                  ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      {/* Budget */}
+      ) : (
+        <div className="mx-6 mb-3">
+          <div
+            className="rounded-[1.5rem] p-5"
+            style={{ background: "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)" }}
+          >
+            <p
+              className="text-[10px] font-semibold uppercase tracking-widest mb-2"
+              style={{ color: "rgba(255,255,255,0.45)" }}
+            >
+              Salud Financiera
+            </p>
+            <p className="text-sm font-semibold text-white mb-1">Aún no hay datos</p>
+            <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
+              Agrega tus ingresos para tener una mejor visión de su patrimonio.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="mx-6 mb-3 rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold" style={{ color: P.text }}>Presupuesto del mes</h3>
-          <span className="text-[10px]" style={{ color: P.muted }}>Junio 2026</span>
-        </div>
-        <div className="flex items-baseline gap-2 mb-3">
-          <span className="text-[22px] font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{$k(TOT_S)}</span>
-          <span className="text-xs" style={{ color: P.muted }}>de {$k(TOT_B)}</span>
-        </div>
-        <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: P.sub }}>
-          <div className="h-full rounded-full" style={{ width: `${pct(TOT_S, TOT_B)}%`, background: over ? P.danger : `linear-gradient(90deg, ${P.sage}, ${P.sageDk})` }} />
-        </div>
-        <div className="flex justify-between text-[10px]">
-          <span style={{ color: P.muted }}>Gastado este mes</span>
-          <span className="font-semibold" style={{ color: over ? P.danger : P.sageDk }}>
-            {over ? `$${diff.toLocaleString("es-MX")} sobre el plan` : `$${diff.toLocaleString("es-MX")} disponible`}
+          <h3 className="text-xs font-semibold" style={{ color: P.text }}>
+            Presupuesto del mes
+          </h3>
+          <span className="text-[10px]" style={{ color: P.muted }}>
+            {range.label}
           </span>
         </div>
-        <div className="flex gap-2 mt-4 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-          {CATS.slice(0, 5).map(c => (
-            <div key={c.name} className="flex-shrink-0 rounded-xl px-3 py-2 text-center min-w-[58px]" style={{ backgroundColor: P.sub }}>
-              <div className="text-sm mb-0.5">{c.icon}</div>
-              <div className="text-[9px] mb-0.5" style={{ color: P.muted }}>{c.name.split(" ")[0]}</div>
-              <div className="text-[10px] font-bold" style={{ color: c.spent > c.budget ? P.danger : P.text }}>{$k(c.spent)}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-      {/* Emergency fund */}
-      <div className="mx-6 mb-3 rounded-[1.5rem] p-4 shadow-sm" style={{ backgroundColor: P.card }}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "#E8F4EF" }}>
-              <Shield size={17} style={{ color: P.sageDk }} />
-            </div>
-            <div>
-              <p className="text-[10px]" style={{ color: P.muted }}>Fondo de emergencia</p>
-              <p className="text-base font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>$120,000</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px]" style={{ color: P.muted }}>Cubre</p>
-            <p className="text-sm font-bold" style={{ color: P.sageDk }}>4.2 meses</p>
-          </div>
-        </div>
-        <div className="mt-3 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: P.sub }}>
-          <div className="h-full w-[60%] rounded-full" style={{ background: `linear-gradient(90deg, ${P.sage}, ${P.sageDk})` }} />
-        </div>
-        <div className="flex justify-between mt-1 text-[9px]" style={{ color: P.muted }}><span>$120k de $200k</span><span>60%</span></div>
-      </div>
-      {/* Goals preview */}
-      <div className="mb-3">
-        <div className="flex items-center justify-between px-6 mb-2">
-          <h3 className="text-xs font-semibold" style={{ color: P.text }}>Metas activas</h3>
-          <button onClick={() => onNavigate("goals")} className="text-[10px] font-semibold" style={{ color: P.brnDk }}>Ver todas →</button>
-        </div>
-        <div className="flex gap-3 px-6 overflow-x-auto [&::-webkit-scrollbar]:hidden pb-1">
-          {GOALS.map(g => (
-            <div key={g.name} className="flex-shrink-0 w-36 rounded-2xl p-3.5" style={{ backgroundColor: g.bg }}>
-              <div className="text-2xl mb-1.5">{g.emoji}</div>
-              <p className="text-[10px] font-semibold leading-tight mb-2" style={{ color: P.text }}>{g.name}</p>
-              <div className="h-1 rounded-full overflow-hidden mb-1" style={{ backgroundColor: "rgba(0,0,0,0.06)" }}>
-                <div className="h-full rounded-full" style={{ width: `${pct(g.current, g.target)}%`, backgroundColor: g.color }} />
-              </div>
-              <div className="flex justify-between text-[9px]" style={{ color: P.muted }}>
-                <span>{pct(g.current, g.target)}%</span><span>{g.date}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      {/* Activity */}
-      <div className="px-6 mb-2">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-xs font-semibold" style={{ color: P.text }}>Actividad reciente</h3>
-          <button onClick={() => onNavigate("activity")} className="text-[10px] font-semibold" style={{ color: P.brnDk }}>Ver todo →</button>
-        </div>
-        <div className="space-y-2">
-          {FEED.slice(0, 3).map((item, i) => (
-            <div key={i} className="flex items-center gap-3 rounded-2xl p-3 shadow-sm" style={{ backgroundColor: P.card }}>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0" style={{ backgroundColor: P.sub }}>{item.icon}</div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate" style={{ color: P.text }}>
-                  {"user" in item && item.user ? <><span className="font-bold">{item.user}</span> {item.action}</> : item.action}
-                </p>
-                <p className="text-[10px]" style={{ color: P.muted }}>{item.time}</p>
-              </div>
-              {"amount" in item && item.amount !== undefined && (
-                <span className="text-xs font-semibold flex-shrink-0" style={{ color: P.text }}>{$k(item.amount)}</span>
+        {empty.budget ? (
+          <EmptyState
+            plain
+            title="Todo tranquilo por aquí."
+            description="Registra tu primer gasto para comenzar a ver tu actividad."
+            actionLabel="Ver gastos"
+            onAction={() => onNavigate("budget")}
+          />
+        ) : (
+          <>
+            <div className="flex items-baseline gap-2 mb-3">
+              <span className="text-[22px] font-bold font-sans" style={{ color: P.text }}>
+                {formatCompactMoney(budget.totalSpent)}
+              </span>
+              {budget.hasBudget ? (
+                <span className="text-xs" style={{ color: P.muted }}>
+                  de {formatCompactMoney(budget.totalBudget)}
+                </span>
+              ) : (
+                <span className="text-xs" style={{ color: P.muted }}>
+                  gastados este mes
+                </span>
               )}
             </div>
-          ))}
-        </div>
+            {budget.hasBudget ? (
+              <>
+                <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: P.sub }}>
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.min(100, budget.usagePercent ?? 0)}%`,
+                      background: budget.over
+                        ? P.danger
+                        : `linear-gradient(90deg, ${P.sage}, ${P.sageDk})`,
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span style={{ color: P.muted }}>Gastado este mes</span>
+                  <span
+                    className="font-semibold"
+                    style={{ color: budget.over ? P.danger : P.sageDk }}
+                  >
+                    {budget.over
+                      ? `$${diff.toLocaleString("es-MX")} sobre el plan`
+                      : `$${diff.toLocaleString("es-MX")} disponible`}
+                  </span>
+                </div>
+              </>
+            ) : null}
+            {budget.categories.length > 0 ? (
+              <div className="flex gap-2 mt-4 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+                {budget.categories.slice(0, 5).map((category) => (
+                  <div
+                    key={category.categoryId}
+                    className="flex-shrink-0 rounded-xl px-3 py-2 text-center min-w-[58px]"
+                    style={{ backgroundColor: P.sub }}
+                  >
+                    <div className="text-sm mb-0.5">{category.icon}</div>
+                    <div className="text-[9px] mb-0.5" style={{ color: P.muted }}>
+                      {category.name.split(" ")[0]}
+                    </div>
+                    <div
+                      className="text-[10px] font-bold font-sans"
+                      style={{
+                        color:
+                          category.budget > 0 && category.spent > category.budget
+                            ? P.danger
+                            : P.text,
+                      }}
+                    >
+                      {formatCompactMoney(category.spent)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
-    </div>
+
+      {featuredGoal ? (
+        <div className="mx-6 mb-3 rounded-[1.5rem] p-4 shadow-sm" style={{ backgroundColor: P.card }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                style={{ backgroundColor: "#E8F4EF" }}
+              >
+                <Shield size={17} style={{ color: P.sageDk }} />
+              </div>
+              <div>
+                <p className="text-[10px]" style={{ color: P.muted }}>
+                  {featuredGoal.name}
+                </p>
+                <p className="text-base font-bold font-sans" style={{ color: P.text }}>
+                  {formatWholeMoney(featuredGoal.contributed)}
+                </p>
+              </div>
+            </div>
+            {featuredGoal.emergencyMonths != null ? (
+              <div className="text-right">
+                <p className="text-[10px]" style={{ color: P.muted }}>
+                  Cubre
+                </p>
+                <p className="text-sm font-bold font-sans" style={{ color: P.sageDk }}>
+                  {featuredGoal.emergencyMonths} {featuredGoal.emergencyMonths === 1 ? "mes" : "meses"}
+                </p>
+              </div>
+            ) : null}
+          </div>
+          <div className="mt-3 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: P.sub }}>
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${featuredGoal.percent}%`,
+                background: `linear-gradient(90deg, ${P.sage}, ${P.sageDk})`,
+              }}
+            />
+          </div>
+          <div className="flex justify-between mt-1 text-[9px]" style={{ color: P.muted }}>
+            <span>
+              {formatCompactMoney(featuredGoal.contributed)} de{" "}
+              {featuredGoal.invalidTarget ? "—" : formatCompactMoney(featuredGoal.targetAmount)}
+            </span>
+            <span>{featuredGoal.invalidTarget ? "—" : `${featuredGoal.percent}%`}</span>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mb-3">
+        <div className="flex items-center justify-between px-6 mb-2">
+          <h3 className="text-xs font-semibold" style={{ color: P.text }}>
+            Metas activas
+          </h3>
+          <button
+            type="button"
+            onClick={() => onNavigate("goals")}
+            className="text-[10px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+            style={{ color: P.brnDk }}
+          >
+            Ver todas →
+          </button>
+        </div>
+        {empty.goals ? (
+          <div className="px-6">
+            <EmptyState
+              title="¿Tienen algo en mente?"
+              description="Crea una meta para empezar a construirla juntos."
+              actionLabel="Ver metas"
+              onAction={() => onNavigate("goals")}
+            />
+          </div>
+        ) : (
+          <div className="flex gap-3 px-6 overflow-x-auto [&::-webkit-scrollbar]:hidden pb-1">
+            {activeGoals.map((goal, index) => {
+              const style = GOAL_STYLES[index % GOAL_STYLES.length];
+              return (
+                <div
+                  key={goal.id}
+                  className="flex-shrink-0 w-36 rounded-2xl p-3.5"
+                  style={{ backgroundColor: style.bg }}
+                >
+                  <div className="text-2xl mb-1.5">{goal.goalType === "purchase" ? "🎯" : "🛡️"}</div>
+                  <p className="text-[10px] font-semibold leading-tight mb-2" style={{ color: P.text }}>
+                    {goal.name}
+                  </p>
+                  <div
+                    className="h-1 rounded-full overflow-hidden mb-1"
+                    style={{ backgroundColor: "rgba(0,0,0,0.06)" }}
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${goal.percent}%`, backgroundColor: style.color }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[9px] font-sans" style={{ color: P.muted }}>
+                    <span>{goal.invalidTarget ? "—" : `${goal.percent}%`}</span>
+                    <span>
+                      {goal.targetDate
+                        ? new Intl.DateTimeFormat("es-MX", {
+                            month: "short",
+                            year: "numeric",
+                            timeZone: "UTC",
+                          }).format(new Date(`${goal.targetDate}T00:00:00Z`))
+                        : formatCompactMoney(goal.contributed)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="px-6 mb-2">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-semibold" style={{ color: P.text }}>
+            Actividad reciente
+          </h3>
+          <button
+            type="button"
+            onClick={() => onNavigate("activity")}
+            className="text-[10px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+            style={{ color: P.brnDk }}
+          >
+            Ver todo →
+          </button>
+        </div>
+        {empty.activity ? (
+          <EmptyState
+            title="Todo tranquilo por aquí."
+            description="Registra tu primer gasto para comenzar a ver tu actividad."
+          />
+        ) : (
+          <div className="space-y-2">
+            {activity.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center gap-3 rounded-2xl p-3 shadow-sm"
+                style={{ backgroundColor: P.card }}
+              >
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0"
+                  style={{ backgroundColor: P.sub }}
+                >
+                  {item.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate" style={{ color: P.text }}>
+                    {item.title}
+                  </p>
+                  <p className="text-[10px]" style={{ color: P.muted }}>
+                    {formatRelativeActivityDate(item.date, item.createdAt)}
+                  </p>
+                </div>
+                <span className="text-xs font-semibold flex-shrink-0 font-sans" style={{ color: P.text }}>
+                  {formatCompactMoney(item.amount)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

@@ -4,7 +4,7 @@ Use this against a real Vercel + Supabase + SMTP environment. Automated unit tes
 
 Confirm email stays enabled. Google OAuth stays disabled. Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
 
-Phase 9 has **not** started. Dashboard financial data remains mock.
+Phase 9.1.1 connects Home to live Supabase reads. Gastos / Metas / Actividad screens remain prototype until 9.1.3. See [financial.md](./financial.md).
 
 The 60-second email cooldown is a **UX protection**. It prevents accidental repeat clicks and shows a countdown. The real protection against abuse remains in **Supabase Auth rate limits** and **Brevo SMTP limits**. The frontend cooldown does not replace or weaken those provider limits.
 
@@ -94,7 +94,7 @@ The 60-second cooldown is a UX protection. Real abuse protection remains in Supa
 ## E. Login
 
 1. Log in with a confirmed account.
-2. Active Nido → dashboard mock. No Nido → Nido Selection.
+2. Active Nido → live dashboard (empty if the Nido has no financial rows). No Nido → Nido Selection.
 
 ## F. Wrong password
 
@@ -157,7 +157,7 @@ The 60-second cooldown is a UX protection. Real abuse protection remains in Supa
 ## O. Join invitation
 
 1. Unauthenticated `/join/<token>` → sign in or sign up, then return to the invite.
-2. Accept → dashboard mock.
+2. Accept → live dashboard (empty until financial rows exist).
 3. Malformed / invalid token → **Invitación no válida** without raw database errors.
 
 ## P. Already-member invitation
@@ -187,6 +187,16 @@ The 60-second cooldown is a UX protection. Real abuse protection remains in Supa
 1. Create a Nido named **Casa** (or **Nido**).
 2. Another independent account can also create **Casa**.
 3. Household id remains the identity. No unique error on `households.name`.
+
+---
+
+## Dashboard live data (Phase 9.1.1)
+
+1. Sign in with an active Nido that has **no** incomes/expenses/goals → Home shows empty copy, not Diana/Carlos prototype numbers.
+2. Seed or insert a real expense/income/goal in Supabase → refresh Home → those values appear.
+3. A failed load shows **No pudimos cargar tus datos. Inténtalo de nuevo.** and **Reintentar**, not a PostgREST message.
+4. Log out from Home still returns to Auth Landing.
+5. A user without an active Nido still cannot open MainApp.
 
 ---
 

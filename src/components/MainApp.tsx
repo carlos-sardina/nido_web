@@ -18,6 +18,7 @@ import { applyProfileDisplayName, identityFromUser } from "@/lib/auth/identity";
 import { P } from "@/lib/palette";
 import type { Flow, Model, Tab } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
+import { useDashboard } from "@/lib/nido/use-dashboard";
 import type { Household, HouseholdMember, HouseholdMemberView, Profile } from "@/lib/nido/types";
 
 export function MainApp({
@@ -45,6 +46,7 @@ export function MainApp({
   const [showSheet, setShowSheet] = useState(false);
   const [activeFlow, setActiveFlow] = useState<Flow>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const dashboard = useDashboard(household.id, members);
 
   const tabs = [
     { id: "home"      as Tab, icon: Home,     label: "Inicio"    },
@@ -62,7 +64,15 @@ export function MainApp({
     <div className="relative min-h-screen flex flex-col overflow-hidden"
       style={{ backgroundColor: P.bgL, fontFamily: "Figtree, sans-serif" }}>
         <div className="flex-1 overflow-hidden">
-          {tab === "home"      && <HomeScreen identity={identity} onProfileOpen={() => setProfileOpen(true)} onNavigate={t => { setTab(t); setShowSheet(false); }} />}
+          {tab === "home"      && (
+            <HomeScreen
+              identity={identity}
+              householdName={household.name}
+              dashboard={dashboard}
+              onProfileOpen={() => setProfileOpen(true)}
+              onNavigate={t => { setTab(t); setShowSheet(false); }}
+            />
+          )}
           {tab === "budget"    && <BudgetScreen />}
           {tab === "goals"     && <GoalsScreen />}
           {tab === "household" && (
@@ -95,8 +105,10 @@ export function MainApp({
 
         {/* FAB */}
         <button
+          type="button"
+          aria-label="Agregar"
           onClick={() => setShowSheet(true)}
-          className="absolute flex items-center justify-center transition-all active:scale-95 z-20"
+          className="absolute flex items-center justify-center transition-all active:scale-95 z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           style={{ bottom: "6.5rem", right: "1.25rem", width: "3.25rem", height: "3.25rem",
             backgroundColor: P.brnDk, borderRadius: "1rem",
             boxShadow: `0 8px 24px rgba(102,90,72,0.45)` }}>

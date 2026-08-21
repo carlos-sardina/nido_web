@@ -4,7 +4,7 @@ This document describes household (Nido) creation, membership, leaving, invitati
 
 The schema in [database.md](./database.md) remains the source of truth. RLS in [security.md](./security.md) is unchanged. Application services and four Postgres functions live in this phase. It does not change tables or weaken policies.
 
-Phase 9 (real financial data and a live dashboard) has **not** started. Auth and onboarding visuals use the tokens in [design-system.md](./design-system.md).
+Phase 9.1.1 connects the Home dashboard to live Supabase reads. Auth, recovery, onboarding, RLS, and invitations are unchanged. See [financial.md](./financial.md). Auth and onboarding visuals use the tokens in [design-system.md](./design-system.md).
 
 ---
 
@@ -50,7 +50,7 @@ Nido selection
   → invitaciones
   → Crear mi Nido
   → create_household + profiles.display_name
-  → dashboard mock
+  → dashboard (live reads; empty until financial rows exist)
 ```
 
 Draft fields (household name, display name, income, savings, expenses, classification, amounts, division method, invite UI) stay in React state and `sessionStorage` (`nido.onboardingDraft`). That key is not used for auth tokens.
@@ -94,7 +94,7 @@ Household **names** are not unique. `households.id` is the identity. `profiles.d
 | Unauthenticated | No session | Auth landing |
 | Authenticated + no memberships | Never belonged to a Nido | Nido selection |
 | Authenticated + historical only | `left_at` is set on every row | Nido selection |
-| Authenticated + active | `left_at IS NULL` | Main app / dashboard mock |
+| Authenticated + active | `left_at IS NULL` | Main app / live dashboard |
 | Authenticated + invitation pending | `/join/<token>` after email confirmation or a pasted link | Invitation acceptance |
 
 Historical membership is **not** current membership. A person who has left may create or join another Nido.
@@ -184,16 +184,27 @@ Auth identity still comes from Supabase Auth. The profile is the canonical appli
 
 ## What is still mock / local
 
-Intentionally not persisted (Phase 9):
+Intentionally not persisted by onboarding (still true):
 
 - onboarding income, savings, expenses, classification, and distribution preference
-- dashboard balances, budgets, goals, activity
-- categories
-- recurring transactions
+
+Live on Home (Phase 9.1.1), empty when the Nido has no rows:
+
+- confirmed incomes and expenses
+- goals and contribution progress
+- Nido budgets for the current month
+- activity derived from those tables
+
+Still prototype UI (not wired in 9.1.1):
+
+- Gastos, Metas, and Actividad screens
+- “+” mutations (registrar gasto, crear meta, aportación)
+- household planning widgets (capacity / split model)
+- Profile personal-expense lists
 - email or push delivery
 - real-time subscriptions
 
-The dashboard and some household planning widgets still render prototype financial numbers. Household name, member list, membership role, and `profiles.display_name` come from Supabase after the Nido is finalized.
+Household name, member list, membership role, and `profiles.display_name` come from Supabase after the Nido is finalized.
 
 ---
 
@@ -226,6 +237,9 @@ Code lives in `src/lib/nido/`.
 | `profile.ts` | `getMyProfile`, `updateMyDisplayName` |
 | `rules.ts` | Pure classification and token/email helpers |
 | `invitation-copy.ts` | Safe invitation status copy for `/join/<token>` |
+| `financial/` | Date range, money, splits, goal progress, budget spent, activity, dashboard view model |
+| `queries/dashboard.ts` | `fetchDashboardSnapshot` (read-only) |
+| `use-dashboard.ts` | Home data hook; uses the active household from `useMyNido` |
 
 Onboarding draft helpers live in `src/lib/onboarding/` (`draft`, `validation`). They do not write to Supabase.
 
@@ -241,7 +255,7 @@ UI components call this layer. They do not query Supabase tables directly.
   → if no session: email/password auth
   → after signup/login (and email confirmation if required): return to /join/<token>
   → accept
-  → MainApp / dashboard mock
+  → MainApp / live dashboard
 ```
 
 The invitation token is stored in `sessionStorage` (`nido.pendingInvitationToken`) so it survives email confirmation. It is not an auth token and is never written to `localStorage`.
@@ -263,16 +277,15 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ---
 
-## What remains for Phase 9
+## What remains after 9.1.1
 
-Phase 9 has not started. Still out of scope:
-
-- persist incomes, savings, expenses, budgets, and goals
-- replace the dashboard mock
-- new financial tables
+- 9.1.2: bottom sheet “+” and first mutations (gasto, meta, aportación)
+- 9.1.3: Gastos, Metas, Actividad screens on the same data layer
+- 9.1.4: Hogar / Perfil refinement
 - invitation email delivery
 - owner transfer
 - Google OAuth
+- default category catalog (needed before users can register expenses)
 
 ---
 

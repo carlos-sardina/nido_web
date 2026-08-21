@@ -78,3 +78,22 @@ Hover, active scale, disabled, loading (`aria-busy`), and `focus-visible` ring a
 ## Color
 
 Existing palette in `theme.css` / `src/lib/palette.ts`. Added `--danger` (`#B94040`) for errors, distinct from terracotta `--destructive`.
+
+## Dashboard (Phase 9.1.1)
+
+Home uses the same tokens. Financial amounts use **Figtree** (`font-sans`), not Fraunces. Fraunces stays on the greeting name and screen titles.
+
+| Role | Size | Example |
+| --- | --- | --- |
+| Hero amount | `text-[22px] font-bold font-sans` | Spent this month |
+| Featured amount | `text-base font-bold font-sans` | Goal current |
+| Activity amount | `text-xs font-semibold font-sans` | Feed row |
+| Category chip | `text-[10px] font-bold font-sans` | Budget chips |
+
+Formatters: `formatCompactMoney` / `formatWholeMoney` in `src/lib/nido/financial/money.ts`. Do not invent a third scale for the same kind of number.
+
+Empty states use `EmptyState` (`rounded-2xl` card, body-sm title, caption description, optional compact secondary CTA). Copy stays calm; it does not fill the dashboard with prototype figures.
+
+Loading uses pulse skeletons in the same card geometry. Errors use Spanish `NidoError` copy and **Reintentar**, never raw Supabase text.
+
+The Home scroll region is the inner `h-full overflow-y-auto` pane. The shell keeps `overflow-hidden` only because that pane scrolls. `user-scalable=yes` is unchanged.
