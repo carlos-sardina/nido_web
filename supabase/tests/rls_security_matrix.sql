@@ -8,7 +8,8 @@
 --   1. Supabase local (`supabase start`) or a linked Supabase database
 --   2. Migrations applied (foundation, RLS, lifecycle, categories/create_expense,
 --      expense mutations, goal mutations, goal contribution mutations,
---      goal contribution edit / soft-delete, income mutations)
+--      goal contribution edit / soft-delete, income mutations,
+--      budget mutations)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -2084,6 +2085,384 @@ BEGIN
 END;
 $$;
 
+-- -----------------------------------------------------------------------------
+-- Phase 9.1.4 — budget mutations (K01–K16)
+-- Prefix K is used because B01–B09 already cover Luis / never-member
+-- and P01–P07 already cover child-table SELECT / profile visibility.
+-- Mapping to the requested B01–B16 cases is 1:1 (K01=create, …, K16=templates).
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_cat_income_a uuid;
+  v_cat_expense_a uuid;
+  v_cat_expense_b uuid;
+  v_budget_a uuid;
+  v_expense_a uuid;
+  v_expense_b uuid;
+  v_rec_expense_a uuid;
+  v_mutate uuid;
+  v_spent_expense uuid;
+  v_deleted_at timestamptz;
+  v_live_sum numeric;
+  v_all_sum numeric;
+  v_spent_live numeric;
+  v_spent_all numeric;
+  v_a_spent numeric;
+  v_recurring_amount numeric;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+  SELECT id INTO v_cat_income_a FROM rls_ids WHERE key = 'cat_income_a';
+  SELECT id INTO v_cat_expense_a FROM rls_ids WHERE key = 'cat_expense_a';
+  SELECT id INTO v_cat_expense_b FROM rls_ids WHERE key = 'cat_expense_b';
+  SELECT id INTO v_budget_a FROM rls_ids WHERE key = 'budget_a';
+  SELECT id INTO v_expense_a FROM rls_ids WHERE key = 'expense_a';
+  SELECT id INTO v_expense_b FROM rls_ids WHERE key = 'expense_b';
+  SELECT id INTO v_rec_expense_a FROM rls_ids WHERE key = 'rec_expense_a';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.create_budget(
+    v_nido_a,
+    v_cat_expense_a,
+    800,
+    DATE '2026-08-01',
+    DATE '2026-08-31'
+  ) INTO v_mutate;
+
+  PERFORM pg_temp.record_result(
+    'K01', 'Carlos', 'A', 'active', 'create_budget',
+    'allow',
+    CASE WHEN v_mutate IS NOT NULL THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'K02', 'Carlos', 'A', 'active', 'creator can update budget',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.update_budget(
+          %L::uuid, %L::uuid, 850, DATE '2026-08-01', DATE '2026-08-31'
+        )
+      $sql$,
+      v_mutate, v_cat_expense_a
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'K04', 'Diana', 'A', 'active', 'non-creator cannot update',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_budget(
+            %L::uuid, %L::uuid, 15, DATE '2026-08-01', DATE '2026-08-31'
+          )
+        $sql$,
+        v_mutate, v_cat_expense_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.budgets SET amount = 15 WHERE id = %L',
+        v_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'K05', 'Diana', 'A', 'active', 'non-creator cannot soft-delete',
+    'deny',
+    pg_temp.expect_allow(format(
+      'SELECT public.soft_delete_budget(%L::uuid)',
+      v_mutate
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'K06', 'Luis', 'B', 'never member', 'other household cannot access or mutate',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_count(format(
+        'SELECT count(*) FROM public.budgets WHERE id = %L', v_mutate
+      )) = 0
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_budget(
+            %L::uuid, %L::uuid, 15, DATE '2026-08-01', DATE '2026-08-31'
+          )
+        $sql$,
+        v_mutate, v_cat_expense_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_budget(%L::uuid)',
+        v_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_budget(
+            %L::uuid, %L::uuid, 10, DATE '2026-08-01', DATE '2026-08-31'
+          )
+        $sql$,
+        v_nido_a, v_cat_expense_a
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'K11', 'Carlos', 'A', 'active', 'manipulated uuid/household/category does not authorize',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_budget(
+            %L::uuid, %L::uuid, 10, DATE '2026-09-01', DATE '2026-09-30'
+          )
+        $sql$,
+        v_nido_b, v_cat_expense_b
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_budget(
+            %L::uuid, %L::uuid, 10, DATE '2026-09-01', DATE '2026-09-30'
+          )
+        $sql$,
+        v_nido_a, v_cat_expense_b
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_budget(
+            %L::uuid, %L::uuid, 10, DATE '2026-09-01', DATE '2026-09-30'
+          )
+        $sql$,
+        v_nido_a, v_cat_income_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_budget(
+            %L::uuid, %L::uuid, 10, DATE '2026-08-01', DATE '2026-08-31'
+          )
+        $sql$,
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', v_cat_expense_a
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.clear_auth();
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.record_result(
+    'K10', 'none', '-', 'none', 'unauthenticated cannot mutate',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_budget(
+            %L::uuid, %L::uuid, 10, DATE '2026-09-01', DATE '2026-09-30'
+          )
+        $sql$,
+        v_nido_a, v_cat_expense_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_budget(
+            %L::uuid, %L::uuid, 10, DATE '2026-08-01', DATE '2026-08-31'
+          )
+        $sql$,
+        v_mutate, v_cat_expense_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_budget(%L::uuid)',
+        v_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.create_expense(
+    v_nido_a,
+    v_cat_expense_a,
+    25,
+    'Para presupuesto',
+    DATE '2026-08-10',
+    v_carlos,
+    'personal',
+    jsonb_build_array(jsonb_build_object('member_id', v_carlos, 'amount', 25, 'percentage', 100))
+  ) INTO v_spent_expense;
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'K15', 'Carlos', 'A', 'active', 'deleted expense excluded from budget spent',
+    'allow',
+    CASE
+      WHEN v_spent_expense IS NOT NULL
+       AND pg_temp.expect_allow(format(
+         'SELECT public.soft_delete_expense(%L::uuid)',
+         v_spent_expense
+       )) = 'allow'
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.clear_auth();
+
+  SELECT deleted_at INTO v_deleted_at
+  FROM public.expenses
+  WHERE id = v_spent_expense;
+
+  SELECT coalesce(sum(amount), 0)
+  INTO v_spent_live
+  FROM public.expenses
+  WHERE id = v_spent_expense
+    AND deleted_at IS NULL;
+
+  IF v_deleted_at IS NULL OR v_spent_live <> 0 THEN
+    UPDATE rls_test_results
+    SET actual = 'deny', passed = false
+    WHERE test_id = 'K15';
+  END IF;
+
+  SELECT coalesce(sum(amount), 0)
+  INTO v_a_spent
+  FROM public.expenses
+  WHERE household_id = v_nido_a
+    AND category_id = v_cat_expense_a
+    AND deleted_at IS NULL
+    AND occurred_at BETWEEN DATE '2026-01-01' AND DATE '2026-01-31';
+
+  SELECT amount INTO v_recurring_amount
+  FROM public.recurring_expenses
+  WHERE id = v_rec_expense_a;
+
+  PERFORM pg_temp.record_result(
+    'K14', 'Carlos', 'A', 'active', 'other household expense excluded from budget spent',
+    'allow',
+    CASE
+      WHEN (
+        SELECT household_id FROM public.expenses WHERE id = v_expense_b
+      ) = v_nido_b
+      AND v_nido_b IS DISTINCT FROM v_nido_a
+      AND (
+        SELECT coalesce(sum(amount), 0)
+        FROM public.expenses
+        WHERE household_id = v_nido_a
+          AND category_id = v_cat_expense_a
+          AND deleted_at IS NULL
+          AND occurred_at BETWEEN DATE '2026-01-01' AND DATE '2026-01-31'
+          AND id = v_expense_b
+      ) = 0
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'K16', 'Carlos', 'A', 'active', 'recurring_expense template excluded from budget spent',
+    'allow',
+    CASE
+      WHEN v_recurring_amount = 100
+      AND NOT EXISTS (
+        SELECT 1 FROM public.expenses WHERE id = v_rec_expense_a
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public.expenses
+        WHERE household_id = v_nido_a
+          AND recurring_id = v_rec_expense_a
+          AND deleted_at IS NULL
+          AND occurred_at BETWEEN DATE '2026-01-01' AND DATE '2026-01-31'
+      )
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'K03', 'Carlos', 'A', 'active', 'creator can soft-delete',
+    'allow',
+    pg_temp.expect_allow(format(
+      'SELECT public.soft_delete_budget(%L::uuid)',
+      v_mutate
+    ))
+  );
+
+  SELECT deleted_at INTO v_deleted_at
+  FROM public.budgets
+  WHERE id = v_mutate;
+
+  IF v_deleted_at IS NULL THEN
+    UPDATE rls_test_results
+    SET actual = 'deny', passed = false
+    WHERE test_id = 'K03';
+  END IF;
+
+  PERFORM pg_temp.record_result(
+    'K12', 'Carlos', 'A', 'active', 'deleted budget cannot be mutated',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_budget(
+            %L::uuid, %L::uuid, 12, DATE '2026-08-01', DATE '2026-08-31'
+          )
+        $sql$,
+        v_mutate, v_cat_expense_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_budget(%L::uuid)',
+        v_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.budgets SET amount = 12 WHERE id = %L',
+        v_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  SELECT
+    coalesce(sum(amount) FILTER (WHERE deleted_at IS NULL), 0),
+    coalesce(sum(amount), 0)
+  INTO v_live_sum, v_all_sum
+  FROM public.budgets
+  WHERE id = v_mutate;
+
+  PERFORM pg_temp.record_result(
+    'K13', 'Carlos', 'A', 'active', 'deleted budget excluded from calculations',
+    'allow',
+    CASE
+      WHEN v_deleted_at IS NOT NULL
+       AND v_live_sum = 0
+       AND v_all_sum = 850
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  INSERT INTO rls_ids (key, id) VALUES ('budget_mutate_a', v_mutate);
+END;
+$$;
+
 -- Scenario C — Carlos leaves Nido A
 -- Membership write is service_role / table-owner work, matching the
 -- chosen RLS model (clients cannot UPDATE household_members).
@@ -2311,6 +2690,48 @@ BEGIN
         )
       $sql$,
       v_nido_a, v_cat_income_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'K07', 'Carlos', 'A', 'left', 'historical member can read budget',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.budgets WHERE household_id = %L', v_nido_a
+    )) >= 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'K08', 'Carlos', 'A', 'left', 'historical member cannot mutate budget',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_budget(
+            %L::uuid, %L::uuid, 12, DATE '2026-01-01', DATE '2026-01-31'
+          )
+        $sql$,
+        v_budget_a, v_cat_expense_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_budget(%L::uuid)',
+        v_budget_a
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'K09', 'Carlos', 'A', 'left', 'member who left cannot create budget',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_budget(
+          %L::uuid, %L::uuid, 10, DATE '2026-09-01', DATE '2026-09-30'
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a
     ))
   );
 

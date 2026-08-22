@@ -98,6 +98,7 @@ export function buildDashboardViewModel(input: {
     goals: snapshot.goals.filter((goal) => goal.status !== "archived"),
     periodExpenses,
     periodIncomes,
+    periodBudgets: budget.items,
     activity,
     empty: {
       expenses: periodExpenses.length === 0 && recentExpenses.length === 0,

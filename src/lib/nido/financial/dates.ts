@@ -103,6 +103,22 @@ export function isDateInRange(iso: string, range: Pick<MonthRange, "start" | "en
   return iso >= range.start && iso <= range.end;
 }
 
+/** Calendar month that contains `iso`, or null if the date is invalid. */
+export function monthRangeFromIsoDate(
+  iso: string,
+  timeZone: string = NIDO_TIMEZONE,
+): MonthRange | null {
+  if (!isCalendarDate(iso)) return null;
+  const [year, month] = iso.split("-").map(Number);
+  return getMonthRange(year, month, timeZone);
+}
+
+/** True when start/end are the inclusive first and last days of one calendar month. */
+export function isCalendarMonthRange(start: string, end: string): boolean {
+  const range = monthRangeFromIsoDate(start);
+  return range != null && range.start === start && range.end === end;
+}
+
 /** Calendar date YYYY-MM-DD. Rejects impossible days such as 2026-02-31. */
 export function isCalendarDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;

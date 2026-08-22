@@ -90,6 +90,9 @@ export type BudgetRow = {
   period: "monthly";
   startDate: string;
   endDate: string;
+  createdBy: string;
+  createdAt: string;
+  deletedAt: string | null;
   category: CategoryRef | null;
 };
 
@@ -161,6 +164,25 @@ export type BudgetCategoryView = {
   spent: number;
 };
 
+export type BudgetItemView = {
+  id: string;
+  householdId: string;
+  categoryId: string;
+  name: string;
+  icon: string;
+  amount: number;
+  spent: number;
+  remaining: number;
+  usagePercent: number | null;
+  over: boolean;
+  nearLimit: boolean;
+  startDate: string;
+  endDate: string;
+  createdBy: string;
+  deletedAt: string | null;
+  memberId: string | null;
+};
+
 export type MonthBudgetView = {
   hasBudget: boolean;
   totalBudget: number;
@@ -169,6 +191,7 @@ export type MonthBudgetView = {
   over: boolean;
   usagePercent: number | null;
   categories: BudgetCategoryView[];
+  items: BudgetItemView[];
 };
 
 export type HealthView =
@@ -223,6 +246,7 @@ export type DashboardViewModel = {
   activity: ActivityItem[];
   periodExpenses: ExpenseRow[];
   periodIncomes: IncomeRow[];
+  periodBudgets: BudgetItemView[];
   empty: {
     expenses: boolean;
     incomes: boolean;

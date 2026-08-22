@@ -194,8 +194,8 @@ Live on Home, empty when the Nido has no financial rows:
 
 - confirmed incomes and expenses (ingresos and gastos registered from `+` are live)
 - goals and contribution progress
-- Nido budgets for the current month
-- activity derived from those tables
+- Nido budgets for the current month (create / edit / soft-delete from Home and `+`)
+- activity derived from expenses, incomes, and goal contributions (not budget mutations)
 
 Still prototype UI (not wired):
 
@@ -218,6 +218,7 @@ The PostgREST client cannot run a multi-statement transaction. These operations 
 | `create_expense(...)` | `SECURITY INVOKER` | Expense + splits must be atomic. Split sums and personal cardinality are enforced here. RLS still applies. |
 | `create_goal(...)` / `update_goal` / `archive_goal` | `SECURITY INVOKER` | Goal definition. Only the creator may update or archive. |
 | `create_goal_contribution(...)` | `SECURITY INVOKER` | Any active member may contribute to an active goal of the same Nido. `member_id` and `created_by` are `auth.uid()`. |
+| `create_budget(...)` / `update_budget` / `soft_delete_budget` | `SECURITY INVOKER` | Nido-level monthly budget. Only the creator may update or soft-delete. Spent is not stored. |
 | `lookup_invitation(p_token)` | `SECURITY DEFINER` | Invitation SELECT is owner-only. Invitees and anonymous users need a name/status preview. |
 | `accept_invitation(p_token)` | `SECURITY DEFINER` | No client UPDATE on invitations and no client INSERT of a non-owner membership. |
 | `leave_household()` | `SECURITY DEFINER` | No client UPDATE on `household_members`. |
@@ -248,6 +249,8 @@ Code lives in `src/lib/nido/`.
 | `goals.ts` | `createGoal` / `updateGoal` / `archiveGoal` |
 | `create-contribution.ts` | `createContributionWithAuth`, `canSubmitContribution` |
 | `contributions.ts` | `createContribution` (Supabase wrapper) |
+| `incomes.ts` | `createIncome` / `updateIncome` / `deleteIncome` |
+| `budgets.ts` | `createBudget` / `updateBudget` / `deleteBudget` |
 | `use-dashboard.ts` | Home data hook; uses the active household from `useMyNido` |
 
 Onboarding draft helpers live in `src/lib/onboarding/` (`draft`, `validation`). They do not write to Supabase.
@@ -286,17 +289,18 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ---
 
-## What remains after 9.1.3C
+## What remains after 9.1.4
 
-- 9.1.4: Hogar / Perfil refinement
-- presupuestos / recurrencias
+- household planning widgets and Profile personal-expense lists
+- recurrencias
 - invitation email delivery
 - owner transfer
 - Google OAuth
 - category CRUD (create / rename / archive) beyond the default catalog
+- personal budgets (`member_id` set) in the UI
 
 ---
 
 ## Apply the migration
 
-This phase applied `20260821220000_nido_income_mutations.sql` to linked `nido_dev` (`pxfdvhavcddqmhuljxlf`). Types were regenerated with `npx supabase gen types typescript --linked`.
+This phase applied `20260821230000_nido_budget_mutations.sql` to linked `nido_dev` (`pxfdvhavcddqmhuljxlf`). Types were regenerated with `npx supabase gen types typescript --linked`.

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { NidoError } from "../errors.ts";
 import {
   contributionHouseholdId,
+  mapBudgetRow,
   mapCategoryRow,
   mapContributionRow,
   mapExpenseRow,
@@ -105,6 +106,30 @@ describe("query row mapping", () => {
     assert.equal(contributionHouseholdId(row), "other-nido");
     assert.notEqual(contributionHouseholdId(row), "h1");
     assert.equal(mapContributionRow(row).goalId, "g1");
+  });
+
+  it("maps a budget without inventing spent", () => {
+    const budget = mapBudgetRow({
+      id: "b1",
+      household_id: "h1",
+      member_id: null,
+      category_id: "c1",
+      amount: "8000.00",
+      period: "monthly",
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+      created_by: "carlos",
+      created_at: "2026-08-01T12:00:00.000Z",
+      deleted_at: null,
+      categories: { id: "c1", name: "Vivienda", icon: "🏠" },
+    });
+    assert.equal(budget.amount, 8000);
+    assert.equal(budget.memberId, null);
+    assert.equal(budget.deletedAt, null);
+    assert.equal(budget.createdBy, "carlos");
+    assert.equal(budget.category?.name, "Vivienda");
+    assert.equal("spent" in budget, false);
+    assert.equal("currentSpent" in budget, false);
   });
 
   it("maps household category fields including is_default", () => {

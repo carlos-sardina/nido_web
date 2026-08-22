@@ -27,12 +27,14 @@ export type Database = {
           period: Database["public"]["Enums"]["budget_period"]
           start_date: string
           updated_at: string
+          deleted_at: string | null
         }
         Insert: {
           amount: number
           category_id: string
           created_at?: string
           created_by: string
+          deleted_at?: string | null
           end_date: string
           household_id: string
           id?: string
@@ -46,6 +48,7 @@ export type Database = {
           category_id?: string
           created_at?: string
           created_by?: string
+          deleted_at?: string | null
           end_date?: string
           household_id?: string
           id?: string
@@ -878,6 +881,16 @@ export type Database = {
         Args: { p_category_id: string; p_household_id: string }
         Returns: boolean
       }
+      create_budget: {
+        Args: {
+          p_amount: number
+          p_category_id: string
+          p_end_date: string
+          p_household_id: string
+          p_start_date: string
+        }
+        Returns: string
+      }
       create_expense: {
         Args: {
           p_amount: number
@@ -986,12 +999,23 @@ export type Database = {
         }[]
       }
       shares_household_with: { Args: { p_user_id: string }; Returns: boolean }
+      soft_delete_budget: { Args: { p_budget_id: string }; Returns: string }
       soft_delete_expense: { Args: { p_expense_id: string }; Returns: string }
       soft_delete_goal_contribution: {
         Args: { p_contribution_id: string }
         Returns: string
       }
       soft_delete_income: { Args: { p_income_id: string }; Returns: string }
+      update_budget: {
+        Args: {
+          p_amount: number
+          p_budget_id: string
+          p_category_id: string
+          p_end_date: string
+          p_start_date: string
+        }
+        Returns: string
+      }
       update_expense: {
         Args: {
           p_amount: number

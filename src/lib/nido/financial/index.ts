@@ -1,5 +1,29 @@
 export { buildActivityItems, contributionToActivity, expenseToActivity, incomeToActivity } from "./activity.ts";
-export { buildMonthBudgetView, nidoBudgetsForMonth } from "./budgets.ts";
+export {
+  BUDGET_NEAR_LIMIT_PERCENT,
+  budgetRemaining,
+  budgetSpent,
+  budgetUsage,
+  buildBudgetItemView,
+  buildMonthBudgetView,
+  canMutateBudget,
+  isActiveBudget,
+  isBudgetNearLimit,
+  isBudgetOver,
+  isNidoBudget,
+  nidoBudgetsForMonth,
+  visiblePeriodBudgets,
+} from "./budgets.ts";
+export {
+  amountToBudgetInput,
+  budgetAmountMessage,
+  budgetDateMessage,
+  budgetMonthInput,
+  budgetRangeMessage,
+  buildCreateBudgetPayload,
+  parseBudgetAmountInput,
+  parseBudgetMonthInput,
+} from "./budget-input.ts";
 export { buildDashboardViewModel } from "./dashboard.ts";
 export {
   formatRelativeActivityDate,
@@ -7,7 +31,10 @@ export {
   getMonthRange,
   greetingForNow,
   isCalendarDate,
+  isCalendarMonthRange,
   isDateInRange,
+  monthRangeFromIsoDate,
+  formatMonthLabel,
   NIDO_TIMEZONE,
   todayIso,
   type MonthRange,
@@ -110,6 +137,7 @@ export {
 } from "./money.ts";
 export type {
   ActivityItem,
+  BudgetItemView,
   BudgetRow,
   DashboardSnapshot,
   DashboardViewModel,

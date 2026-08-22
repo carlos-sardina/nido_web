@@ -204,6 +204,7 @@ erDiagram
         uuid created_by FK
         timestamptz created_at
         timestamptz updated_at
+        timestamptz deleted_at
     }
 
     goals {

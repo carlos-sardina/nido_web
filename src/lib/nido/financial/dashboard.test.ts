@@ -55,6 +55,7 @@ describe("dashboard view model", () => {
     assert.deepEqual(model.goals, []);
     assert.deepEqual(model.activity, []);
     assert.deepEqual(model.periodIncomes, []);
+    assert.deepEqual(model.periodBudgets, []);
     assert.equal(model.greeting, "Buenos días");
   });
 
@@ -148,6 +149,9 @@ describe("dashboard view model", () => {
             period: "monthly",
             startDate: "2026-08-01",
             endDate: "2026-08-31",
+            createdBy: "diana",
+            createdAt: "2026-08-01T12:00:00.000Z",
+            deletedAt: null,
             category: { id: "c1", name: "Internet", icon: "📡" },
           },
         ],
@@ -169,6 +173,9 @@ describe("dashboard view model", () => {
     assert.equal(model.goals[0].contributions[0].amount, 120000);
     assert.equal(model.budget.totalBudget, 800);
     assert.equal(model.budget.totalSpent, 700);
+    assert.equal(model.periodBudgets.length, 1);
+    assert.equal(model.periodBudgets[0].spent, 700);
+    assert.equal(model.periodBudgets[0].remaining, 100);
     assert.equal(model.activity.length, 3);
     assert.equal(model.health.available, true);
     if (model.health.available) {
@@ -525,5 +532,96 @@ describe("dashboard view model", () => {
     assert.deepEqual(model.periodIncomes.map((row) => row.id), ["i-live"]);
     assert.equal(model.activity.some((item) => item.id === "income:i-gone"), false);
     assert.equal(model.empty.incomes, false);
+  });
+
+  it("derives budget spent from live household expenses only", () => {
+    const liveExpense: ExpenseRow = {
+      id: "e-live",
+      householdId: "h1",
+      categoryId: "c1",
+      amount: 100,
+      description: "Luz",
+      occurredAt: "2026-08-10",
+      payerId: "diana",
+      scope: "shared",
+      distributionMethod: "equal",
+      recurringId: null,
+      createdBy: "diana",
+      createdAt: "2026-08-10T12:00:00.000Z",
+      deletedAt: null,
+      category: { id: "c1", name: "Servicios", icon: "💡" },
+      payer: null,
+      splits: [],
+    };
+    const deletedExpense: ExpenseRow = {
+      ...liveExpense,
+      id: "e-del",
+      amount: 500,
+      deletedAt: "2026-08-11T00:00:00.000Z",
+    };
+    const otherHousehold: ExpenseRow = {
+      ...liveExpense,
+      id: "e-other",
+      householdId: "h2",
+      amount: 500,
+    };
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        expenses: [liveExpense],
+        periodExpenses: [liveExpense, deletedExpense, otherHousehold],
+        recurringExpenses: [
+          {
+            id: "re1",
+            householdId: "h1",
+            amount: 999,
+            description: "Luz plantilla",
+            scope: "shared",
+            isActive: true,
+            frequency: "monthly",
+          },
+        ],
+        budgets: [
+          {
+            id: "b-live",
+            householdId: "h1",
+            memberId: null,
+            categoryId: "c1",
+            amount: 400,
+            period: "monthly",
+            startDate: "2026-08-01",
+            endDate: "2026-08-31",
+            createdBy: "diana",
+            createdAt: "2026-08-01T12:00:00.000Z",
+            deletedAt: null,
+            category: { id: "c1", name: "Servicios", icon: "💡" },
+          },
+          {
+            id: "b-del",
+            householdId: "h1",
+            memberId: null,
+            categoryId: "c1",
+            amount: 9999,
+            period: "monthly",
+            startDate: "2026-08-01",
+            endDate: "2026-08-31",
+            createdBy: "diana",
+            createdAt: "2026-08-01T12:00:00.000Z",
+            deletedAt: "2026-08-02T00:00:00.000Z",
+            category: { id: "c1", name: "Servicios", icon: "💡" },
+          },
+        ],
+      }),
+      members,
+      range,
+    });
+
+    assert.equal(model.budget.totalBudget, 400);
+    assert.equal(model.periodBudgets.length, 1);
+    assert.equal(model.periodBudgets[0].spent, 100);
+    assert.equal(model.periodBudgets[0].remaining, 300);
+    assert.equal(model.periodSpent, 100);
+    if (model.health.available) {
+      assert.equal(model.health.budgetUsagePercent, 25);
+    }
   });
 });

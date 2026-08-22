@@ -1,20 +1,126 @@
 import { isDateInRange, type MonthRange } from "./dates.ts";
 import { ratioPercent, roundMoney, sumMoney } from "./money.ts";
-import { spentByCategory } from "./expenses.ts";
-import type { BudgetCategoryView, BudgetRow, ExpenseRow, MonthBudgetView } from "./types.ts";
+import { isActiveExpense } from "./expenses.ts";
+import type {
+  BudgetItemView,
+  BudgetRow,
+  ExpenseRow,
+  MonthBudgetView,
+} from "./types.ts";
+
+/** Presentation-only. Terracotta attention in the design system; not stored. */
+export const BUDGET_NEAR_LIMIT_PERCENT = 80;
+
+export function isActiveBudget(budget: Pick<BudgetRow, "deletedAt">): boolean {
+  return budget.deletedAt == null;
+}
 
 export function isNidoBudget(budget: Pick<BudgetRow, "memberId">): boolean {
   return budget.memberId == null;
 }
 
+export function canMutateBudget(
+  budget: Pick<BudgetRow, "createdBy" | "deletedAt">,
+  userId: string | null | undefined,
+): boolean {
+  return Boolean(userId) && budget.createdBy === userId && budget.deletedAt == null;
+}
+
 export function budgetsOverlappingRange(budgets: BudgetRow[], range: MonthRange): BudgetRow[] {
   return budgets.filter(
-    (budget) => budget.startDate <= range.end && budget.endDate >= range.start,
+    (budget) =>
+      isActiveBudget(budget) &&
+      budget.startDate <= range.end &&
+      budget.endDate >= range.start,
   );
 }
 
 export function nidoBudgetsForMonth(budgets: BudgetRow[], range: MonthRange): BudgetRow[] {
   return budgetsOverlappingRange(budgets, range).filter(isNidoBudget);
+}
+
+/**
+ * Single source of truth for spent against a budget.
+ * Sums confirmed expenses only: same household, same category, date in the
+ * budget range, deleted_at IS NULL. Does not add recurring_expenses templates.
+ */
+export function budgetSpent(
+  budget: Pick<BudgetRow, "householdId" | "categoryId" | "startDate" | "endDate">,
+  expenses: ExpenseRow[],
+): number {
+  return sumMoney(
+    expenses
+      .filter(
+        (expense) =>
+          isActiveExpense(expense) &&
+          expense.householdId === budget.householdId &&
+          expense.categoryId === budget.categoryId &&
+          isDateInRange(expense.occurredAt, {
+            start: budget.startDate,
+            end: budget.endDate,
+          }),
+      )
+      .map((expense) => expense.amount),
+  );
+}
+
+export function budgetRemaining(amount: number, spent: number): number {
+  return roundMoney(amount - spent);
+}
+
+export function budgetUsage(spent: number, amount: number): number | null {
+  return ratioPercent(spent, amount);
+}
+
+export function isBudgetOver(amount: number, spent: number): boolean {
+  return amount > 0 && spent > amount;
+}
+
+export function isBudgetNearLimit(amount: number, spent: number): boolean {
+  const percent = budgetUsage(spent, amount);
+  return percent != null && percent >= BUDGET_NEAR_LIMIT_PERCENT && !isBudgetOver(amount, spent);
+}
+
+export function buildBudgetItemView(
+  budget: BudgetRow,
+  expenses: ExpenseRow[],
+): BudgetItemView {
+  const spent = budgetSpent(budget, expenses);
+  return {
+    id: budget.id,
+    householdId: budget.householdId,
+    categoryId: budget.categoryId,
+    name: budget.category?.name?.trim() || "Categoría",
+    icon: budget.category?.icon?.trim() || "📌",
+    amount: budget.amount,
+    spent,
+    remaining: budgetRemaining(budget.amount, spent),
+    usagePercent: budgetUsage(spent, budget.amount),
+    over: isBudgetOver(budget.amount, spent),
+    nearLimit: isBudgetNearLimit(budget.amount, spent),
+    startDate: budget.startDate,
+    endDate: budget.endDate,
+    createdBy: budget.createdBy,
+    deletedAt: budget.deletedAt,
+    memberId: budget.memberId,
+  };
+}
+
+export function visiblePeriodBudgets(
+  budgets: BudgetRow[],
+  range: MonthRange,
+  householdId?: string,
+): BudgetRow[] {
+  return nidoBudgetsForMonth(budgets, range)
+    .filter((budget) => householdId == null || budget.householdId === householdId)
+    .slice()
+    .sort((a, b) => {
+      const byStart = b.startDate.localeCompare(a.startDate);
+      if (byStart !== 0) return byStart;
+      const nameA = a.category?.name ?? "";
+      const nameB = b.category?.name ?? "";
+      return nameA.localeCompare(nameB, "es");
+    });
 }
 
 /**
@@ -28,22 +134,23 @@ export function buildMonthBudgetView(
   range: MonthRange,
 ): MonthBudgetView {
   const nidoBudgets = nidoBudgetsForMonth(budgets, range);
+  const items = nidoBudgets.map((budget) => buildBudgetItemView(budget, periodExpenses));
   const totalBudget = sumMoney(nidoBudgets.map((budget) => budget.amount));
-  const totalSpent = sumMoney(periodExpenses.map((expense) => expense.amount));
+  const totalSpent = sumMoney(periodExpenses.filter(isActiveExpense).map((expense) => expense.amount));
   const remaining = roundMoney(totalBudget - totalSpent);
   const over = totalBudget > 0 && totalSpent > totalBudget;
 
-  const categories: BudgetCategoryView[] = nidoBudgets.map((budget) => ({
-    categoryId: budget.categoryId,
-    name: budget.category?.name?.trim() || "Categoría",
-    icon: budget.category?.icon?.trim() || "📌",
-    budget: budget.amount,
-    spent: spentByCategory(periodExpenses, budget.categoryId),
+  const categories = items.map((item) => ({
+    categoryId: item.categoryId,
+    name: item.name,
+    icon: item.icon,
+    budget: item.amount,
+    spent: item.spent,
   }));
 
   if (categories.length === 0) {
-    const spentOnly = new Map<string, BudgetCategoryView>();
-    for (const expense of periodExpenses) {
+    const spentOnly = new Map<string, (typeof categories)[number]>();
+    for (const expense of periodExpenses.filter(isActiveExpense)) {
       const existing = spentOnly.get(expense.categoryId);
       const spent = (existing?.spent ?? 0) + expense.amount;
       spentOnly.set(expense.categoryId, {
@@ -65,6 +172,7 @@ export function buildMonthBudgetView(
     over,
     usagePercent: ratioPercent(totalSpent, totalBudget),
     categories,
+    items,
   };
 }
 

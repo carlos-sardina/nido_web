@@ -29,7 +29,9 @@ const USER_MESSAGES: Record<NidoErrorCode, string> = {
   contribution_deleted: "Esta aportación ya fue eliminada.",
   income_not_found: "No encontramos este ingreso.",
   income_deleted: "Este ingreso ya fue eliminado.",
-  conflict: "Este gasto cambió. Inténtalo de nuevo.",
+  budget_not_found: "No encontramos este presupuesto.",
+  budget_deleted: "Este presupuesto ya fue eliminado.",
+  conflict: "Este registro ya existe o cambió. Inténtalo de nuevo.",
   network: "No pudimos completar la operación. Inténtalo de nuevo.",
 };
 
@@ -88,6 +90,8 @@ const MESSAGE_CODES: Record<string, NidoErrorCode> = {
   "nido.contribution_deleted": "contribution_deleted",
   "nido.income_not_found": "income_not_found",
   "nido.income_deleted": "income_deleted",
+  "nido.budget_not_found": "budget_not_found",
+  "nido.budget_deleted": "budget_deleted",
   "nido.conflict": "conflict",
 };
 
@@ -116,6 +120,9 @@ export function nidoErrorFromUnknown(error: unknown): NidoError {
   if (pgCode === "23505") {
     if (/household_invitations_pending_email/i.test(raw)) {
       return new NidoError("invite_pending");
+    }
+    if (/budget/i.test(raw)) {
+      return new NidoError("conflict");
     }
     if (/expense/i.test(raw)) {
       return new NidoError("conflict");

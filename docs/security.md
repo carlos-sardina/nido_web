@@ -190,22 +190,24 @@ Applies to `incomes`, `recurring_incomes`, `recurring_expenses`, `budgets`, and 
 
 **`incomes` UPDATE is tighter** (Phase 9.1.3C): the writer must be an **active** member, `created_by = auth.uid()`, `member_id` remains `auth.uid()`, and the row must not already be soft-deleted. INSERT also requires `member_id = auth.uid()`. Other members may SELECT. Physical DELETE remains denied.
 
+**`budgets` UPDATE is tighter** (Phase 9.1.4): the writer must be an **active** member, `created_by = auth.uid()`, and the row must not already be soft-deleted. INSERT still allows any active member with `created_by = auth.uid()`. Create RPC always writes `member_id` NULL (Nido-level). Other members may SELECT. Physical DELETE remains denied. Spent is never stored.
+
 **`goals` UPDATE is tighter** (Phase 9.1.3A): the writer must be an **active** member, `created_by = auth.uid()`, and the row must not already be archived. Other members may SELECT. Archive uses `status = archived`. Physical DELETE remains denied.
 
 | Operation | Policy |
 | --- | --- |
 | SELECT | Historical member of `household_id` |
 | INSERT | Active member, `created_by = auth.uid()`, subject (`member_id` / `payer_id`) is an active member of the same household when present, and `category_id` belongs to that household when present |
-| UPDATE | Active member of the row’s household. Category must remain in that household. **`goals` UPDATE** also requires `created_by = auth.uid()` and `status <> archived`. **`incomes` UPDATE** also requires `created_by = auth.uid()`, `member_id = auth.uid()`, and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`) |
+| UPDATE | Active member of the row’s household. Category must remain in that household. **`goals` UPDATE** also requires `created_by = auth.uid()` and `status <> archived`. **`incomes` UPDATE** also requires `created_by = auth.uid()`, `member_id = auth.uid()`, and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`). **`budgets` UPDATE** also requires `created_by = auth.uid()` and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`) |
 | DELETE | None. Soft-delete / deactivate / archive instead |
 
 UPDATE does not require the **subject** (`member_id` / `payer_id`) to still be active. Remaining members can correct or soft-delete rows that belong to people who have left. Integrity triggers still reject key changes that attach a new departed member.
 
 A writer cannot move a row to another household. They cannot be an active member of two households, and UPDATE `WITH CHECK` requires active membership in `NEW.household_id`.
 
-Personal budgets (`member_id IS NOT NULL`) require that member to be active on INSERT. Household budgets (`member_id IS NULL`) can be created by any active member.
+Personal budgets (`member_id IS NOT NULL`) require that member to be active on INSERT. Household budgets (`member_id IS NULL`) can be created by any active member. Phase 9.1.4 create RPC only writes Nido-level rows.
 
-Budgets do not restrict spending.
+Budgets do not restrict spending. Soft-delete uses `deleted_at` (migration `20260821230000`). `create_budget` / `update_budget` / `soft_delete_budget` are `SECURITY INVOKER`.
 
 ### Child tables
 
@@ -449,7 +451,7 @@ npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
 
 It impersonates Carlos, Diana, and Luis with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, expense mutation cases `X01`–`X14`, goal mutation cases `Y01`–`Y12`, and contribution cases `Z01`–`Z22`.
 
-`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. `Z12`–`Z22` (creator update/delete, non-creator deny, other household, deleted row, archived goal, other Nido goal, unauthenticated, historical member, member who left) require migration `20260821210000`. They are runtime SQL, not unit mocks.
+`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. `Z12`–`Z22` (creator update/delete, non-creator deny, other household, deleted row, archived goal, other Nido goal, unauthenticated, historical member, member who left) require migration `20260821210000`. `I01`–`I13` require `20260821220000`. `K01`–`K16` (budget create/update/soft-delete, non-creator deny, other household, historical member, deleted row, spent derivation; 1:1 with the requested B01–B16 list) require `20260821230000`. Prefix **K** is used because **B01–B09** already cover Luis / never-member and **P01–P07** already cover child-table SELECT. They are runtime SQL, not unit mocks.
 
 The script rolls back seeded users. After the run, `auth.users` and application tables were empty.
 

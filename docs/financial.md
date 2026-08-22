@@ -1,17 +1,18 @@
-# Financial data layer (Phase 9.1.3C)
+# Financial data layer (Phase 9.1.4)
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
-Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar un gasto**. Phase 9.1.2B closes the expense module. Phase 9.1.3A connects **Metas**. Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (list in goal detail, edit, soft-delete). Phase 9.1.3C connects **Ingresos**:
+Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar un gasto**. Phase 9.1.2B closes the expense module. Phase 9.1.3A connects **Metas**. Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (list in goal detail, edit, soft-delete). Phase 9.1.3C connects **Ingresos**. Phase 9.1.4 connects **Presupuestos**:
 
-- confirmed incomes reuse `incomes`
-- any active member may register an income attributed to themselves (`member_id = created_by = auth.uid()`)
-- only the creator may update or soft-delete a live income
-- `deleted_at IS NULL` is the only source for an active income
-- period income remains `SUM(incomes.amount) WHERE deleted_at IS NULL` and `occurred_at` in range (never stored)
-- templates in `recurring_incomes` are not added on top of confirmed rows
+- `budgets.amount` is the planning limit
+- spent is `SUM(expenses.amount)` for the same household, category, and calendar range, with `deleted_at IS NULL`
+- there is no `current_spent`, remaining, or percentage column
+- `recurring_expenses` templates are never added to spent
+- any active member may create a Nido-level budget (`member_id` NULL, `created_by = auth.uid()`)
+- only the creator may update or soft-delete a live budget
+- period is monthly calendar dates in `America/Mexico_City` (`start_date` first day, `end_date` last day)
 
-Presupuestos and recurrencias are still not implemented. Phase 9.1.4 was not started.
+Recurrencias and owner transfer were not started.
 
 ---
 
@@ -84,7 +85,9 @@ There is no product rule that rejects future expense dates. The form defaults to
 | Member owed | `SUM(expense_splits.amount)` for that member on non-deleted expenses |
 | Member balance | amount paid − amount owed |
 | Goal progress | `SUM(goal_contributions.amount) WHERE deleted_at IS NULL / goals.target_amount` (0 if target ≤ 0) |
-| Budget spent | expenses in the budget’s category and date range |
+| Budget spent | `SUM(expenses.amount)` where `deleted_at IS NULL`, same `household_id`, same `category_id`, `occurred_at` in `[budgets.start_date, budgets.end_date]` |
+| Budget remaining | `budgets.amount − spent` (view model only) |
+| Budget usage | `spent / budgets.amount` (view model only; null if amount ≤ 0) |
 | Activity | union of expenses, incomes, and goal contributions, newest first |
 
 There is no `balances` table, no `current_amount` on goals, and no `current_spent` on budgets.
@@ -97,7 +100,49 @@ There is no `balances` table, no `current_amount` on goals, and no `current_spen
 
 Household dashboard spent uses `expenses.amount` (the Nido’s outflow). A member’s share uses `expense_splits`. Personal vs shared is `expenses.scope`. Recurring vs one-off is `recurring_id`. `recurring_expenses` templates are never added to period spent.
 
-Nido-level budgets (`member_id IS NULL`) overlapping the current month feed “Presupuesto del mes”. `budgets.amount` is a planning target, not a spending cap.
+Nido-level budgets (`member_id IS NULL`) overlapping the current month feed “Presupuesto del mes”. `budgets.amount` is a planning target, not a spending cap. Personal budgets (`member_id` set) remain in the schema and are excluded from Home / Presupuestos totals in this phase. Recurring budgets are not implemented.
+
+The canonical spent helper is `budgetSpent()` in `src/lib/nido/financial/budgets.ts`.
+
+Financial health is unchanged: `computeHealth` still uses `budgetTotal` / `budgetUsagePercent` when a Nido-level budget exists. Those inputs now come from live snapshot budgets and derived spent. The score formula was not modified and is not persisted.
+
+---
+
+## Crear un presupuesto
+
+Home `+` → **Crear un presupuesto**, or Home **Presupuesto del mes** → Presupuestos → crear.
+
+### Model
+
+| Field | Representation |
+| --- | --- |
+| Limit | `budgets.amount` `numeric(12,2)`, must be `> 0` |
+| Category | `category_id` of an active **expense** category in the same household |
+| Period | monthly only: `start_date` = first calendar day, `end_date` = last calendar day |
+| Scope | `member_id` NULL (Nido-level). This phase does not create personal budgets |
+| created_by | `auth.uid()` |
+
+There is no name/description column. Spent, remaining, percent, exceeded, and near-limit (80%, presentation only, terracotta attention) are derived in the view model.
+
+### Unique live row
+
+At most one **live** budget exists per `(household_id, category_id, member_id, start_date)` (`NULLS NOT DISTINCT`, partial unique where `deleted_at IS NULL`). Soft-delete frees that slot.
+
+### Validations
+
+Client and RPC both reject:
+
+- missing session
+- no active membership / historical Nido / other household
+- amount ≤ 0, NaN, Infinity, malformed, too large
+- category missing, archived, income type, or other household
+- dates that are not a full calendar month
+
+Messages are Spanish `NidoError` copy. Duplicate live category+month maps to `conflict`.
+
+### Double submit
+
+The save button is disabled with **Guardando…** (`aria-busy`) while the request is in flight. After success, Home / Presupuestos / salud refresh from `fetchDashboardSnapshot()` via `dashboard.refresh()`. Activity is unchanged: budget mutations are not activity events.
 
 ---
 
@@ -351,12 +396,13 @@ Double submit: **Guardando…** (`aria-busy`). After create, edit, or delete, Ho
 | `queries/categories.ts` | `fetchActiveExpenseCategories` / `fetchActiveIncomeCategories` |
 | `expenses.ts` | `createExpense` / `updateExpense` / `deleteExpense` |
 | `incomes.ts` | `createIncome` / `updateIncome` / `deleteIncome` |
+| `budgets.ts` | `createBudget` / `updateBudget` / `deleteBudget` |
 | `goals.ts` | `createGoal` / `updateGoal` / `archiveGoal` |
 | `contributions.ts` | `createContribution` / `updateContribution` / `deleteContribution` |
 | `financial/` | dates, money, splits, validation, dashboard view model |
 | `use-dashboard.ts` | shared snapshot; `refresh()` after create/edit/delete/archive |
 
-Visual components do not query Supabase tables directly. Home, Ingresos, Gastos, Metas, and Actividad do not keep a parallel financial store.
+Visual components do not query Supabase tables directly. Home, Ingresos, Gastos, Presupuestos, Metas, and Actividad do not keep a parallel financial store.
 
 ---
 
@@ -370,19 +416,20 @@ Onboarding income/expenses are still not persisted. A newly created Nido has def
 
 ## RLS
 
-SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense, income, and contribution **UPDATE** (including soft-delete) and goal **UPDATE** (including archive) require the same plus `created_by = auth.uid()` and a live row (`deleted_at IS NULL` / `status <> archived`). Income INSERT also requires `member_id = auth.uid()`. Contribution **UPDATE** also requires parent goal `status = active`. Physical DELETE remains denied on incomes/expenses/goals and is revoked on `goal_contributions` for `authenticated`.
+SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense, income, contribution, and budget **UPDATE** (including soft-delete) and goal **UPDATE** (including archive) require the same plus `created_by = auth.uid()` and a live row (`deleted_at IS NULL` / `status <> archived`). Income INSERT also requires `member_id = auth.uid()`. Budget create writes `member_id` NULL. Contribution **UPDATE** also requires parent goal `status = active`. Physical DELETE remains denied on incomes/expenses/goals/budgets and is revoked on `goal_contributions` for `authenticated`.
 
-`create_expense`, `update_expense`, `soft_delete_expense`, `create_income`, `update_income`, `soft_delete_income`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, and `soft_delete_goal_contribution` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
+`create_expense`, `update_expense`, `soft_delete_expense`, `create_income`, `update_income`, `soft_delete_income`, `create_budget`, `update_budget`, `soft_delete_budget`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, and `soft_delete_goal_contribution` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
 
-SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`, `I01`–`I13`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
+SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`, `I01`–`I13`, `K01`–`K16`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
 
 ---
 
 ## Ownership
 
-- Dashboard, gasto, ingreso, meta, and aportación mutations: active household from `useMyNido` only
+- Dashboard, gasto, ingreso, presupuesto, meta, and aportación mutations: active household from `useMyNido` only
 - Only the expense creator may update or soft-delete
 - Only the income creator may update or soft-delete
+- Only the budget creator may update or soft-delete
 - Only the goal creator may update or archive
 - Any active member may contribute to an active goal of that Nido
 - Only the contribution creator may update or soft-delete a live contribution on an active goal

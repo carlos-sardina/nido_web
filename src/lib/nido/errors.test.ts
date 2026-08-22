@@ -101,6 +101,16 @@ describe("nidoErrorFromUnknown", () => {
     assert.match(userMessageFor("income_not_found"), /ingreso/i);
     assert.match(userMessageFor("income_deleted"), /eliminado/i);
     assert.equal(
+      nidoErrorFromUnknown({ message: "nido.budget_not_found" }).code,
+      "budget_not_found",
+    );
+    assert.equal(
+      nidoErrorFromUnknown({ message: "nido.budget_deleted" }).code,
+      "budget_deleted",
+    );
+    assert.match(userMessageFor("budget_not_found"), /presupuesto/i);
+    assert.match(userMessageFor("budget_deleted"), /eliminado/i);
+    assert.equal(
       nidoErrorFromUnknown({ message: "nido.forbidden" }).message.includes("auth.uid"),
       false,
     );

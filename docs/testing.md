@@ -4,7 +4,7 @@ Use this against a real Vercel + Supabase + SMTP environment. Automated unit tes
 
 Confirm email stays enabled. Google OAuth stays disabled. Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
 
-Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Phase 9.1.3A connects Metas (list, create, edit, archive). Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (edit / soft-delete). Phase 9.1.3C connects **Ingresos**. Actividad uses the live snapshot (no `FEED` mock). See [financial.md](./financial.md).
+Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Phase 9.1.3A connects Metas (list, create, edit, archive). Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (edit / soft-delete). Phase 9.1.3C connects **Ingresos**. Phase 9.1.4 connects **Presupuestos**. Actividad uses the live snapshot (no `FEED` mock) and still does not invent budget events. See [financial.md](./financial.md).
 
 The 60-second email cooldown is a **UX protection**. It prevents accidental repeat clicks and shows a countdown. The real protection against abuse remains in **Supabase Auth rate limits** and **Brevo SMTP limits**. The frontend cooldown does not replace or weaken those provider limits.
 
@@ -282,7 +282,7 @@ H. **Doble tap** — un solo request; botón disabled + loading (`aria-busy`).
 I. **Error de red** — copy en español, sin PostgREST.
 J. **Editar / eliminar aportación** is live in 9.1.3D (`deleted_at` + creator-only UPDATE).
 K. **9.1.3C ingresos** is live (`incomes.deleted_at` + creator-only UPDATE).
-L. **9.1.4** no se inició.
+L. **9.1.4 presupuestos** is live (`budgets.deleted_at` + creator-only UPDATE).
 
 ---
 
@@ -301,7 +301,7 @@ H. **Miembro histórico / que salió / otro Nido / no autenticado** — no puede
 I. **Doble tap** — un solo request; botón disabled + loading.
 J. **Error de red** — copy en español, sin PostgREST.
 K. **9.1.3C ingresos** is live (`incomes.deleted_at` + creator-only UPDATE).
-L. **9.1.4** no se inició.
+L. **9.1.4 presupuestos** is live (`budgets.deleted_at` + creator-only UPDATE).
 
 Manual runs actually executed for this checklist: none in this phase.
 
@@ -322,7 +322,28 @@ H. **Ingreso eliminado** — no entra en totales, salud, Ingresos ni actividad; 
 I. **Miembro histórico / que salió / otro Nido / no autenticado** — no puede crear, editar ni eliminar.
 J. **Doble tap** — un solo request; botón disabled + loading (`aria-busy`).
 K. **Error de red** — copy en español, sin PostgREST.
-L. **9.1.4** no se inició.
+L. **9.1.4 presupuestos** is live (`budgets.deleted_at` + creator-only UPDATE).
+
+Manual runs actually executed for this checklist: none in this phase.
+
+---
+
+## Presupuestos (Phase 9.1.4)
+
+Requires migration `20260821230000_nido_budget_mutations.sql` on the linked project (plus prior financial migrations). Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. SQL cases `K01`–`K16` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). The manual UI checklist below was **not** executed in a live app session. Prefix **K** is used because **B01–B09** already exist as Luis / never-member cases and **P01–P07** already exist as child-table SELECT / profile cases. Mapping to the requested B01–B16 list is 1:1.
+
+A. **Empty state** — Nido sin presupuesto del mes: **Sin presupuestos este mes** + **Crear un presupuesto**. Home muestra la misma empty copy.
+B. **Crear** — Home `+` → Crear un presupuesto. Categoría de gasto activa, monto > 0, mes calendario (America/Mexico_City). `member_id` NULL.
+C. **Listado** — overlay Presupuestos desde Home. Límite, gastado derivado, restante, porcentaje, excedido.
+D. **Editar como creador** — Editar visible; mismas validaciones; `created_by` / `household_id` no se envían como autorización.
+E. **Eliminar como creador** — confirmación. Soft-delete (`deleted_at`). Los gastos no se eliminan.
+F. **Otro miembro** — solo lectura; RPC/RLS rechaza mutación.
+G. **Gastado** — `SUM(expenses.amount)` mismo household, categoría, fechas, `deleted_at IS NULL`. No hay `current_spent`. `recurring_expenses` no se suma.
+H. **Presupuesto eliminado** — no entra en Home / Presupuestos / salud; no se puede volver a modificar.
+I. **Miembro histórico / que salió / otro Nido / no autenticado** — no puede crear, editar ni eliminar.
+J. **Doble tap** — un solo request; botón disabled + loading (`aria-busy`).
+K. **Error de red** — copy en español, sin PostgREST.
+L. **Recurrencias y owner transfer** no se iniciaron. Actividad no registra eventos de presupuesto.
 
 Manual runs actually executed for this checklist: none in this phase.
 

@@ -172,6 +172,9 @@ export type BudgetQueryRow = {
   period: "monthly";
   start_date: string;
   end_date: string;
+  created_by: string;
+  created_at: string;
+  deleted_at: string | null;
   categories?: CategoryEmbed | CategoryEmbed[];
 };
 
@@ -185,6 +188,9 @@ export function mapBudgetRow(row: BudgetQueryRow): BudgetRow {
     period: row.period,
     startDate: row.start_date,
     endDate: row.end_date,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    deletedAt: row.deleted_at,
     category: categoryRef(row.categories),
   };
 }

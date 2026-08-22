@@ -5,9 +5,12 @@ import {
   BarChart2, Clock, Home, Plus, Target, Users, Wallet,
 } from "lucide-react";
 import { ActivityScreen } from "@/components/activity/ActivityScreen";
+import { BudgetDetail } from "@/components/budget/BudgetDetail";
+import { BudgetScreen } from "@/components/budget/BudgetScreen";
 import { ExpenseDetail } from "@/components/expenses/ExpenseDetail";
 import { ExpensesScreen } from "@/components/expenses/ExpensesScreen";
 import { ActionSheet } from "@/components/flows/ActionSheet";
+import { BudgetFlow } from "@/components/flows/BudgetFlow";
 import { ContribFlow } from "@/components/flows/ContribFlow";
 import { ExpenseFlow } from "@/components/flows/ExpenseFlow";
 import { GoalFlow } from "@/components/flows/GoalFlow";
@@ -23,7 +26,7 @@ import { applyProfileDisplayName, identityFromUser } from "@/lib/auth/identity";
 import { P } from "@/lib/palette";
 import type { Flow, Model, Tab } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
-import type { ExpenseRow, GoalContributionRow, GoalRow, IncomeRow } from "@/lib/nido/financial";
+import type { BudgetItemView, ExpenseRow, GoalContributionRow, GoalRow, IncomeRow } from "@/lib/nido/financial";
 import { useDashboard } from "@/lib/nido/use-dashboard";
 import type { Household, HouseholdMember, HouseholdMemberView, Profile } from "@/lib/nido/types";
 
@@ -59,12 +62,18 @@ export function MainApp({
   const [selectedGoal, setSelectedGoal] = useState<GoalRow | null>(null);
   const [editingGoal, setEditingGoal] = useState<GoalRow | null>(null);
   const [editingContribution, setEditingContribution] = useState<GoalContributionRow | null>(null);
+  const [showBudgets, setShowBudgets] = useState(false);
+  const [selectedBudget, setSelectedBudget] = useState<BudgetItemView | null>(null);
+  const [editingBudget, setEditingBudget] = useState<BudgetItemView | null>(null);
   const dashboard = useDashboard(household.id, members);
   const liveSelectedIncome = selectedIncome
     ? dashboard.model?.periodIncomes.find((row) => row.id === selectedIncome.id) ?? selectedIncome
     : null;
   const liveSelectedGoal = selectedGoal
     ? dashboard.model?.goals.find((row) => row.id === selectedGoal.id) ?? selectedGoal
+    : null;
+  const liveSelectedBudget = selectedBudget
+    ? dashboard.model?.periodBudgets.find((row) => row.id === selectedBudget.id) ?? selectedBudget
     : null;
 
   const tabs = [
@@ -85,6 +94,8 @@ export function MainApp({
     setEditingGoal(null);
     setSelectedGoal(null);
     setEditingContribution(null);
+    setEditingBudget(null);
+    setSelectedBudget(null);
     void dashboard.refresh();
   };
 
@@ -94,6 +105,8 @@ export function MainApp({
     setEditingIncome(null);
     setEditingGoal(null);
     setEditingContribution(null);
+    setEditingBudget(null);
+    setSelectedBudget(null);
     setActiveFlow(flow);
   };
 
@@ -119,6 +132,13 @@ export function MainApp({
     setActiveFlow("goal");
   };
 
+  const openBudgetCreate = () => {
+    setShowSheet(false);
+    setSelectedBudget(null);
+    setEditingBudget(null);
+    setActiveFlow("budget");
+  };
+
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden"
       style={{ backgroundColor: P.bgL, fontFamily: "Figtree, sans-serif" }}>
@@ -130,6 +150,8 @@ export function MainApp({
               dashboard={dashboard}
               onProfileOpen={() => setProfileOpen(true)}
               onNavigate={t => { setTab(t); setShowSheet(false); }}
+              onOpenBudgets={() => setShowBudgets(true)}
+              onCreateBudget={openBudgetCreate}
             />
           )}
           {tab === "incomes"   && (
@@ -257,6 +279,29 @@ export function MainApp({
           />
         )}
 
+        {showBudgets && activeFlow !== "budget" && !liveSelectedBudget && (
+          <BudgetScreen
+            dashboard={dashboard}
+            onClose={() => setShowBudgets(false)}
+            onOpenBudget={setSelectedBudget}
+            onCreateBudget={openBudgetCreate}
+          />
+        )}
+
+        {liveSelectedBudget && activeFlow !== "budget" && (
+          <BudgetDetail
+            budget={liveSelectedBudget}
+            currentUserId={user?.id ?? null}
+            onClose={() => setSelectedBudget(null)}
+            onEdit={() => {
+              setEditingBudget(liveSelectedBudget);
+              setSelectedBudget(null);
+              setActiveFlow("budget");
+            }}
+            onDeleted={handleFlowDone}
+          />
+        )}
+
         {activeFlow === "expense" && (
           <ExpenseFlow
             householdId={household.id}
@@ -278,6 +323,19 @@ export function MainApp({
             onClose={() => {
               setActiveFlow(null);
               setEditingIncome(null);
+            }}
+            onDone={handleFlowDone}
+          />
+        )}
+
+        {activeFlow === "budget" && (
+          <BudgetFlow
+            householdId={household.id}
+            members={members}
+            budget={editingBudget}
+            onClose={() => {
+              setActiveFlow(null);
+              setEditingBudget(null);
             }}
             onDone={handleFlowDone}
           />

@@ -6,8 +6,10 @@ import {
   getMonthRange,
   greetingForNow,
   isCalendarDate,
+  isCalendarMonthRange,
   isDateInRange,
   isoDate,
+  monthRangeFromIsoDate,
   NIDO_TIMEZONE,
   todayIso,
   zonedDateParts,
@@ -63,6 +65,17 @@ describe("isDateInRange", () => {
   it("excludes adjacent days", () => {
     assert.equal(isDateInRange("2026-07-31", range), false);
     assert.equal(isDateInRange("2026-09-01", range), false);
+  });
+});
+
+describe("calendar month range", () => {
+  it("builds a month from a calendar date in that month", () => {
+    const range = monthRangeFromIsoDate("2026-08-21");
+    assert.equal(range?.start, "2026-08-01");
+    assert.equal(range?.end, "2026-08-31");
+    assert.equal(isCalendarMonthRange("2026-08-01", "2026-08-31"), true);
+    assert.equal(isCalendarMonthRange("2026-08-01", "2026-08-15"), false);
+    assert.equal(monthRangeFromIsoDate("2026-02-31"), null);
   });
 });
 

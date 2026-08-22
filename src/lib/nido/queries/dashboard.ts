@@ -109,8 +109,9 @@ export async function fetchDashboardSnapshot(
       .eq("is_active", true),
     client
       .from("budgets")
-      .select("id, household_id, member_id, category_id, amount, period, start_date, end_date, categories(id, name, icon)")
+      .select("id, household_id, member_id, category_id, amount, period, start_date, end_date, created_by, created_at, deleted_at, categories(id, name, icon)")
       .eq("household_id", householdId)
+      .is("deleted_at", null)
       .lte("start_date", range.end)
       .gte("end_date", range.start),
     client

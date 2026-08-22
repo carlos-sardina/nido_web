@@ -51,12 +51,16 @@ export function HomeScreen({
   dashboard,
   onProfileOpen,
   onNavigate,
+  onOpenBudgets,
+  onCreateBudget,
 }: {
   identity: AuthIdentity | null;
   householdName: string;
   dashboard: DashboardQuery;
   onProfileOpen: () => void;
   onNavigate: (tab: Tab) => void;
+  onOpenBudgets: () => void;
+  onCreateBudget: () => void;
 }) {
   const { isLoading, error, model, refresh } = dashboard;
 
@@ -114,6 +118,8 @@ export function HomeScreen({
           onRetry={() => void refresh()}
           retrying={isLoading}
           onNavigate={onNavigate}
+          onOpenBudgets={onOpenBudgets}
+          onCreateBudget={onCreateBudget}
         />
       ) : null}
     </div>
@@ -126,12 +132,16 @@ function DashboardBody({
   onRetry,
   retrying,
   onNavigate,
+  onOpenBudgets,
+  onCreateBudget,
 }: {
   model: NonNullable<DashboardQuery["model"]>;
   error: DashboardQuery["error"];
   onRetry: () => void;
   retrying: boolean;
   onNavigate: (tab: Tab) => void;
+  onOpenBudgets: () => void;
+  onCreateBudget: () => void;
 }) {
   const { health, budget, featuredGoal, activeGoals, activity, empty, range } = model;
   const diff = Math.abs(budget.remaining);
@@ -285,13 +295,17 @@ function DashboardBody({
         {empty.budget ? (
           <EmptyState
             plain
-            title="Todo tranquilo por aquí."
-            description="Registra tu primer gasto para comenzar a ver tu actividad."
-            actionLabel="Ver gastos"
-            onAction={() => onNavigate("budget")}
+            title="Sin presupuesto este mes"
+            description="Crea un límite por categoría. El gasto se calcula de tus gastos reales."
+            actionLabel="Crear un presupuesto"
+            onAction={onCreateBudget}
           />
         ) : (
-          <>
+          <button
+            type="button"
+            onClick={onOpenBudgets}
+            className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-[1.5rem]"
+          >
             <div className="flex items-baseline gap-2 mb-3">
               <span className="text-[22px] font-bold font-sans" style={{ color: P.text }}>
                 {formatCompactMoney(budget.totalSpent)}
@@ -359,7 +373,7 @@ function DashboardBody({
                 ))}
               </div>
             ) : null}
-          </>
+          </button>
         )}
       </div>
 

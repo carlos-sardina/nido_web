@@ -341,19 +341,22 @@ Planning targets. They do not restrict spending.
 | `household_id` | `uuid` FK → `households.id` | |
 | `member_id` | `uuid` nullable FK → `profiles.id` | `NULL` = Nido budget; set = personal. |
 | `category_id` | `uuid` FK → `categories.id` | Same Nido. Intended to be an expense category. |
-| `amount` | `numeric(12,2)` | Target. `>= 0`. |
+| `amount` | `numeric(12,2)` | Target. `>= 0` at the table; create/update RPC requires `> 0`. |
 | `period` | `budget_period` | Currently `monthly` only. |
-| `start_date` | `date` | |
-| `end_date` | `date` | |
+| `start_date` | `date` | First calendar day of the month for monthly budgets. |
+| `end_date` | `date` | Last calendar day of the month for monthly budgets. |
 | `created_by` | `uuid` FK → `profiles.id` | |
 | `created_at` | `timestamptz` | |
 | `updated_at` | `timestamptz` | |
+| `deleted_at` | `timestamptz` nullable | Soft-delete. NULL means the budget is live. Added in `20260821230000`. |
 
 There is no `current_spent` column. Spent is derived from expenses in the period.
 
 Spending beyond a budget is valid. The database must not reject an expense because it exceeds a budget.
 
-At most one budget exists per `(household_id, category_id, member_id, start_date)`, treating `NULL` `member_id` as a real key (`UNIQUE NULLS NOT DISTINCT`).
+At most one **live** budget exists per `(household_id, category_id, member_id, start_date)`, treating `NULL` `member_id` as a real key (`UNIQUE NULLS NOT DISTINCT` where `deleted_at IS NULL`). Soft-delete frees that slot.
+
+Physical DELETE is not granted. Do not hard-delete a budget; set `deleted_at`.
 
 ### 3.13 `goals`
 
@@ -497,7 +500,7 @@ Every table uses a `uuid` primary key. `profiles.id` is the auth user id. All ot
 | `categories_active_name_type_idx` on `(household_id, lower(name), type) WHERE archived_at IS NULL` | No duplicate active category names of the same type. |
 | `expense_splits (expense_id, member_id)` | No duplicate participant on an expense. |
 | `recurring_expense_splits (recurring_expense_id, member_id)` | No duplicate participant on a recurring expense. |
-| `budgets (household_id, category_id, member_id, start_date)` NULLS NOT DISTINCT | One budget per scope / category / period start. |
+| `budgets_unique_live_scope` on `(household_id, category_id, member_id, start_date)` NULLS NOT DISTINCT `WHERE deleted_at IS NULL` | One live budget per scope / category / period start. |
 
 `UNIQUE(user_id)` is intentionally **not** used on `household_members`.
 
@@ -523,7 +526,7 @@ On INSERT, or on UPDATE that changes the relevant keys:
 | `expenses` | If `recurring_id` is set, that rule belongs to the same household. Payer/participants on the confirmed expense may differ from the template (user edited before confirm). |
 | `expense_splits` | `member_id` is an **active** member of the parent expense's Nido. |
 | `recurring_expense_splits` | `member_id` is an **active** member of the parent rule's Nido. |
-| `budgets` | If `member_id` is set, that person is an active member. Category belongs to the Nido. |
+| `budgets` | If `member_id` is set, that person is an active member. Category is an `expense` category in the Nido. |
 | `goal_contributions` | `member_id` is an active member of the goal's Nido. |
 
 These checks use **current active membership**. They do not reconstruct membership as of `occurred_at`.

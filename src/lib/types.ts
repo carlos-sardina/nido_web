@@ -3,7 +3,7 @@ export type OStep   = "welcome"|"auth"|"select"|"join"|"c-type"|"c-name"|"c-invi
                "p-name"|"p-income"|"p-savings"|"p-expenses"|"p-contrib"|"nest-ready";
 export type Tab     = "home"|"incomes"|"budget"|"goals"|"household"|"activity";
 export type Model   = "equal"|"proportional"|"capacity";
-export type Flow    = null|"expense"|"income"|"goal"|"contrib";
+export type Flow    = null|"expense"|"income"|"goal"|"contrib"|"budget";
 export type ExpenseKind = "recurring" | "variable";
 
 export type OnboardingExpense = {
