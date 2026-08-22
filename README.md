@@ -1,11 +1,17 @@
+# Nido
 
-  # Nido app
+Household shared-finance app. The live product is this repository, not a disposable Figma prototype.
 
-  This is a code bundle for Nido app. The original project is available at https://www.figma.com/design/ZZsflknY8QcT7tuiP0aI1W/Nido-app.
+Product and technical docs:
 
-  ## Running the code
+- [docs/nido.md](docs/nido.md) — membership, auth, invitations
+- [docs/financial.md](docs/financial.md) — live financial layer
+- [docs/phase-9.4.md](docs/phase-9.4.md) — phase 9.4 contract (not implemented yet)
+- [docs/future.md](docs/future.md) — future / out of scope (not pending 9.4)
 
-  Run `npm i` to install the dependencies.
+## Running
 
-  Run `npm run dev` to start the development server.
-  
+```bash
+npm i
+npm run dev
+```

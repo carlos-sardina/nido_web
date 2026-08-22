@@ -2,7 +2,7 @@
 
 This document describes Row Level Security for the Nido domain model.
 
-The domain model in [database.md](./database.md) is the source of truth. RLS implements authorization on that model. It does not follow the current prototype UI.
+The domain model in [database.md](./database.md) is the source of truth. RLS implements authorization on that model. The live application must not be the authorization authority. Google OAuth is not a pending 9.4 item; see [future.md](./future.md). Personal-visibility RLS is specified in [phase-9.4.md](./phase-9.4.md) and is not applied yet.
 
 Implementation:
 

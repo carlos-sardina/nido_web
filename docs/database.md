@@ -2,7 +2,7 @@
 
 This document describes the long-term domain model for Nido. It is the source of truth for the schema in `supabase/migrations/20260816000000_nido_foundation_schema.sql`.
 
-The current frontend is a disposable visual prototype. It is not authoritative for this model. The UI will be adapted to this schema later.
+The live application in `src/` is the product UI. It is not a disposable prototype. Schema remains the source of truth for persistence; the UI must not invent parallel financial stores. Phase 9.4 scope is in [phase-9.4.md](./phase-9.4.md). Features that are not 9.4 live in [future.md](./future.md).
 
 The foundation migration establishes schema only. Row Level Security is a separate migration. See [docs/security.md](./security.md). This phase does not connect a Supabase project, implement authentication UI, or expose API routes.
 
@@ -892,24 +892,22 @@ The one-active-Nido unique index remains the database backstop.
 
 These remain out of scope. Historical bullets that listed auth, frontend integration, owner-transfer RPCs, the income catalog, or contribution soft-delete as “not implemented” are obsolete as of Phase 9.2.3. Those exist in code and on `nido_dev`.
 
-Still deferred:
+Still deferred (not 9.4 unless [phase-9.4.md](./phase-9.4.md) says otherwise):
 
 1. **Occurrence queue** — `next_occurrence` is sufficient.
-2. **Advanced recurrence** — extra frequencies, skip, notifications, timezones beyond `America/Mexico_City`.
+2. **Advanced recurrence** — extra frequencies, skip, timezones beyond `America/Mexico_City`. Notifications around recurrence are [future](./future.md), not 9.4.
 3. **Split-sum table triggers** — `create_expense` enforces the sum in one transaction. A row-level trigger that would block incremental inserts is still deferred.
-4. **Pairwise settlements / payments** between members.
-5. **Refunds or negative amounts.**
-6. **Personal-budget spend attribution** and personal-budget UI.
-7. **Owner-count trigger** — last-owner leave is enforced in `leave_household`, not by a table trigger.
-8. **Audit log** of edits.
-9. **Hard-delete prevention triggers** — physical `DELETE` is revoked on movement tables; application uses `deleted_at` / `is_active` / `archived_at` / goal `status`.
-10. **Using archived categories on new transactions** — allowed at the database CHECK level; mutation RPCs reject them.
-11. **Goal-to-category linkage.**
-12. **Multi-currency.**
-13. **Notifications, activity-feed persistence, and insights.**
-14. **Stored `requires_review` flag** — derived at materialize time instead.
-15. **Separate pause vs archive on recurring rules** — `is_active` covers both for now.
-16. **Category CRUD UI.**
+4. **Owner-count trigger** — last-owner leave is enforced in `leave_household`, not by a table trigger.
+5. **Audit log** of edits.
+6. **Hard-delete prevention triggers** — physical `DELETE` is revoked on movement tables; application uses `deleted_at` / `is_active` / `archived_at` / goal `status`.
+7. **Using archived categories on new transactions** — allowed at the database CHECK level; mutation RPCs reject them.
+8. **Goal-to-category linkage.**
+9. **Stored `requires_review` flag** — derived at materialize time instead.
+10. **Separate pause vs archive on recurring rules** — `is_active` covers both for now.
+
+Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): category CRUD, personal budgets + visibility, onboarding savings/estimates, household split preference, household rename, initials identity, refunds, derived monthly balance / settlements, pull-to-refresh.
+
+Moved to **[future.md](./future.md)** (not pending 9.4): multi-currency, notifications, activity-feed persistence, insights, Google OAuth, image avatars, Realtime, receipts, email invitations, recurring budgets, push.
 
 ---
 

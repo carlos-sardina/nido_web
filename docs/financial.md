@@ -2,6 +2,8 @@
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
+Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md) and is **not implemented** yet. Until 9.4.2, onboarding still persists only the monthly income. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
+
 Phase 9.2.3 is the QA close of this integration. It does not add tables, columns, or product surfaces. The source of truth is the current code, the applied migrations on `nido_dev`, the RLS matrix, and the unit tests — not earlier “pending” notes in this file.
 
 Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar un gasto**. Phase 9.1.2B closes the expense module. Phase 9.1.3A connects **Metas**. Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (list in goal detail, edit, soft-delete). Phase 9.1.3C connects **Ingresos**. Phase 9.1.4 connects **Presupuestos**:
@@ -104,7 +106,7 @@ There is no `balances` table, no `current_amount` on goals, and no `current_spen
 
 Household dashboard spent uses `expenses.amount` (the Nido’s outflow). A member’s share uses `expense_splits`. Personal vs shared is `expenses.scope`. Recurring vs one-off is `recurring_id`. `recurring_expenses` templates are never added to period spent.
 
-Nido-level budgets (`member_id IS NULL`) overlapping the current month feed “Presupuesto del mes”. `budgets.amount` is a planning target, not a spending cap. Personal budgets (`member_id` set) remain in the schema and are excluded from Home / Presupuestos totals in this phase. Recurring budgets are not implemented.
+Nido-level budgets (`member_id IS NULL`) overlapping the current month feed “Presupuesto del mes”. `budgets.amount` is a planning target, not a spending cap. Personal budgets (`member_id` set) remain in the schema and are excluded from Home / Presupuestos totals until phase 9.4. Recurring budgets will not be implemented ([future.md](./future.md)).
 
 The canonical spent helper is `budgetSpent()` in `src/lib/nido/financial/budgets.ts`.
 
@@ -474,9 +476,9 @@ The create-Nido draft from Fase 8.9 is reused. Finalize does **not** invent move
 | `userName` | ¿Cómo te llamas? | yes | `profiles.display_name` (existing UPDATE) |
 | `salary` | Ingreso mensual neto | yes, if `> 0` | `incomes` via `create_income`. Category is the household **Sueldo** row (the screen does not pick a category; this is the catalog name that matches “ingreso mensual neto”). Date is today in `America/Mexico_City`, not UTC. `created_by = member_id = auth.uid()`. Not a `recurring_incomes` template. |
 | `freelance` | unused leftover | no | Field is not shown. Not persisted. |
-| `savings` / `savingsShared` | ¿Cuánto tienes ahorrado? | no | Existing saved stock. There is no target, so this is not a `goals` + `goal_contributions` pair. Kept as draft until a product decision exists. |
-| selected `expenses` | Gastos mensuales estimados | no | Monthly estimates, not historical `expenses`. Names do not map 1:1 to the default budget catalog (Renta / Internet / Luz collapse or miss). Not written as `budgets` or `recurring_expenses`. |
-| `contrib` | Método de división | no | Preference (`equal` / `proportional`). `distribution_method` lives on expenses, not on `households`. No fake expense is created to store it. |
+| `savings` / `savingsShared` | ¿Cuánto tienes ahorrado? | no (until 9.4.2) | Existing saved stock. Not a goal. Contract: persist as `savings_balances` stock, not as income/expense. See [phase-9.4.md](./phase-9.4.md). |
+| selected `expenses` | Gastos mensuales estimados | no (until 9.4.2) | Monthly estimates, not historical `expenses`. Contract: become initial `budgets` (custom category if the name is not in the default catalog). |
+| `contrib` | Método de división | no (until 9.4.2) | Preference (`equal` / `proportional` only; `capacity` is removed). Contract: `households.default_split_method`. |
 
 Atomicity: `create_household_with_onboarding_income` calls `create_household` then `create_income` in one Postgres function. If the income insert fails, the household is rolled back. A second call from an already-active member returns that household and does **not** insert another income. No unique “onboarding income” index was added: a later **Registrar un ingreso** on the same day would collide.
 
@@ -488,7 +490,7 @@ After success the `nido.onboardingDraft` key is cleared. Home reads the same `us
 
 No records → empty copy, not prototype numbers.
 
-A newly created Nido has default **expense and income categories**. If the user declared a monthly income greater than zero, Home / Ingresos / Actividad show that one `incomes` row (category **Sueldo**, description **Ingreso mensual neto**, `occurred_at` = today in `America/Mexico_City`). Amount `0` writes no income. Onboarding savings, estimated expenses, and the division preference are **not** converted into goals, contributions, budgets, expenses, or recurring templates.
+A newly created Nido has default **expense and income categories**. If the user declared a monthly income greater than zero, Home / Ingresos / Actividad show that one `incomes` row (category **Sueldo**, description **Ingreso mensual neto**, `occurred_at` = today in `America/Mexico_City`). Amount `0` writes no income. Until 9.4.2, onboarding savings, estimated expenses, and the division preference are **not** converted into goals, contributions, budgets, expenses, or recurring templates. The 9.4 contract is in [phase-9.4.md](./phase-9.4.md).
 
 ---
 

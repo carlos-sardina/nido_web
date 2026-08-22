@@ -2,7 +2,9 @@
 
 Use this against a real Vercel + Supabase + SMTP environment. Automated unit tests do not replace these flows.
 
-Confirm email stays enabled. Google OAuth stays disabled. Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
+Confirm email stays enabled. Google OAuth stays disabled and is not a pending 9.4 item ([future.md](./future.md)). Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
+
+Phase 9.4 scope: [phase-9.4.md](./phase-9.4.md). 9.4.0 is documentation only.
 
 Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Phase 9.1.3A connects Metas (list, create, edit, archive). Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (edit / soft-delete). Phase 9.1.3C connects **Ingresos**. Phase 9.1.4 connects **Presupuestos**. Phase 9.2.1 connects **Actividad** to the live snapshot (no `FEED` mock) and still does not invent budget events. Phase 9.2.2 persists the onboarding monthly income with the Nido. See [financial.md](./financial.md).
 
@@ -584,5 +586,14 @@ Phase 9.3.6 (email invitations closed as unsupported) against the repo on 2026-0
 - Automated scan: no email-invite UI, no invitation email provider, no email secrets in the client. Hogar and onboarding still create `/join/<token>` via `createInvitation` + `buildInvitationUrl` / `invitationDestination` (Copy, QR, Web Share).
 - **Departamento** and **Nido Smoke 924** were not modified. No temporary users or invitations were created.
 - Manual Hogar/onboarding UI smoke is **BLOCKED**. This environment cannot operate the app with a real browser session. Do not treat unit/build success as a UI pass.
+
+Phase 9.4.0 (scope + technical contract, no feature implementation) against the repo + linked `nido_dev` (`pxfdvhavcddqmhuljxlf`) on 2026-08-22:
+
+- No schema change. No `supabase db push`. Local and remote still have the same 14 migrations.
+- Documentation only: [phase-9.4.md](./phase-9.4.md), [future.md](./future.md), plus alignment of nido / database / financial / security / supabase / README so discarded items are not “pending 9.4”.
+- Unit tests 680 passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 14 tables.
+- RLS matrix was **not** re-run: no policy or table change.
+- **Departamento** and **Nido Smoke 924** were not modified. No DELETE / TRUNCATE / seeds.
+- Verdict: **LISTA PARA IMPLEMENTACIÓN**. No 9.4 feature is implemented. Next: 9.4.1.
 
 Do not record production results here unless they were performed.

@@ -115,7 +115,7 @@ The server client still uses the public anon key. It does not bypass RLS.
 
 ## Authentication
 
-Authentication uses Supabase Auth with **email and password**. Google OAuth is not enabled in this iteration and may be added later as an additional provider without changing the session architecture.
+Authentication uses Supabase Auth with **email and password**. Google OAuth is not enabled and is not part of phase 9.4. It is recorded only in [future.md](./future.md).
 
 There is no custom JWT system, no token storage in `localStorage`, and no service-role client.
 
@@ -250,10 +250,10 @@ Household identity is real after the user finishes onboarding. The declared mont
 
 This phase does **not**:
 
-- persist onboarding savings, estimated expenses, or the division preference
+- persist onboarding savings, estimated expenses, or the division preference (scheduled in 9.4.2; see [phase-9.4.md](./phase-9.4.md))
 - replace live dashboard reads with mock figures
 - use a service-role client
-- enable Google OAuth (explicitly out of this iteration)
+- enable Google OAuth ([future.md](./future.md), not pending 9.4)
 
 Nido does not support email invitations. Owners share `/join/<token>` with a link, a QR, and Web Share when available.
 

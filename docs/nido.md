@@ -18,7 +18,7 @@ Unauthenticated visitors see only authentication:
 4. Recovery: forgot password → email → `/auth/callback` → `/auth/update-password`. The same 60-second UX cooldown applies per normalized email, independently from confirmation resend. The callback marks the session as password recovery so other tabs do not treat it as a normal login. `next` is sanitized with `safeNextPath`. Tokens stay in cookies, not URLs or `localStorage`. After `updateUser({ password })`, routing is the normal authenticated destination (MainApp or Nido selection).
 5. Logout: `signOut()`, clear the invitation token and the onboarding draft, return to the auth landing. It does not delete Supabase rows.
 
-Google OAuth remains disabled. Email confirmation remains required. SMTP is configured outside this repository.
+Google OAuth is out of scope ([future.md](./future.md)). It is not a pending 9.4 item. Email confirmation remains required. SMTP is configured outside this repository.
 
 ---
 
@@ -67,7 +67,7 @@ The household is **not** created when the user enters onboarding.
 
 It is created on the invitations step, when the user taps **Crear mi Nido**, **Invitar por enlace**, or **Invitar por QR**. Those actions call `create_household_with_onboarding_income(p_name, p_income_amount)` (atomic household + owner membership + default catalogs + the declared monthly income) after `updateMyDisplayName`. Optional invitation rows are inserted only after that RPC succeeds.
 
-Invitation links need a `household_id`, so generating a real link or QR finalizes the Nido first. The income is persisted in that same transaction. Savings, estimated expenses, and the division preference are not.
+Invitation links need a `household_id`, so generating a real link or QR finalizes the Nido first. The income is persisted in that same transaction. Savings, estimated expenses, and the division preference are not persisted until 9.4.2 ([phase-9.4.md](./phase-9.4.md)).
 
 If the user leaves before that tap, nothing is written to `households` or `household_members`.
 
@@ -221,11 +221,11 @@ Perfil shows that persisted name and lets the signed-in user edit `profiles.disp
 
 ## What is still mock / local
 
-Intentionally not persisted by onboarding (still true):
+Intentionally not persisted by onboarding **until 9.4.2** ([phase-9.4.md](./phase-9.4.md)):
 
 - personal / shared savings (existing stock; no goal target)
-- estimated monthly expenses (planning estimates, not confirmed `expenses` or `budgets`)
-- division preference (`equal` / `proportional`; no household column)
+- estimated monthly expenses (planning estimates, not confirmed `expenses`)
+- division preference (`equal` / `proportional`; no household column yet)
 - unused draft leftovers (`freelance`, `savingsType`, nest type)
 
 The onboarding **Ingreso mensual neto** is persisted. Category is the household **Sueldo** catalog row. `occurred_at` is today in `America/Mexico_City`. Description is `Ingreso mensual neto`. Amount `0` creates the Nido and writes no income row.
@@ -237,10 +237,10 @@ Live on Home, empty when the Nido has no financial rows:
 - Nido budgets for the current month (create / edit / soft-delete from Home and `+`)
 - activity derived from expenses, incomes, and goal contributions (not budget mutations)
 
-Still prototype UI (not wired):
+Not in this product and not pending 9.4 ([future.md](./future.md)):
 
 - push / notification delivery
-- real-time subscriptions
+- Supabase Realtime subscriptions
 
 Hogar no longer shows the prototype contribution-model block (`D_INC` / `TOT_B`, Persona A / Persona B). There is no persisted household contribution model and no schema was added to replace those mocks.
 
@@ -349,9 +349,9 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## What remains after owner transfer
 
-- Google OAuth
-- category CRUD (create / rename / archive) beyond the default catalog
-- personal budgets (`member_id` set) in the UI
+Phase 9.4 work is specified in [phase-9.4.md](./phase-9.4.md). It is not implemented yet (9.4.0 is contract only).
+
+Do **not** treat these as pending 9.4: Google OAuth, image avatars, notifications, Realtime, insights, persistent Activity, multi-currency, receipts, email invitations, recurring budgets, push. See [future.md](./future.md).
 
 ---
 
