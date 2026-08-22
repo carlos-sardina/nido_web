@@ -93,6 +93,24 @@ export function activeExpenseCategories(
     .sort((a, b) => a.name.localeCompare(b.name, "es"));
 }
 
+export function categoryNameMessage(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return "Dale un nombre a la categoría.";
+  if (visibleLength(trimmed) > CATEGORY_NAME_MAX) {
+    return `El nombre debe tener ${CATEGORY_NAME_MAX} caracteres o menos.`;
+  }
+  return null;
+}
+
+export function withCurrentCategory(
+  active: readonly HouseholdCategory[],
+  current: HouseholdCategory | null | undefined,
+): HouseholdCategory[] {
+  if (!current) return [...active];
+  if (active.some((row) => row.id === current.id)) return [...active];
+  return [...active, current].sort((a, b) => a.name.localeCompare(b.name, "es"));
+}
+
 export function activeIncomeCategories(
   categories: readonly HouseholdCategory[],
   householdId: string,

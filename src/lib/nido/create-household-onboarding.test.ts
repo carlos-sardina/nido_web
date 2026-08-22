@@ -13,6 +13,7 @@ const household: Household = {
   created_by: "u1",
   created_at: "2026-08-21T00:00:00Z",
   updated_at: "2026-08-21T00:00:00Z",
+  default_split_method: "equal",
 };
 
 describe("createHouseholdFromOnboardingWithAuth", () => {

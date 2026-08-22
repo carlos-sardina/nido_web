@@ -1,0 +1,287 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/nido/Button";
+import { TextLink } from "@/components/nido/TextLink";
+import { Text } from "@/components/nido/Typography";
+import { archiveCategory, canSubmitCategory, createCategory, renameCategory } from "@/lib/nido/categories";
+import {
+  categoryNameMessage,
+  type HouseholdCategory,
+} from "@/lib/nido/financial/categories";
+import { fetchHouseholdCategories } from "@/lib/nido/queries/categories";
+import { P } from "@/lib/palette";
+
+type CategoryType = "expense" | "income";
+type RowMode = "view" | "rename" | "archive";
+
+const TYPE_LABEL: Record<CategoryType, string> = {
+  expense: "Gastos",
+  income: "Ingresos",
+};
+
+export function HouseholdCategoriesCard({ householdId }: { householdId: string }) {
+  const [categories, setCategories] = useState<HouseholdCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+  const [type, setType] = useState<CategoryType>("expense");
+  const [newName, setNewName] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [rowMode, setRowMode] = useState<Record<string, RowMode>>({});
+  const [rowDraft, setRowDraft] = useState<Record<string, string>>({});
+  const [rowError, setRowError] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const creatingRef = useRef(false);
+  const busyRef = useRef(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setListError(null);
+    const result = await fetchHouseholdCategories(householdId);
+    if (result.ok === false) {
+      setListError(result.error.message);
+      setCategories([]);
+      setLoading(false);
+      return;
+    }
+    setCategories(result.data);
+    setLoading(false);
+  }, [householdId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const visible = categories.filter((row) => row.type === type);
+
+  const handleCreate = async () => {
+    if (!canSubmitCategory(creating) || creatingRef.current) return;
+    const message = categoryNameMessage(newName);
+    if (message) {
+      setCreateError(message);
+      setCreateSuccess(null);
+      return;
+    }
+
+    creatingRef.current = true;
+    setCreating(true);
+    setCreateError(null);
+    setCreateSuccess(null);
+    const result = await createCategory({
+      name: newName,
+      type,
+      existing: visible,
+    });
+    creatingRef.current = false;
+    setCreating(false);
+    if (result.ok === false) {
+      setCreateError(result.error.message);
+      return;
+    }
+    setNewName("");
+    setCreateSuccess("Categoría creada.");
+    await load();
+  };
+
+  const handleRename = async (category: HouseholdCategory) => {
+    if (!canSubmitCategory(busyId != null) || busyRef.current) return;
+    const draft = rowDraft[category.id] ?? category.name;
+    const message = categoryNameMessage(draft);
+    if (message) {
+      setRowError((current) => ({ ...current, [category.id]: message }));
+      return;
+    }
+
+    busyRef.current = true;
+    setBusyId(category.id);
+    setRowError((current) => {
+      const next = { ...current };
+      delete next[category.id];
+      return next;
+    });
+    const result = await renameCategory({
+      categoryId: category.id,
+      name: draft,
+      existing: visible,
+    });
+    busyRef.current = false;
+    setBusyId(null);
+    if (result.ok === false) {
+      setRowError((current) => ({ ...current, [category.id]: result.error.message }));
+      return;
+    }
+    setRowMode((current) => ({ ...current, [category.id]: "view" }));
+    await load();
+  };
+
+  const handleArchive = async (category: HouseholdCategory) => {
+    if (!canSubmitCategory(busyId != null) || busyRef.current) return;
+    busyRef.current = true;
+    setBusyId(category.id);
+    const result = await archiveCategory(category.id);
+    busyRef.current = false;
+    setBusyId(null);
+    if (result.ok === false) {
+      setRowError((current) => ({ ...current, [category.id]: result.error.message }));
+      return;
+    }
+    setRowMode((current) => ({ ...current, [category.id]: "view" }));
+    await load();
+  };
+
+  return (
+    <div className="mx-6 mb-3 rounded-[1.5rem] p-4 space-y-3" style={{ backgroundColor: P.card }}>
+      <Text size="label">Categorías</Text>
+      <Text size="caption" tone="muted" className="leading-relaxed">
+        Puedes crear, renombrar o archivar. Archivar no borra los movimientos que ya la usan.
+      </Text>
+      <div className="flex gap-2">
+        {(["expense", "income"] as const).map((next) => (
+          <button
+            key={next}
+            type="button"
+            onClick={() => {
+              setType(next);
+              setCreateError(null);
+              setCreateSuccess(null);
+            }}
+            className="flex-1 py-2 rounded-2xl text-xs font-semibold border"
+            style={{
+              borderColor: type === next ? P.sage : P.border,
+              backgroundColor: type === next ? P.sagePl : P.sub,
+              color: P.text,
+            }}
+          >
+            {TYPE_LABEL[next]}
+          </button>
+        ))}
+      </div>
+      {loading && <Text size="caption" tone="muted">Cargando categorías…</Text>}
+      {listError && <Text size="caption" tone="danger" role="alert">{listError}</Text>}
+      {!loading && !listError && visible.length === 0 && (
+        <Text size="caption" tone="muted">No hay categorías activas en esta lista.</Text>
+      )}
+      {!loading && visible.map((category) => {
+        const mode = rowMode[category.id] ?? "view";
+        const busy = busyId === category.id;
+        return (
+          <div key={category.id} className="rounded-2xl p-3 space-y-2" style={{ backgroundColor: P.sub }}>
+            {mode === "rename" ? (
+              <>
+                <input
+                  type="text"
+                  value={rowDraft[category.id] ?? category.name}
+                  disabled={busy}
+                  maxLength={80}
+                  onChange={(event) => {
+                    setRowDraft((current) => ({ ...current, [category.id]: event.target.value }));
+                    setRowError((current) => {
+                      const next = { ...current };
+                      delete next[category.id];
+                      return next;
+                    });
+                  }}
+                  className="w-full h-11 px-3 rounded-xl text-sm outline-none border"
+                  style={{ backgroundColor: P.card, color: P.text, borderColor: P.border }}
+                />
+                {rowError[category.id] && (
+                  <Text size="caption" tone="danger" role="alert">{rowError[category.id]}</Text>
+                )}
+                <div className="flex gap-3">
+                  <TextLink onClick={() => { void handleRename(category); }}>
+                    {busy ? "Guardando…" : "Guardar"}
+                  </TextLink>
+                  <TextLink
+                    tone="muted"
+                    disabled={busy}
+                    onClick={() => setRowMode((current) => ({ ...current, [category.id]: "view" }))}
+                  >
+                    Cancelar
+                  </TextLink>
+                </div>
+              </>
+            ) : mode === "archive" ? (
+              <>
+                <Text size="caption" className="leading-relaxed">
+                  ¿Archivar {category.name}? Seguirá visible en los movimientos que ya la usan.
+                </Text>
+                {rowError[category.id] && (
+                  <Text size="caption" tone="danger" role="alert">{rowError[category.id]}</Text>
+                )}
+                <div className="flex gap-3">
+                  <TextLink onClick={() => { void handleArchive(category); }}>
+                    {busy ? "Archivando…" : "Confirmar"}
+                  </TextLink>
+                  <TextLink
+                    tone="muted"
+                    disabled={busy}
+                    onClick={() => setRowMode((current) => ({ ...current, [category.id]: "view" }))}
+                  >
+                    Cancelar
+                  </TextLink>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold truncate" style={{ color: P.text }}>
+                    {category.icon ? `${category.icon} ${category.name}` : category.name}
+                  </p>
+                  {category.isDefault && (
+                    <p className="text-[10px]" style={{ color: P.muted }}>Catálogo del Nido</p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-3 shrink-0">
+                  <TextLink
+                    onClick={() => {
+                      setRowDraft((current) => ({ ...current, [category.id]: category.name }));
+                      setRowMode((current) => ({ ...current, [category.id]: "rename" }));
+                    }}
+                  >
+                    Renombrar
+                  </TextLink>
+                  <TextLink
+                    tone="muted"
+                    onClick={() => setRowMode((current) => ({ ...current, [category.id]: "archive" }))}
+                  >
+                    Archivar
+                  </TextLink>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <div className="space-y-2 pt-1">
+        <label htmlFor="new-category-name" className="sr-only">Nueva categoría</label>
+        <input
+          id="new-category-name"
+          type="text"
+          value={newName}
+          disabled={creating}
+          maxLength={80}
+          placeholder={`Nueva categoría de ${TYPE_LABEL[type].toLowerCase()}`}
+          onChange={(event) => {
+            setNewName(event.target.value);
+            setCreateError(null);
+            setCreateSuccess(null);
+          }}
+          className="w-full h-12 px-4 rounded-2xl text-sm outline-none border-2"
+          style={{ backgroundColor: P.sub, color: P.text, borderColor: createError ? P.danger : P.border }}
+        />
+        {createError && <Text size="caption" tone="danger" role="alert">{createError}</Text>}
+        {createSuccess && <Text size="caption" tone="brand" role="status">{createSuccess}</Text>}
+        <Button
+          size="compact"
+          loading={creating}
+          disabled={!canSubmitCategory(creating)}
+          onClick={() => { void handleCreate(); }}
+        >
+          {creating ? "Creando…" : "Crear categoría"}
+        </Button>
+      </div>
+    </div>
+  );
+}

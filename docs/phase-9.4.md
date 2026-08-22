@@ -1,6 +1,6 @@
 # Phase 9.4 — Technical contract
 
-Phase 9.4.0 (this document) is **scope, contract, and preparation only**. No 9.4 product feature is implemented yet.
+Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1 is implemented** (household name, initials contract, category RPCs + Hogar UI, `households.default_split_method`, `create_expense` uses that preference for new shared expenses). Subphases 9.4.2–9.4.9 are **not** implemented.
 
 Source of confirmed product decisions: the 9.4.0 brief. Discarded items live in [future.md](./future.md). Do not re-interpret those as pending 9.4 work.
 
@@ -336,7 +336,7 @@ No SQL in this phase.
 
 | When | Migration (proposed) | Contents |
 | --- | --- | --- |
-| 9.4.1 | `nido_household_categories_split` | `households.default_split_method`; category RPCs; `update_household_name` |
+| 9.4.1 | `20260822500000_nido_household_categories_split.sql` | **Created.** `households.default_split_method`; category RPCs; `update_household_name`; `update_household_default_split_method`; `create_expense` uses the household preference for new shared expenses. |
 | 9.4.2 | `nido_onboarding_savings_budgets` | `savings_balances` + RLS; extend `create_household_with_onboarding_income` (or replacement) to persist savings, estimates→budgets, split method |
 | 9.4.3 | `nido_personal_visibility` | `personal_visibility` enum + `profiles` column; budget RPC personal path; SELECT policies on expenses, splits, budgets (and savings) |
 | 9.4.5 | `nido_expense_refunds` | `expense_refunds`, `expense_refund_splits`, RPCs, RLS |
@@ -471,9 +471,9 @@ No indispensable product decision is missing for **LISTA PARA IMPLEMENTACIÓN** 
 ## 12. Verdict
 
 ```text
-LISTA PARA IMPLEMENTACIÓN
+9.4.1 IMPLEMENTADA — veredicto de cierre en testing.md
 ```
 
-Next subphase: **9.4.1** — household name, initials contract, category RPCs + UI, `default_split_method`.
+Next subphase: **9.4.2** — onboarding persist (savings stock + estimates → budgets + split preference).
 
-Do not declare any 9.4 feature implemented.
+Do not declare 9.4.2–9.4.9 implemented.

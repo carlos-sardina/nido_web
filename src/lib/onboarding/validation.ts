@@ -165,15 +165,6 @@ export function divisionMethodHint(input: {
     return "Este método usa tu ingreso. Los ingresos de otras personas se podrán completar después.";
   }
 
-  if (input.method === "capacity") {
-    if (income === null) {
-      return "Este método usa tu ingreso y tus gastos personales. Podrás completar los de otras personas después.";
-    }
-    if (input.personalExpenseTotal <= 0) {
-      return "Marca tus gastos personales para calcular lo que te queda. Los de otras personas se podrán completar después.";
-    }
-  }
-
   return null;
 }
 

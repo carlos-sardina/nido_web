@@ -191,7 +191,7 @@ Home `+` → **Registrar un gasto** → form → `createExpense()` → `create_e
 | Date | `occurred_at` calendar date |
 | Payer / created_by | `auth.uid()` (v1 does not let the UI pick another payer) |
 | Personal | `scope = personal`, `distribution_method = fixed`, exactly one split at 100% for the payer |
-| Shared | `scope = shared`, `distribution_method = equal`, two or more active members, amounts sum to the expense |
+| Shared | `scope = shared`. Split method comes from `households.default_split_method`, not from the client. `equal` → `distribution_method = equal` (current equal shares). `proportional` → `distribution_method = income_based` from confirmed `incomes` of the participants in the current `America/Mexico_City` calendar month. All participants with zero income in that month → `nido.invalid_split`. Recurring `income_based` still uses active `recurring_incomes` only. |
 
 The canonical split value is **amount**. Percentage is stored so the rows sum to 100. Equal splits assign leftover cents to the first participants.
 
@@ -478,7 +478,7 @@ The create-Nido draft from Fase 8.9 is reused. Finalize does **not** invent move
 | `freelance` | unused leftover | no | Field is not shown. Not persisted. |
 | `savings` / `savingsShared` | ¿Cuánto tienes ahorrado? | no (until 9.4.2) | Existing saved stock. Not a goal. Contract: persist as `savings_balances` stock, not as income/expense. See [phase-9.4.md](./phase-9.4.md). |
 | selected `expenses` | Gastos mensuales estimados | no (until 9.4.2) | Monthly estimates, not historical `expenses`. Contract: become initial `budgets` (custom category if the name is not in the default catalog). |
-| `contrib` | Método de división | no (until 9.4.2) | Preference (`equal` / `proportional` only; `capacity` is removed). Contract: `households.default_split_method`. |
+| `contrib` | Método de división | no (until 9.4.2) | Onboarding still does not persist this draft. The live household column is `households.default_split_method` (`equal` / `proportional`; default `equal`). Hogar can edit it (9.4.1). `capacity` is not a product value. |
 
 Atomicity: `create_household_with_onboarding_income` calls `create_household` then `create_income` in one Postgres function. If the income insert fails, the household is rolled back. A second call from an already-active member returns that household and does **not** insert another income. No unique “onboarding income” index was added: a later **Registrar un ingreso** on the same day would collide.
 
@@ -498,7 +498,7 @@ A newly created Nido has default **expense and income categories**. If the user 
 
 SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense, income, contribution, and budget **UPDATE** (including soft-delete) and goal **UPDATE** (including archive) require the same plus `created_by = auth.uid()` and a live row (`deleted_at IS NULL` / `status <> archived`). Income INSERT also requires `member_id = auth.uid()`. Budget create writes `member_id` NULL. Contribution **UPDATE** also requires parent goal `status = active`. Physical DELETE remains denied on incomes/expenses/goals/budgets and is revoked on `goal_contributions` for `authenticated`.
 
-`create_expense`, `update_expense`, `soft_delete_expense`, `create_income`, `update_income`, `soft_delete_income`, `create_budget`, `update_budget`, `soft_delete_budget`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, `soft_delete_goal_contribution`, `create_recurring_income`, `update_recurring_income`, `set_recurring_income_active`, `materialize_recurring_income`, `create_recurring_expense`, `update_recurring_expense`, `set_recurring_expense_active`, and `materialize_recurring_expense` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Recurring split writes follow `can_mutate_recurring_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
+`create_expense`, `update_expense`, `soft_delete_expense`, `create_income`, `update_income`, `soft_delete_income`, `create_budget`, `update_budget`, `soft_delete_budget`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, `soft_delete_goal_contribution`, `create_recurring_income`, `update_recurring_income`, `set_recurring_income_active`, `materialize_recurring_income`, `create_recurring_expense`, `update_recurring_expense`, `set_recurring_expense_active`, `materialize_recurring_expense`, `update_household_name`, `update_household_default_split_method`, `create_category`, `rename_category`, and `archive_category` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Recurring split writes follow `can_mutate_recurring_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
 
 SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`, `I01`–`I13`, `K01`–`K16`, `RE01`–`RE16`, `OB01`–`OB11`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
 

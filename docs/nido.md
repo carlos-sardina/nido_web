@@ -210,6 +210,9 @@ Accepted invitations stay accepted even if they would also be expired.
 | Leave | `household_members.left_at` |
 | Owner transfer | `household_members.role` swapped atomically (`transfer_household_ownership`) |
 | Default expense and income categories | `categories` (`is_default = true`) via `create_household` |
+| Custom / renamed / archived categories | `categories` via `create_category` / `rename_category` / `archive_category` (9.4.1). No hard delete. |
+| Household name edit | `households.name` via `update_household_name` (active member; name only) |
+| Household split preference | `households.default_split_method` via `update_household_default_split_method` (`equal` \| `proportional`) |
 | Onboarding monthly income | `incomes` via `create_household_with_onboarding_income` → `create_income` |
 | Confirmed expense | `expenses` + `expense_splits` via `create_expense` |
 
@@ -225,7 +228,7 @@ Intentionally not persisted by onboarding **until 9.4.2** ([phase-9.4.md](./phas
 
 - personal / shared savings (existing stock; no goal target)
 - estimated monthly expenses (planning estimates, not confirmed `expenses`)
-- division preference (`equal` / `proportional`; no household column yet)
+- division preference collected in onboarding (`equal` / `proportional`; the household column exists since 9.4.1 but onboarding does not write it yet)
 - unused draft leftovers (`freelance`, `savingsType`, nest type)
 
 The onboarding **Ingreso mensual neto** is persisted. Category is the household **Sueldo** catalog row. `occurred_at` is today in `America/Mexico_City`. Description is `Ingreso mensual neto`. Amount `0` creates the Nido and writes no income row.
@@ -242,7 +245,7 @@ Not in this product and not pending 9.4 ([future.md](./future.md)):
 - push / notification delivery
 - Supabase Realtime subscriptions
 
-Hogar no longer shows the prototype contribution-model block (`D_INC` / `TOT_B`, Persona A / Persona B). There is no persisted household contribution model and no schema was added to replace those mocks.
+Hogar no longer shows the prototype contribution-model block (`D_INC` / `TOT_B`, Persona A / Persona B). Phase 9.4.1 adds live Hogar surfaces for the Nido name, `default_split_method` (`equal` / `proportional`; `capacity` is not a product value), and category create / rename / archive. Initials use first letter of the first token and, when there are two or more words, the first letter of the last token (`Carlos` → `C`, `Carlos Sardina` → `CS`).
 
 Perfil no longer shows prototype personal-expense lists (`DIANA_ITEMS` / `DIANA_EXTRAS`). Those sections were removed; they were not replaced with another financial model.
 
@@ -267,7 +270,7 @@ The PostgREST client cannot run a multi-statement transaction. These operations 
 | `leave_household()` | `SECURITY DEFINER` | No client UPDATE on `household_members`. Last owner cannot leave. |
 | `transfer_household_ownership(p_new_owner_id)` | `SECURITY DEFINER` | No client UPDATE on `household_members`. Two role writes must be atomic. INVOKER would require an UPDATE policy that could leave a Nido without an owner. |
 
-`create_household` and `create_expense` live in `supabase/migrations/20260818000000_nido_household_lifecycle.sql` and `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`. Onboarding income persist lives in `supabase/migrations/20260822300000_nido_onboarding_financial.sql`. Owner transfer lives in `supabase/migrations/20260822000000_nido_owner_transfer.sql`. `SECURITY DEFINER` functions set `search_path = public`, require `auth.uid()`, and never take a user-supplied actor `user_id`. They do not bypass the one-active-Nido unique index.
+`create_household` and `create_expense` live in `supabase/migrations/20260818000000_nido_household_lifecycle.sql` and `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`. Phase 9.4.1 (`20260822500000_nido_household_categories_split.sql`) adds `households.default_split_method` and the name / category / split RPCs, and updates `create_expense` for the household preference. Onboarding income persist lives in `supabase/migrations/20260822300000_nido_onboarding_financial.sql`. Owner transfer lives in `supabase/migrations/20260822000000_nido_owner_transfer.sql`. `SECURITY DEFINER` functions set `search_path = public`, require `auth.uid()`, and never take a user-supplied actor `user_id`. They do not bypass the one-active-Nido unique index.
 
 There is no service-role client.
 
@@ -293,7 +296,10 @@ Code lives in `src/lib/nido/`.
 | `transient-retry.ts` | Bounded retry for `useMyNido` transient `network` / session-establishment errors |
 | `financial/` | Date range, money, splits, categories, expense input, goal progress, budget spent, activity, dashboard view model |
 | `queries/dashboard.ts` | `fetchDashboardSnapshot` |
-| `queries/categories.ts` | `fetchActiveExpenseCategories` |
+| `queries/categories.ts` | `fetchActiveExpenseCategories`, `fetchActiveIncomeCategories`, `fetchHouseholdCategories` |
+| `update-household-name.ts` | `updateHouseholdNameWithAuth`, `canSubmitHouseholdName` |
+| `update-household-split-method.ts` | `updateHouseholdSplitMethodWithAuth` |
+| `category-mutations.ts` | `createCategoryWithAuth`, `renameCategoryWithAuth`, `archiveCategoryWithAuth` |
 | `create-expense.ts` | `createExpenseWithAuth`, `canSubmitExpense` |
 | `expenses.ts` | `createExpense` (Supabase wrapper) |
 | `goals.ts` | `createGoal` / `updateGoal` / `archiveGoal` |

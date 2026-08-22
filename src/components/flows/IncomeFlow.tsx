@@ -21,6 +21,7 @@ import {
   incomeDescriptionMessage,
   parseIncomeAmountInput,
   todayIso,
+  withCurrentCategory,
   type HouseholdCategory,
   type IncomeRow,
 } from "@/lib/nido/financial";
@@ -79,7 +80,20 @@ export function IncomeFlow({
         setLoadingCategories(false);
         return;
       }
-      setCategories(result.data);
+      const current = income?.category
+        ? {
+            id: income.categoryId,
+            householdId,
+            name: income.category.name,
+            icon: income.category.icon,
+            type: "income" as const,
+            isDefault: false,
+            archivedAt: result.data.some((row) => row.id === income.categoryId)
+              ? null
+              : "archived",
+          }
+        : null;
+      setCategories(withCurrentCategory(result.data, current));
       setLoadingCategories(false);
     })();
 

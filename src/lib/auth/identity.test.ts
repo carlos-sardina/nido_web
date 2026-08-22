@@ -21,16 +21,30 @@ function user(overrides: Partial<User> & { user_metadata?: User["user_metadata"]
 }
 
 describe("initialsFromName", () => {
-  it("uses two letters from a single word", () => {
-    assert.equal(initialsFromName("Carlos"), "CA");
+  it("uses one letter from a single word", () => {
+    assert.equal(initialsFromName("Carlos"), "C");
+    assert.equal(initialsFromName("Sofía"), "S");
   });
 
   it("uses first and last name initials", () => {
     assert.equal(initialsFromName("Carlos Sardina"), "CS");
+    assert.equal(initialsFromName("Sofía García"), "SG");
+  });
+
+  it("uses first and last tokens when there are more than two words", () => {
+    assert.equal(initialsFromName("Carlos Miguel Sardina"), "CS");
+    assert.equal(initialsFromName("Carlos A. Sardina"), "CS");
+  });
+
+  it("trims surrounding spaces and keeps accents", () => {
+    assert.equal(initialsFromName("  Carlos  "), "C");
+    assert.equal(initialsFromName("  Carlos Sardina  "), "CS");
+    assert.equal(initialsFromName("Ñoño"), "Ñ");
   });
 
   it("falls back when the name is empty", () => {
     assert.equal(initialsFromName(""), "?");
+    assert.equal(initialsFromName("   "), "?");
   });
 });
 

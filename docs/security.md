@@ -279,7 +279,9 @@ Still application/service work:
 - Leave / invite accept (`leave_household`, `accept_invitation`)
 - Owner transfer (`transfer_household_ownership`; atomic demote + promote)
 - At-least-one-owner invariant (enforced on leave and transfer; not an RLS trigger)
-- Expense + all splits in one transaction, including sum and personal-expense cardinality (`create_expense`, `update_expense`)
+- Expense + all splits in one transaction, including sum and personal-expense cardinality (`create_expense`, `update_expense`). For new shared expenses, `create_expense` (SECURITY INVOKER) reads `households.default_split_method` and does not accept a client method.
+- Household name (`update_household_name`) and split preference (`update_household_default_split_method`) write only those columns. No client `household_id`.
+- Category create / rename / archive (`create_category`, `rename_category`, `archive_category`). No hard delete. No client `household_id`.
 - Recurring generate / edit / skip / confirm
 - Soft-delete via `deleted_at` (`soft_delete_expense`, `soft_delete_goal_contribution`), deactivate via `is_active`, archive via `archived_at` / goal `status`
 - Do not use archived categories on new transactions

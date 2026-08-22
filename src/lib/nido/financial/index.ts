@@ -61,11 +61,14 @@ export {
   activeIncomeCategories,
   DEFAULT_EXPENSE_CATEGORIES,
   DEFAULT_INCOME_CATEGORIES,
+  categoryNameMessage,
   normalizeCategoryName,
+  withCurrentCategory,
   type HouseholdCategory,
 } from "./categories.ts";
 export {
   allocateEqualSplits,
+  allocateIncomeBasedSplits,
   personalSplit,
   splitIssue,
 } from "./splits.ts";
@@ -150,6 +153,7 @@ export {
   isActiveIncome,
   isConfirmedFromRecurring,
   isOneTimeIncome,
+  memberPeriodIncomeTotal,
   periodIncomeTotal,
   visiblePeriodIncomes,
 } from "./incomes.ts";

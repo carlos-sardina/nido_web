@@ -47,6 +47,26 @@ export function periodIncomeTotal(incomes: IncomeRow[]): number {
   return sumMoney(incomes.filter(isActiveIncome).map((income) => income.amount));
 }
 
+/**
+ * Confirmed incomes of one member in a calendar month.
+ * Soft-deleted rows are excluded. Recurring templates are not a source.
+ */
+export function memberPeriodIncomeTotal(
+  incomes: readonly IncomeRow[],
+  memberId: string,
+  range: MonthRange,
+  householdId?: string,
+): number {
+  if (!memberId) return 0;
+  return periodIncomeTotal(
+    incomesInRange([...incomes], range).filter(
+      (income) =>
+        income.memberId === memberId &&
+        (householdId == null || income.householdId === householdId),
+    ),
+  );
+}
+
 export function isOneTimeIncome(income: Pick<IncomeRow, "recurringId">): boolean {
   return income.recurringId == null;
 }

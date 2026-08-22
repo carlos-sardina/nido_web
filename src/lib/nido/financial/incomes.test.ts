@@ -6,6 +6,7 @@ import {
   canMutateIncome,
   isConfirmedFromRecurring,
   isOneTimeIncome,
+  memberPeriodIncomeTotal,
   periodIncomeTotal,
   visiblePeriodIncomes,
 } from "./incomes.ts";
@@ -158,5 +159,24 @@ describe("visible period incomes", () => {
       visiblePeriodIncomes(rows, range, "h1").map((row) => row.id),
       ["newer", "older", "earlier-day"],
     );
+  });
+
+  it("sums one member's confirmed incomes for the current month only", () => {
+    const rows = [
+      income({ id: "c1", memberId: "carlos", amount: 30000, occurredAt: "2026-08-05" }),
+      income({ id: "c2", memberId: "carlos", amount: 5000, occurredAt: "2026-08-20" }),
+      income({ id: "d1", memberId: "diana", amount: 10000, occurredAt: "2026-08-10" }),
+      income({ id: "old", memberId: "carlos", amount: 99999, occurredAt: "2026-07-31" }),
+      income({
+        id: "deleted",
+        memberId: "carlos",
+        amount: 8000,
+        occurredAt: "2026-08-12",
+        deletedAt: "2026-08-13T00:00:00.000Z",
+      }),
+    ];
+    assert.equal(memberPeriodIncomeTotal(rows, "carlos", range, "h1"), 35000);
+    assert.equal(memberPeriodIncomeTotal(rows, "diana", range, "h1"), 10000);
+    assert.equal(memberPeriodIncomeTotal(rows, "carlos", getMonthRange(2026, 7), "h1"), 99999);
   });
 });

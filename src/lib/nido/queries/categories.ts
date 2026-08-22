@@ -25,6 +25,34 @@ export async function fetchActiveIncomeCategories(
   return fetchActiveCategories(householdId, "income", supabase);
 }
 
+/**
+ * Active categories of both types for household administration.
+ */
+export async function fetchHouseholdCategories(
+  householdId: string,
+  supabase: NidoClient = nidoClient(),
+): Promise<NidoResult<HouseholdCategory[]>> {
+  const auth = await requireUser(supabase);
+  if (auth.ok === false) return nidoFail(auth.error.code);
+  if (!householdId) return nidoFail("not_a_member");
+
+  const { data, error } = await auth.data.supabase
+    .from("categories")
+    .select("id, household_id, name, icon, type, is_default, archived_at")
+    .eq("household_id", householdId)
+    .is("archived_at", null)
+    .order("name", { ascending: true });
+
+  if (error) {
+    return nidoFail(
+      nidoErrorFromUnknown(error).code,
+      "No pudimos cargar las categorías. Inténtalo de nuevo.",
+    );
+  }
+
+  return nidoOk(((data ?? []) as CategoryQueryRow[]).map(mapCategoryRow));
+}
+
 async function fetchActiveCategories(
   householdId: string,
   type: "income" | "expense",

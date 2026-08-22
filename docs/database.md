@@ -109,6 +109,7 @@ A Nido.
 | `created_by` | `uuid` FK → `profiles.id` | ON DELETE RESTRICT. |
 | `created_at` | `timestamptz` | |
 | `updated_at` | `timestamptz` | |
+| `default_split_method` | `household_split_method` | `equal` or `proportional`. Default `equal`. Added in 9.4.1. Preference of the Nido for **new shared** one-off expenses. Personal expenses ignore it. Recurring materialization is unchanged. |
 
 Creating a household does **not** automatically insert the owner membership. Application logic must insert `household_members` for `created_by` with `role = owner` in the same transaction.
 
@@ -177,6 +178,8 @@ Active category names are unique per household and type. Archived names may be r
 Using an archived category on a **new** transaction is allowed at the database level and is rejected by `create_expense` and the application.
 
 Default expense categories are inserted by `create_household` from `default_expense_category_catalog()`. There is no global categories table.
+
+Phase 9.4.1 adds product CRUD: `create_category`, `rename_category`, `archive_category` (`SECURITY INVOKER`). They write the caller’s active Nido only (no client `household_id`). Custom rows are `is_default = false`. Archive sets `archived_at`. There is no hard-delete RPC. Active members may mutate categories (same as current RLS). Default catalog rows may be renamed; they must not be hard-deleted.
 
 ### 3.6 `recurring_incomes`
 
@@ -412,6 +415,7 @@ Leaving a Nido does not delete contribution rows. Do not physically delete contr
 | Enum | Values | Used by |
 | --- | --- | --- |
 | `household_role` | `owner`, `member` | `household_members.role` |
+| `household_split_method` | `equal`, `proportional` | `households.default_split_method`. Product names only. Not `capacity`. Maps to `distribution_method` `equal` or `income_based` on new shared expenses. |
 | `category_type` | `income`, `expense` | `categories.type` |
 | `recurrence_frequency` | `weekly`, `biweekly`, `monthly`, `yearly` | `recurring_incomes.frequency`, `recurring_expenses.frequency` |
 | `expense_scope` | `personal`, `shared` | `expenses.scope`, `recurring_expenses.scope` |

@@ -13,6 +13,9 @@ import { transferHouseholdOwnership } from "@/lib/nido/membership";
 import { transferableMembers } from "@/lib/nido/rules";
 import { canSubmitTransfer } from "@/lib/nido/transfer-ownership";
 import type { Household, HouseholdMember, HouseholdMemberView, ListedInvitation } from "@/lib/nido/types";
+import { HouseholdCategoriesCard } from "@/components/household/HouseholdCategoriesCard";
+import { HouseholdNameCard } from "@/components/household/HouseholdNameCard";
+import { HouseholdSplitCard } from "@/components/household/HouseholdSplitCard";
 import { InviteQrModal } from "@/components/flows/InviteQrModal";
 import { Button } from "@/components/nido/Button";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
@@ -31,11 +34,13 @@ export function HouseholdScreen({
   membership,
   members,
   onOwnershipTransferred,
+  onHouseholdUpdated,
 }: {
   household: Household;
   membership: HouseholdMember;
   members: HouseholdMemberView[];
   onOwnershipTransferred: () => void;
+  onHouseholdUpdated: (household: Household) => void;
 }) {
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -136,6 +141,7 @@ export function HouseholdScreen({
         <h2 className="text-[22px] font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{household.name}</h2>
         <p className="text-xs" style={{ color: P.muted }}>{memberLabel}</p>
       </div>
+      <HouseholdNameCard household={household} onSaved={onHouseholdUpdated} />
       <div className="px-6 my-3 space-y-2">
         {members.map((member) => (
           <div key={member.userId} className="rounded-[1.5rem] p-4 shadow-sm flex items-center gap-3" style={{ backgroundColor: P.card }}>
@@ -151,6 +157,8 @@ export function HouseholdScreen({
           </div>
         ))}
       </div>
+      <HouseholdSplitCard household={household} onSaved={onHouseholdUpdated} />
+      <HouseholdCategoriesCard householdId={household.id} />
       {isOwner && (
         <div className="mx-6 mb-3">
           <button

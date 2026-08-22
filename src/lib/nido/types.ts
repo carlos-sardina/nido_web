@@ -1,4 +1,7 @@
 import type { Tables } from "@/lib/supabase/types";
+import type { HouseholdSplitMethod } from "./split-method";
+
+export type { HouseholdSplitMethod };
 
 export type Household = Tables<"households">;
 export type HouseholdMember = Tables<"household_members">;

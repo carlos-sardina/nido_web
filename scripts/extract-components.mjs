@@ -29,7 +29,7 @@ export type AppMode = "onboarding" | "app";
 export type OStep   = "welcome"|"auth"|"join"|"c-type"|"c-name"|"c-invite"|
                "p-name"|"p-income"|"p-savings"|"p-expenses"|"p-contrib"|"nest-ready";
 export type Tab     = "home"|"budget"|"goals"|"household"|"activity";
-export type Model   = "equal"|"proportional"|"capacity";
+export type Model   = "equal"|"proportional";
 export type Flow    = null|"expense"|"goal"|"contrib";
 
 export interface OData {

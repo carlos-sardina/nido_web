@@ -56,7 +56,7 @@ export async function getMyActiveHousehold(
 
   const { data, error } = await supabase
     .from("households")
-    .select("id, name, created_by, created_at, updated_at")
+    .select("id, name, created_by, created_at, updated_at, default_split_method")
     .eq("id", membership.data.household_id)
     .maybeSingle();
 

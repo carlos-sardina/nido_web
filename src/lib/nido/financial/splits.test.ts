@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { allocateEqualSplits, personalSplit, splitIssue } from "./splits.ts";
+import { allocateEqualSplits, allocateIncomeBasedSplits, personalSplit, splitIssue } from "./splits.ts";
 import { sumMoney } from "./money.ts";
 
 describe("personalSplit", () => {
@@ -40,6 +40,41 @@ describe("allocateEqualSplits", () => {
     const splits = allocateEqualSplits(90, ["a", "a", "b"]);
     assert.ok(splits);
     assert.equal(splits.length, 2);
+  });
+});
+
+describe("allocateIncomeBasedSplits", () => {
+  it("splits using confirmed income weights and keeps the cent remainder", () => {
+    const splits = allocateIncomeBasedSplits(100, [
+      { memberId: "carlos", income: 30000 },
+      { memberId: "diana", income: 10000 },
+    ]);
+    assert.ok(splits);
+    assert.equal(splits.reduce((sum, split) => sum + Math.round(split.amount * 100), 0), 10000);
+    assert.equal(sumMoney(splits.map((split) => split.percentage)), 100);
+    assert.equal(splits[0].amount, 75);
+    assert.equal(splits[1].amount, 25);
+  });
+
+  it("assigns zero to a member with no income this month", () => {
+    const splits = allocateIncomeBasedSplits(90, [
+      { memberId: "carlos", income: 40000 },
+      { memberId: "diana", income: 0 },
+    ]);
+    assert.ok(splits);
+    assert.equal(splits[0].amount, 90);
+    assert.equal(splits[1].amount, 0);
+    assert.equal(sumMoney(splits.map((split) => split.percentage)), 100);
+  });
+
+  it("rejects when every participant has zero confirmed income", () => {
+    assert.equal(
+      allocateIncomeBasedSplits(80, [
+        { memberId: "carlos", income: 0 },
+        { memberId: "diana", income: 0 },
+      ]),
+      null,
+    );
   });
 });
 

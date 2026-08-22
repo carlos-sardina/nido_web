@@ -596,4 +596,14 @@ Phase 9.4.0 (scope + technical contract, no feature implementation) against the 
 - **Departamento** and **Nido Smoke 924** were not modified. No DELETE / TRUNCATE / seeds.
 - Verdict: **LISTA PARA IMPLEMENTACIÓN**. No 9.4 feature is implemented. Next: 9.4.1.
 
+Phase 9.4.1 (household name + initials + categories + `default_split_method`) against the repo on 2026-08-22:
+
+- New migration `20260822500000_nido_household_categories_split.sql`: `households.default_split_method` (`equal` \| `proportional`, default `equal`), `update_household_name`, `update_household_default_split_method`, `create_category` / `rename_category` / `archive_category`, and `create_expense` reads the household preference for new shared expenses. All SECURITY INVOKER. No `service_role`. No RLS policy rewrite.
+- Unit tests 707 passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 14 tables.
+- Local Docker / `supabase start` is not available in this environment, so the migration was **not** applied to a running database here. `supabase db push` against `nido_dev` was **not** run (project procedure). Remote still has the previous 14 migrations until the team applies this one.
+- RLS matrix was **not** re-run: it needs the new migration applied. New assertions `Y01`–`Y20` are in `rls_security_matrix.sql` (ROLLBACK). Do not treat them as executed.
+- **Departamento** and **Nido Smoke 924** were not modified. No temporary users, invitations, or permanent seeds.
+- Manual Hogar / expense UI smoke (19 cases) is **BLOCKED**. This environment cannot operate the app with a real browser session. Do not treat unit/build success as a UI pass.
+- Verdict: **CASI CERRADA**. Implementation and unit/build checks are complete; UI smoke and the live RLS matrix remain open.
+
 Do not record production results here unless they were performed.

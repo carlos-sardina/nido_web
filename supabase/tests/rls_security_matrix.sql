@@ -10,7 +10,7 @@
 --      expense mutations, goal mutations, goal contribution mutations,
 --      goal contribution edit / soft-delete, income mutations,
 --      budget mutations, owner transfer, recurrence mutations,
---      onboarding financial persist)
+--      onboarding financial persist, household categories/split)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -4734,6 +4734,308 @@ BEGIN
     'R01', 'Carlos', 'A+B', 'mixed', 'membership helper recursion smoke',
     'allow',
     CASE WHEN v_ok THEN 'allow' ELSE 'deny' END
+  );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Phase 9.4.1 — household name, categories, default_split_method, create_expense
+-- Temporary rows only. ROLLBACK at the end. Does not touch Departamento / Smoke 924.
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_cat_expense_a uuid;
+  v_cat_income_a uuid;
+  v_created_by uuid;
+  v_name text;
+  v_method public.household_split_method;
+  v_updated_by uuid;
+  v_new_cat uuid;
+  v_archived_at timestamptz;
+  v_delete_ok boolean := false;
+  v_today date := (timezone('America/Mexico_City', now()))::date;
+  v_expense_id uuid;
+  v_dist public.distribution_method;
+  v_carlos_amt numeric;
+  v_diana_amt numeric;
+  v_pers_dist public.distribution_method;
+  v_eq_dist public.distribution_method;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+  SELECT id INTO v_cat_expense_a FROM rls_ids WHERE key = 'cat_expense_a';
+  SELECT id INTO v_cat_income_a FROM rls_ids WHERE key = 'cat_income_a';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+
+  SELECT default_split_method INTO v_method
+  FROM public.households WHERE id = v_nido_a;
+
+  PERFORM pg_temp.record_result(
+    'Y01', 'Carlos', 'A', 'active', 'default_split_method is equal',
+    'allow',
+    CASE WHEN v_method = 'equal' THEN 'allow' ELSE 'deny' END
+  );
+
+  SELECT created_by INTO v_created_by FROM public.households WHERE id = v_nido_a;
+
+  PERFORM pg_temp.record_result(
+    'Y02', 'Carlos', 'A', 'active', 'update_household_name trims and writes name only',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$ SELECT public.update_household_name(%L) $sql$,
+      '  Nido A 941  '
+    ))
+  );
+
+  SELECT name, created_by INTO v_name, v_updated_by
+  FROM public.households WHERE id = v_nido_a;
+
+  PERFORM pg_temp.record_result(
+    'Y03', 'Carlos', 'A', 'active', 'household name changed and created_by intact',
+    'allow',
+    CASE
+      WHEN v_name = 'Nido A 941' AND v_updated_by = v_created_by THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'Y04', 'Carlos', 'A', 'active', 'empty household name rejected',
+    'deny',
+    pg_temp.expect_allow($sql$ SELECT public.update_household_name('   ') $sql$)
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'Y05', 'Diana', 'A', 'active', 'active member can update household name',
+    'allow',
+    pg_temp.expect_allow($sql$ SELECT public.update_household_name('Nido A') $sql$)
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM public.update_household_name('Nido B touched');
+  SELECT name INTO v_name FROM public.households WHERE id = v_nido_a;
+  PERFORM pg_temp.record_result(
+    'Y06', 'Luis', 'A', 'never member', 'name RPC cannot change another Nido',
+    'allow',
+    CASE WHEN v_name = 'Nido A' THEN 'allow' ELSE 'deny' END
+  );
+  PERFORM public.update_household_name('Nido B');
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'Y07', 'Carlos', 'A', 'active', 'persist proportional split preference',
+    'allow',
+    pg_temp.expect_allow(
+      $sql$ SELECT public.update_household_default_split_method('proportional') $sql$
+    )
+  );
+
+  PERFORM pg_temp.record_result(
+    'Y08', 'Carlos', 'A', 'active', 'capacity is not a valid household split method',
+    'deny',
+    pg_temp.expect_allow(
+      $sql$ SELECT public.update_household_default_split_method('capacity'::text::public.household_split_method) $sql$
+    )
+  );
+
+  PERFORM pg_temp.record_result(
+    'Y09', 'Carlos', 'A', 'active', 'create custom category',
+    'allow',
+    pg_temp.expect_allow(
+      $sql$ SELECT public.create_category('Spotify', 'expense', NULL) $sql$
+    )
+  );
+
+  SELECT id INTO v_new_cat
+  FROM public.categories
+  WHERE household_id = v_nido_a AND name = 'Spotify' AND archived_at IS NULL;
+
+  PERFORM pg_temp.record_result(
+    'Y10', 'Carlos', 'A', 'active', 'duplicate active category name rejected',
+    'deny',
+    pg_temp.expect_allow(
+      $sql$ SELECT public.create_category('spotify', 'expense', NULL) $sql$
+    )
+  );
+
+  PERFORM pg_temp.record_result(
+    'Y11', 'Carlos', 'A', 'active', 'rename category',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$ SELECT public.rename_category(%L::uuid, 'Musica') $sql$,
+      v_new_cat
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'Y12', 'Carlos', 'A', 'active', 'rename conflict with active name',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$ SELECT public.rename_category(%L::uuid, 'Groceries') $sql$,
+      v_new_cat
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'Y13', 'Luis', 'A', 'never member', 'cannot rename other Nido category',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$ SELECT public.rename_category(%L::uuid, 'Hack') $sql$,
+      v_new_cat
+    ))
+  );
+  PERFORM pg_temp.record_result(
+    'Y14', 'Luis', 'A', 'never member', 'cannot archive other Nido category',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$ SELECT public.archive_category(%L::uuid) $sql$,
+      v_new_cat
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'Y15', 'Carlos', 'A', 'active', 'archive category',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$ SELECT public.archive_category(%L::uuid) $sql$,
+      v_new_cat
+    ))
+  );
+
+  SELECT archived_at INTO v_archived_at
+  FROM public.categories WHERE id = v_new_cat;
+
+  PERFORM pg_temp.record_result(
+    'Y16', 'Carlos', 'A', 'active', 'archived category still readable',
+    'allow',
+    CASE
+      WHEN v_archived_at IS NOT NULL
+        AND pg_temp.expect_count(format(
+          'SELECT count(*) FROM public.categories WHERE id = %L', v_new_cat
+        )) = 1
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  BEGIN
+    DELETE FROM public.categories WHERE id = v_new_cat;
+    v_delete_ok := true;
+  EXCEPTION
+    WHEN OTHERS THEN
+      v_delete_ok := false;
+  END;
+
+  PERFORM pg_temp.record_result(
+    'Y17', 'Carlos', 'A', 'active', 'hard delete category denied',
+    'allow',
+    CASE
+      WHEN v_delete_ok = false
+        AND pg_temp.expect_count(format(
+          'SELECT count(*) FROM public.categories WHERE id = %L', v_new_cat
+        )) = 1
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.clear_auth();
+  INSERT INTO public.incomes (
+    household_id, member_id, category_id, amount, occurred_at, created_by, description
+  ) VALUES
+    (v_nido_a, v_carlos, v_cat_income_a, 30000, v_today, v_carlos, 'RLS 941 Carlos'),
+    (v_nido_a, v_diana, v_cat_income_a, 10000, v_today, v_diana, 'RLS 941 Diana');
+  PERFORM pg_temp.set_auth(v_carlos);
+
+  SELECT public.create_expense(
+    v_nido_a,
+    v_cat_expense_a,
+    100,
+    'Cena proporcional',
+    v_today,
+    v_carlos,
+    'shared',
+    jsonb_build_array(
+      jsonb_build_object('member_id', v_carlos, 'amount', 50, 'percentage', 50),
+      jsonb_build_object('member_id', v_diana, 'amount', 50, 'percentage', 50)
+    )
+  ) INTO v_expense_id;
+
+  SELECT distribution_method INTO v_dist
+  FROM public.expenses WHERE id = v_expense_id;
+  SELECT amount INTO v_carlos_amt
+  FROM public.expense_splits WHERE expense_id = v_expense_id AND member_id = v_carlos;
+  SELECT amount INTO v_diana_amt
+  FROM public.expense_splits WHERE expense_id = v_expense_id AND member_id = v_diana;
+
+  PERFORM pg_temp.record_result(
+    'Y18', 'Carlos', 'A', 'active', 'shared proportional uses current-month incomes',
+    'allow',
+    CASE
+      WHEN v_dist = 'income_based' AND v_carlos_amt = 75 AND v_diana_amt = 25
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  SELECT public.create_expense(
+    v_nido_a,
+    v_cat_expense_a,
+    40,
+    'Cafe personal',
+    v_today,
+    v_carlos,
+    'personal',
+    jsonb_build_array(
+      jsonb_build_object('member_id', v_carlos, 'amount', 40, 'percentage', 100)
+    )
+  ) INTO v_expense_id;
+
+  SELECT distribution_method INTO v_pers_dist
+  FROM public.expenses WHERE id = v_expense_id;
+
+  PERFORM pg_temp.record_result(
+    'Y19', 'Carlos', 'A', 'active', 'personal ignores household split preference',
+    'allow',
+    CASE WHEN v_pers_dist = 'fixed' THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM public.update_household_default_split_method('equal');
+
+  SELECT public.create_expense(
+    v_nido_a,
+    v_cat_expense_a,
+    80,
+    'Cena igualitaria',
+    v_today,
+    v_carlos,
+    'shared',
+    jsonb_build_array(
+      jsonb_build_object('member_id', v_carlos, 'amount', 40, 'percentage', 50),
+      jsonb_build_object('member_id', v_diana, 'amount', 40, 'percentage', 50)
+    )
+  ) INTO v_expense_id;
+
+  SELECT distribution_method INTO v_eq_dist
+  FROM public.expenses WHERE id = v_expense_id;
+
+  PERFORM pg_temp.record_result(
+    'Y20', 'Carlos', 'A', 'active', 'shared equal keeps equal distribution',
+    'allow',
+    CASE WHEN v_eq_dist = 'equal' THEN 'allow' ELSE 'deny' END
   );
 END;
 $$;

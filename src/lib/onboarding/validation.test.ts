@@ -138,15 +138,6 @@ describe("division method requirements", () => {
     assert.match(hint ?? "", /después/);
   });
 
-  it("explains missing personal expenses for capacity split", () => {
-    const hint = divisionMethodHint({
-      method: "capacity",
-      income: "40000",
-      personalExpenseTotal: 0,
-    });
-    assert.match(hint ?? "", /gastos personales/);
-  });
-
   it("does not block equal split", () => {
     assert.equal(
       divisionMethodHint({
@@ -184,7 +175,7 @@ describe("finalize and double-submit", () => {
     assert.equal(canStartExclusiveAction(true), false);
   });
 
-  it("sums selected personal expenses for capacity checks", () => {
+  it("still sums selected personal expenses for onboarding totals", () => {
     const data = sampleData();
     data.expenses[0] = { ...data.expenses[0], selected: true, amount: "1000", type: "personal" };
     data.expenses[1] = { ...data.expenses[1], selected: true, amount: "2000", type: "shared" };

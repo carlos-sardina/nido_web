@@ -5,8 +5,10 @@ import {
   activeIncomeCategories,
   DEFAULT_EXPENSE_CATEGORIES,
   DEFAULT_INCOME_CATEGORIES,
+  categoryNameMessage,
   isDuplicateActiveCategoryName,
   normalizeCategoryName,
+  withCurrentCategory,
   type HouseholdCategory,
 } from "./categories.ts";
 
@@ -95,6 +97,30 @@ describe("activeExpenseCategories", () => {
     ];
     const active = activeExpenseCategories(rows, "h1");
     assert.deepEqual(active.map((row) => row.id), ["a"]);
+  });
+});
+
+describe("categoryNameMessage", () => {
+  it("rejects empty and oversized names with Spanish copy", () => {
+    assert.match(categoryNameMessage(""), /nombre/);
+    assert.match(categoryNameMessage("   "), /nombre/);
+    assert.match(categoryNameMessage("a".repeat(81)), /80/);
+    assert.equal(categoryNameMessage(" Spotify "), null);
+  });
+});
+
+describe("withCurrentCategory", () => {
+  it("keeps an archived historical category visible without adding duplicates", () => {
+    const active = [category({ id: "a", name: "Salud", householdId: "h1" })];
+    const archived = category({
+      id: "d",
+      name: "Archivada",
+      householdId: "h1",
+      archivedAt: "2026-08-01T00:00:00.000Z",
+    });
+    const merged = withCurrentCategory(active, archived);
+    assert.deepEqual(merged.map((row) => row.id).sort(), ["a", "d"]);
+    assert.deepEqual(withCurrentCategory(active, active[0]).map((row) => row.id), ["a"]);
   });
 });
 

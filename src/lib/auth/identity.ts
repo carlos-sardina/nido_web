@@ -25,11 +25,16 @@ function firstNonEmptyString(...values: unknown[]): string | null {
   return null;
 }
 
+function firstLetter(token: string): string {
+  const first = Array.from(token)[0];
+  return first ? first.toLocaleUpperCase("es") : "";
+}
+
 export function initialsFromName(name: string): string {
-  const parts = name.split(/\s+/).filter(Boolean);
+  const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  if (parts.length === 1) return firstLetter(parts[0]);
+  return `${firstLetter(parts[0])}${firstLetter(parts[parts.length - 1])}`;
 }
 
 export function emailLocalPart(email: string | null | undefined): string | null {

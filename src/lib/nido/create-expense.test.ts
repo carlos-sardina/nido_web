@@ -112,6 +112,27 @@ describe("createExpenseWithAuth (unit, mocked auth adapter)", () => {
     assert.equal(called, 0);
   });
 
+  it("does not send a split method; the backend owns the household preference", async () => {
+    const result = await createExpenseWithAuth(
+      {
+        ...validInput,
+        scope: "shared",
+        amount: 100,
+        participantIds: ["u1", "u2"],
+        activeMemberIds: ["u1", "u2"],
+      },
+      {
+        getUserId: async () => "u1",
+        rpc: async (_fn, args) => {
+          assert.equal("p_distribution_method" in args, false);
+          assert.equal("p_method" in args, false);
+          return { data: "e-pref", error: null };
+        },
+      },
+    );
+    assert.equal(result.ok, true);
+  });
+
   it("sends equal splits for a valid shared expense", async () => {
     const result = await createExpenseWithAuth(
       {

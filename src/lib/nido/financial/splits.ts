@@ -63,6 +63,60 @@ export function allocateEqualSplits(
   return drafts;
 }
 
+/**
+ * Income-weighted allocation in cents so SUM(amount) equals the expense.
+ * Members with zero income receive 0. All-zero basis returns null.
+ * Remainder cents go to the last participant (same as recurring income_based).
+ */
+export function allocateIncomeBasedSplits(
+  total: number,
+  memberIncomes: ReadonlyArray<{ memberId: string; income: number }>,
+): SplitDraft[] | null {
+  const amount = roundMoney(total);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_MONEY_AMOUNT) return null;
+
+  const unique: { memberId: string; income: number }[] = [];
+  const seen = new Set<string>();
+  for (const row of memberIncomes) {
+    if (!row.memberId || seen.has(row.memberId)) continue;
+    seen.add(row.memberId);
+    const income = Number.isFinite(row.income) && row.income > 0 ? row.income : 0;
+    unique.push({ memberId: row.memberId, income });
+  }
+  if (unique.length === 0) return null;
+
+  const totalBasis = sumMoney(unique.map((row) => row.income));
+  if (totalBasis <= 0) return null;
+
+  const totalCents = Math.round(amount * 100);
+  let assignedCents = 0;
+  const cents = unique.map((row, index) => {
+    if (index === unique.length - 1) return totalCents - assignedCents;
+    const share = Math.round((row.income / totalBasis) * totalCents);
+    assignedCents += share;
+    return share;
+  });
+
+  const drafts: SplitDraft[] = unique.map((row, index) => ({
+    memberId: row.memberId,
+    amount: cents[index] / 100,
+    percentage: 0,
+  }));
+
+  let assigned = 0;
+  for (let index = 0; index < drafts.length; index += 1) {
+    if (index === drafts.length - 1) {
+      drafts[index].percentage = roundMoney(100 - assigned);
+    } else {
+      const percent = roundMoney((drafts[index].amount * 100) / amount);
+      drafts[index].percentage = percent;
+      assigned = roundMoney(assigned + percent);
+    }
+  }
+
+  return drafts;
+}
+
 export function personalSplit(payerId: string, amount: number): SplitDraft[] | null {
   const value = roundMoney(amount);
   if (!payerId || !Number.isFinite(value) || value <= 0 || value > MAX_MONEY_AMOUNT) {

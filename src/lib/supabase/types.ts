@@ -483,6 +483,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string
+          default_split_method: Database["public"]["Enums"]["household_split_method"]
           id: string
           name: string
           updated_at: string
@@ -490,6 +491,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by: string
+          default_split_method?: Database["public"]["Enums"]["household_split_method"]
           id?: string
           name: string
           updated_at?: string
@@ -497,6 +499,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string
+          default_split_method?: Database["public"]["Enums"]["household_split_method"]
           id?: string
           name?: string
           updated_at?: string
@@ -840,6 +843,7 @@ export type Database = {
         Returns: {
           created_at: string
           created_by: string
+          default_split_method: Database["public"]["Enums"]["household_split_method"]
           id: string
           name: string
           updated_at: string
@@ -851,7 +855,9 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      archive_category: { Args: { p_category_id: string }; Returns: string }
       archive_goal: { Args: { p_goal_id: string }; Returns: string }
+      active_household_id_for_user: { Args: never; Returns: string }
       assert_active_household_member: {
         Args: { p_household_id: string; p_user_id: string }
         Returns: undefined
@@ -890,6 +896,14 @@ export type Database = {
       category_belongs_to_household: {
         Args: { p_category_id: string; p_household_id: string }
         Returns: boolean
+      }
+      create_category: {
+        Args: {
+          p_icon?: string
+          p_name: string
+          p_type: Database["public"]["Enums"]["category_type"]
+        }
+        Returns: string
       }
       create_budget: {
         Args: {
@@ -934,6 +948,7 @@ export type Database = {
         Returns: {
           created_at: string
           created_by: string
+          default_split_method: Database["public"]["Enums"]["household_split_method"]
           id: string
           name: string
           updated_at: string
@@ -950,6 +965,7 @@ export type Database = {
         Returns: {
           created_at: string
           created_by: string
+          default_split_method: Database["public"]["Enums"]["household_split_method"]
           id: string
           name: string
           updated_at: string
@@ -1067,6 +1083,10 @@ export type Database = {
         Returns: string
       }
       nido_today: { Args: never; Returns: string }
+      rename_category: {
+        Args: { p_category_id: string; p_name: string }
+        Returns: string
+      }
       set_recurring_expense_active: {
         Args: { p_is_active: boolean; p_recurring_id: string }
         Returns: string
@@ -1086,6 +1106,42 @@ export type Database = {
       transfer_household_ownership: {
         Args: { p_new_owner_id: string }
         Returns: undefined
+      }
+      update_household_default_split_method: {
+        Args: {
+          p_method: Database["public"]["Enums"]["household_split_method"]
+        }
+        Returns: {
+          created_at: string
+          created_by: string
+          default_split_method: Database["public"]["Enums"]["household_split_method"]
+          id: string
+          name: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "households"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_household_name: {
+        Args: { p_name: string }
+        Returns: {
+          created_at: string
+          created_by: string
+          default_split_method: Database["public"]["Enums"]["household_split_method"]
+          id: string
+          name: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "households"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       update_budget: {
         Args: {
@@ -1181,6 +1237,7 @@ export type Database = {
       goal_status: "active" | "completed" | "archived"
       goal_type: "saving" | "purchase"
       household_role: "owner" | "member"
+      household_split_method: "equal" | "proportional"
       recurrence_frequency: "weekly" | "biweekly" | "monthly" | "yearly"
     }
     CompositeTypes: {
@@ -1316,6 +1373,7 @@ export const Constants = {
       goal_status: ["active", "completed", "archived"],
       goal_type: ["saving", "purchase"],
       household_role: ["owner", "member"],
+      household_split_method: ["equal", "proportional"],
       recurrence_frequency: ["weekly", "biweekly", "monthly", "yearly"],
     },
   },

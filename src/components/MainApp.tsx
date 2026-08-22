@@ -64,6 +64,8 @@ export function MainApp({
   signingOut?: boolean;
 }) {
   const [savedDisplayName, setSavedDisplayName] = useState<string | null>(null);
+  const [householdPatch, setHouseholdPatch] = useState<Partial<Household>>({});
+  const liveHousehold = { ...household, ...householdPatch };
   const identity = applyProfileDisplayName(
     identityFromUser(user),
     savedDisplayName ?? profile?.display_name,
@@ -184,7 +186,7 @@ export function MainApp({
           {tab === "home"      && (
             <HomeScreen
               identity={identity}
-              householdName={household.name}
+              householdName={liveHousehold.name}
               dashboard={dashboard}
               onProfileOpen={() => setProfileOpen(true)}
               onNavigate={t => { setTab(t); setShowSheet(false); }}
@@ -219,10 +221,14 @@ export function MainApp({
           )}
           {tab === "household" && (
             <HouseholdScreen
-              household={household}
+              household={liveHousehold}
               membership={membership}
               members={members}
               onOwnershipTransferred={onNidoChanged}
+              onHouseholdUpdated={(next) => setHouseholdPatch({
+                name: next.name,
+                default_split_method: next.default_split_method,
+              })}
             />
           )}
           {tab === "activity"  && (
@@ -351,8 +357,9 @@ export function MainApp({
 
         {activeFlow === "expense" && (
           <ExpenseFlow
-            householdId={household.id}
+            householdId={liveHousehold.id}
             members={members}
+            defaultSplitMethod={liveHousehold.default_split_method}
             expense={editingExpense}
             onClose={() => {
               setActiveFlow(null);
@@ -515,7 +522,7 @@ export function MainApp({
         {profileOpen && (
           <ProfilePanel
             identity={identity}
-            householdName={household.name}
+            householdName={liveHousehold.name}
             role={membership.role}
             isLastOwner={membership.role === "owner" && members.filter((row) => row.role === "owner").length <= 1}
             hasOtherActiveMembers={members.some((row) => row.userId !== membership.user_id)}

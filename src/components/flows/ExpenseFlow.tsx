@@ -21,11 +21,13 @@ import {
   expenseDescriptionMessage,
   parseExpenseAmountInput,
   todayIso,
+  withCurrentCategory,
   type ExpenseRow,
   type ExpenseScope,
   type HouseholdCategory,
 } from "@/lib/nido/financial";
 import { fetchActiveExpenseCategories } from "@/lib/nido/queries/categories";
+import type { HouseholdSplitMethod } from "@/lib/nido/split-method";
 import type { HouseholdMemberView } from "@/lib/nido/types";
 
 type FieldErrors = {
@@ -41,12 +43,14 @@ type FieldErrors = {
 export function ExpenseFlow({
   householdId,
   members,
+  defaultSplitMethod = "equal",
   expense,
   onClose,
   onDone,
 }: {
   householdId: string;
   members: HouseholdMemberView[];
+  defaultSplitMethod?: HouseholdSplitMethod;
   expense?: ExpenseRow | null;
   onClose: () => void;
   onDone: () => void;
@@ -72,6 +76,9 @@ export function ExpenseFlow({
   const [errors, setErrors] = useState<FieldErrors>({});
 
   const canShare = members.length >= 2;
+  const participantCopy = !isEditing && defaultSplitMethod === "proportional"
+    ? "Participa según el ingreso del mes"
+    : "Participa en partes iguales";
   const amountId = `${ids}-amount`;
   const descriptionId = `${ids}-description`;
   const dateId = `${ids}-date`;
@@ -91,7 +98,20 @@ export function ExpenseFlow({
         setLoadingCategories(false);
         return;
       }
-      setCategories(result.data);
+      const current = expense?.category
+        ? {
+            id: expense.categoryId,
+            householdId,
+            name: expense.category.name,
+            icon: expense.category.icon,
+            type: "expense" as const,
+            isDefault: false,
+            archivedAt: result.data.some((row) => row.id === expense.categoryId)
+              ? null
+              : "archived",
+          }
+        : null;
+      setCategories(withCurrentCategory(result.data, current));
       setLoadingCategories(false);
     })();
 
@@ -369,7 +389,7 @@ export function ExpenseFlow({
                       <ChoiceCard
                         key={member.userId}
                         title={member.displayName}
-                        description={selected ? "Participa en partes iguales" : "No participa"}
+                        description={selected ? participantCopy : "No participa"}
                         selected={selected}
                         disabled={submitting}
                         onClick={() => {
