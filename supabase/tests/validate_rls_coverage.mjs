@@ -52,10 +52,11 @@ const expectedHelpers = [
   "household_id_for_expense(p_expense_id uuid)",
   "household_id_for_recurring_expense(",
   "household_id_for_goal(p_goal_id uuid)",
+  "personal_finance_visible(p_owner_id uuid)",
 ];
 
 for (const helper of expectedHelpers) {
-  if (!rls.includes(`FUNCTION public.${helper.split("(")[0]}`)) {
+  if (!allMigrations.includes(`FUNCTION public.${helper.split("(")[0]}`)) {
     fail(`Missing helper function public.${helper.split("(")[0]}`);
   }
 }

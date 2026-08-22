@@ -710,4 +710,117 @@ describe("dashboard view model", () => {
     );
     assert.equal(model.recentIncomes.length, 0);
   });
+
+  it("lists personal budgets separately and does not invent private rows that RLS hid", () => {
+    const personalExpense: ExpenseRow = {
+      id: "e-spotify",
+      householdId: "h1",
+      categoryId: "spotify",
+      amount: 200,
+      description: "Spotify",
+      occurredAt: "2026-08-08",
+      payerId: "carlos",
+      scope: "personal",
+      distributionMethod: "fixed",
+      recurringId: null,
+      createdBy: "carlos",
+      createdAt: "2026-08-08T12:00:00.000Z",
+      deletedAt: null,
+      category: { id: "spotify", name: "Spotify", icon: "🎵" },
+      payer: { id: "carlos", displayName: "Carlos Pérez" },
+      splits: [],
+    };
+    const sharedExpense: ExpenseRow = {
+      ...personalExpense,
+      id: "e-renta",
+      categoryId: "rent",
+      amount: 8000,
+      description: "Renta",
+      scope: "shared",
+      distributionMethod: "equal",
+      category: { id: "rent", name: "Renta", icon: "🏠" },
+    };
+    const hiddenFromPeer = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        expenses: [sharedExpense],
+        periodExpenses: [sharedExpense],
+        budgets: [
+          {
+            id: "b-nido",
+            householdId: "h1",
+            memberId: null,
+            categoryId: "rent",
+            amount: 10000,
+            period: "monthly",
+            startDate: "2026-08-01",
+            endDate: "2026-08-31",
+            createdBy: "diana",
+            createdAt: "2026-08-01T12:00:00.000Z",
+            deletedAt: null,
+            category: { id: "rent", name: "Renta", icon: "🏠" },
+          },
+        ],
+      }),
+      members,
+      range,
+    });
+    assert.equal(hiddenFromPeer.periodSpent, 8000);
+    assert.equal(hiddenFromPeer.activity.some((item) => item.sourceId === "e-spotify"), false);
+    assert.equal(hiddenFromPeer.periodBudgets.length, 1);
+    assert.equal(hiddenFromPeer.periodBudgets[0].memberId, null);
+
+    const ownerView = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        expenses: [sharedExpense, personalExpense],
+        periodExpenses: [sharedExpense, personalExpense],
+        budgets: [
+          {
+            id: "b-nido",
+            householdId: "h1",
+            memberId: null,
+            categoryId: "rent",
+            amount: 10000,
+            period: "monthly",
+            startDate: "2026-08-01",
+            endDate: "2026-08-31",
+            createdBy: "diana",
+            createdAt: "2026-08-01T12:00:00.000Z",
+            deletedAt: null,
+            category: { id: "rent", name: "Renta", icon: "🏠" },
+          },
+          {
+            id: "b-spotify",
+            householdId: "h1",
+            memberId: "carlos",
+            categoryId: "spotify",
+            amount: 200,
+            period: "monthly",
+            startDate: "2026-08-01",
+            endDate: "2026-08-31",
+            createdBy: "carlos",
+            createdAt: "2026-08-01T12:00:00.000Z",
+            deletedAt: null,
+            category: { id: "spotify", name: "Spotify", icon: "🎵" },
+          },
+        ],
+      }),
+      members: [
+        ...members,
+        {
+          userId: "carlos",
+          role: "member",
+          joinedAt: "2026-01-01T00:00:00.000Z",
+          displayName: "Carlos Pérez",
+          avatarUrl: null,
+        },
+      ],
+      range,
+    });
+    assert.equal(ownerView.periodSpent, 8200);
+    assert.equal(ownerView.activity.some((item) => item.sourceId === "e-spotify"), true);
+    assert.equal(ownerView.periodBudgets.length, 2);
+    assert.equal(ownerView.periodBudgets[1].memberId, "carlos");
+    assert.equal(ownerView.periodBudgets[1].memberName, "Carlos Pérez");
+    assert.equal(ownerView.budget.totalBudget, 10000);
+  });
 });

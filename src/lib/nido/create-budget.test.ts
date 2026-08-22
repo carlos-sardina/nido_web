@@ -115,6 +115,7 @@ describe("createBudgetWithAuth (unit, mocked auth adapter)", () => {
         assert.equal(args.p_household_id, "h1");
         assert.equal(args.p_start_date, "2026-08-01");
         assert.equal(args.p_end_date, "2026-08-31");
+        assert.equal(args.p_personal, false);
         assert.equal("p_created_by" in args, false);
         assert.equal("p_member_id" in args, false);
         assert.equal("p_user_id" in args, false);
@@ -123,6 +124,23 @@ describe("createBudgetWithAuth (unit, mocked auth adapter)", () => {
     });
     assert.equal(result.ok, true);
     if (result.ok) assert.equal(result.data.id, "b-99");
+  });
+
+  it("asks the RPC for a personal budget without sending member_id", async () => {
+    const result = await createBudgetWithAuth(
+      { ...validInput, personal: true },
+      {
+        getUserId: async () => "u1",
+        rpc: async (fn, args) => {
+          assert.equal(fn, "create_budget");
+          assert.equal(args.p_personal, true);
+          assert.equal("p_member_id" in args, false);
+          return { data: "b-personal", error: null };
+        },
+      },
+    );
+    assert.equal(result.ok, true);
+    if (result.ok) assert.equal(result.data.id, "b-personal");
   });
 });
 

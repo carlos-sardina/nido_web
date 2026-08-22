@@ -105,7 +105,7 @@ export async function getMyNidoState(
   const [profileRes, membershipsRes] = await Promise.all([
     auth.data.supabase
       .from("profiles")
-      .select("id, display_name, avatar_url")
+      .select("id, display_name, avatar_url, personal_visibility")
       .eq("id", user.id)
       .maybeSingle(),
     auth.data.supabase

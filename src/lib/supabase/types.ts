@@ -601,6 +601,7 @@ export type Database = {
           created_at: string
           display_name: string
           id: string
+          personal_visibility: Database["public"]["Enums"]["personal_visibility"]
           updated_at: string
         }
         Insert: {
@@ -608,6 +609,7 @@ export type Database = {
           created_at?: string
           display_name: string
           id: string
+          personal_visibility?: Database["public"]["Enums"]["personal_visibility"]
           updated_at?: string
         }
         Update: {
@@ -615,6 +617,7 @@ export type Database = {
           created_at?: string
           display_name?: string
           id?: string
+          personal_visibility?: Database["public"]["Enums"]["personal_visibility"]
           updated_at?: string
         }
         Relationships: []
@@ -966,6 +969,7 @@ export type Database = {
           p_category_id: string
           p_end_date: string
           p_household_id: string
+          p_personal?: boolean
           p_start_date: string
         }
         Returns: string
@@ -1188,6 +1192,25 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      update_personal_visibility: {
+        Args: {
+          p_visibility: Database["public"]["Enums"]["personal_visibility"]
+        }
+        Returns: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string
+          id: string
+          personal_visibility: Database["public"]["Enums"]["personal_visibility"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       update_household_name: {
         Args: { p_name: string }
         Returns: {
@@ -1300,6 +1323,7 @@ export type Database = {
       goal_type: "saving" | "purchase"
       household_role: "owner" | "member"
       household_split_method: "equal" | "proportional"
+      personal_visibility: "nido" | "private"
       recurrence_frequency: "weekly" | "biweekly" | "monthly" | "yearly"
     }
     CompositeTypes: {
@@ -1436,6 +1460,7 @@ export const Constants = {
       goal_type: ["saving", "purchase"],
       household_role: ["owner", "member"],
       household_split_method: ["equal", "proportional"],
+      personal_visibility: ["nido", "private"],
       recurrence_frequency: ["weekly", "biweekly", "monthly", "yearly"],
     },
   },

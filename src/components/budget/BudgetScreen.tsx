@@ -7,6 +7,8 @@ import { Heading, Text } from "@/components/nido/Typography";
 import {
   formatCompactMoney,
   formatMonthLabel,
+  isNidoBudget,
+  isPersonalBudget,
   type BudgetItemView,
 } from "@/lib/nido/financial";
 import type { DashboardQuery } from "@/lib/nido/use-dashboard";
@@ -24,19 +26,33 @@ function usageColor(item: BudgetItemView): string {
   return P.sageDk;
 }
 
+function firstName(name: string | null): string | null {
+  if (!name?.trim()) return null;
+  return name.trim().split(/\s+/).filter(Boolean)[0] ?? name;
+}
+
+function personalCaption(item: BudgetItemView, currentUserId: string | null): string {
+  if (item.memberId && item.memberId === currentUserId) return "Tú";
+  return firstName(item.memberName) ?? "Personal";
+}
+
 export function BudgetScreen({
   dashboard,
+  currentUserId,
   onClose,
   onOpenBudget,
   onCreateBudget,
 }: {
   dashboard: DashboardQuery;
+  currentUserId: string | null;
   onClose: () => void;
   onOpenBudget: (budget: BudgetItemView) => void;
   onCreateBudget: () => void;
 }) {
   const { isLoading, error, model, refresh } = dashboard;
   const budgets = model?.periodBudgets ?? [];
+  const nidoBudgets = budgets.filter(isNidoBudget);
+  const personalBudgets = budgets.filter(isPersonalBudget);
   const empty = Boolean(model && budgets.length === 0);
   const summary = model?.budget;
 
@@ -140,61 +156,24 @@ export function BudgetScreen({
               </div>
             ) : null}
 
-            {budgets.map((item) => {
-              const ratio = Math.min(100, item.usagePercent ?? 0);
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => onOpenBudget(item)}
-                  className="w-full rounded-2xl p-4 shadow-sm text-left active:scale-[0.99] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  style={{ backgroundColor: P.card }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0"
-                      style={{ backgroundColor: P.sub }}
-                    >
-                      {item.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-semibold truncate" style={{ color: P.text }}>
-                          {item.name}
-                        </span>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <span
-                            className="text-xs font-bold font-sans"
-                            style={{ color: item.over ? P.danger : P.text }}
-                          >
-                            {formatCompactMoney(item.spent)}
-                          </span>
-                          <span className="text-[9px]" style={{ color: P.muted }}>
-                            / {formatCompactMoney(item.amount)}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: P.sub }}>
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${ratio}%`,
-                            backgroundColor: usageColor(item),
-                          }}
-                        />
-                      </div>
-                      <p className="text-[10px] mt-1.5" style={{ color: usageColor(item) }}>
-                        {item.over
-                          ? `Excedido · ${formatCompactMoney(Math.abs(item.remaining))}`
-                          : item.nearLimit
-                            ? `Cerca del límite · ${formatCompactMoney(item.remaining)}`
-                            : `${formatCompactMoney(item.remaining)} restante · ${periodLabel(item)}`}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+            {nidoBudgets.length > 0 || personalBudgets.length > 0 ? (
+              <>
+                <BudgetSection
+                  title="Presupuestos del Nido"
+                  emptyLabel="No hay presupuestos del Nido este mes."
+                  items={nidoBudgets}
+                  currentUserId={currentUserId}
+                  onOpenBudget={onOpenBudget}
+                />
+                <BudgetSection
+                  title="Presupuestos personales"
+                  emptyLabel="No hay presupuestos personales visibles este mes."
+                  items={personalBudgets}
+                  currentUserId={currentUserId}
+                  onOpenBudget={onOpenBudget}
+                />
+              </>
+            ) : null}
 
             <Button variant="ghost" onClick={onCreateBudget}>
               Crear otro presupuesto
@@ -203,5 +182,109 @@ export function BudgetScreen({
         )}
       </div>
     </div>
+  );
+}
+
+function BudgetSection({
+  title,
+  emptyLabel,
+  items,
+  currentUserId,
+  onOpenBudget,
+}: {
+  title: string;
+  emptyLabel: string;
+  items: BudgetItemView[];
+  currentUserId: string | null;
+  onOpenBudget: (budget: BudgetItemView) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: P.muted }}>
+        {title}
+      </p>
+      {items.length === 0 ? (
+        <p className="text-[11px]" style={{ color: P.muted }}>
+          {emptyLabel}
+        </p>
+      ) : (
+        items.map((item) => (
+          <BudgetCard
+            key={item.id}
+            item={item}
+            currentUserId={currentUserId}
+            onOpen={() => onOpenBudget(item)}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+function BudgetCard({
+  item,
+  currentUserId,
+  onOpen,
+}: {
+  item: BudgetItemView;
+  currentUserId: string | null;
+  onOpen: () => void;
+}) {
+  const ratio = Math.min(100, item.usagePercent ?? 0);
+  const personal = isPersonalBudget(item);
+  const who = personal ? personalCaption(item, currentUserId) : null;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full rounded-2xl p-4 shadow-sm text-left active:scale-[0.99] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      style={{ backgroundColor: P.card }}
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0"
+          style={{ backgroundColor: P.sub }}
+        >
+          {item.icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-semibold truncate" style={{ color: P.text }}>
+              {personal
+                ? `${item.name} — ${formatCompactMoney(item.amount)}${who ? ` — ${who}` : ""}`
+                : item.name}
+            </span>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <span
+                className="text-xs font-bold font-sans"
+                style={{ color: item.over ? P.danger : P.text }}
+              >
+                {formatCompactMoney(item.spent)}
+              </span>
+              <span className="text-[9px]" style={{ color: P.muted }}>
+                / {formatCompactMoney(item.amount)}
+              </span>
+            </div>
+          </div>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: P.sub }}>
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${ratio}%`,
+                backgroundColor: usageColor(item),
+              }}
+            />
+          </div>
+          <p className="text-[10px] mt-1.5" style={{ color: usageColor(item) }}>
+            {item.over
+              ? `Excedido · ${formatCompactMoney(Math.abs(item.remaining))}`
+              : item.nearLimit
+                ? `Cerca del límite · ${formatCompactMoney(item.remaining)}`
+                : `${formatCompactMoney(item.remaining)} restante · ${periodLabel(item)}`}
+          </p>
+        </div>
+      </div>
+    </button>
   );
 }

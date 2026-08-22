@@ -218,10 +218,14 @@ Accepted invitations stay accepted even if they would also be expired.
 | Onboarding estimated expenses | initial monthly `budgets` (shared → Nido, personal → creator). Never `expenses`. |
 | Onboarding split preference | `households.default_split_method` (`equal` \| `proportional`) |
 | Confirmed expense | `expenses` + `expense_splits` via `create_expense` |
+| Personal visibility | `profiles.personal_visibility` (`nido` \| `private`, default `nido`) via `update_personal_visibility` |
+| Personal / Nido budgets | `create_budget` (`p_personal` → `member_id = auth.uid()`, default → NULL) |
 
 Auth identity still comes from Supabase Auth. The profile is the canonical application display name. Auth user metadata is not updated.
 
-Perfil shows that persisted name and lets the signed-in user edit `profiles.display_name` only. The write is the existing `updateMyDisplayName` path (`normalizeDisplayName` + `profiles` UPDATE). RLS remains `profiles_update_self` (`id = auth.uid()`). No RPC, column, or personal-expense model was added. After a successful save, the UI applies the normalized name with `applyProfileDisplayName` and does not reload the app.
+Perfil shows that persisted name and lets the signed-in user edit `profiles.display_name`. The write is the existing `updateMyDisplayName` path (`normalizeDisplayName` + `profiles` UPDATE). RLS remains `profiles_update_self` (`id = auth.uid()`). After a successful save, the UI applies the normalized name with `applyProfileDisplayName` and does not reload the app.
+
+Perfil also has **Visibilidad de mis datos personales**: **Visible al Nido** / **Solo yo**. That writes `profiles.personal_visibility` via `update_personal_visibility` (`auth.uid()` only). Default is `nido`. The same preference applies to personal expenses, personal budgets, and personal savings. Shared / Nido rows are unaffected. Privacy is enforced by RLS (`personal_finance_visible`), not only by React.
 
 ---
 
@@ -237,8 +241,8 @@ Live on Home, empty when the Nido has no financial rows:
 
 - confirmed incomes and expenses (ingresos and gastos registered from `+` are live)
 - goals and contribution progress
-- Nido budgets for the current month (create / edit / soft-delete from Home and `+`)
-- activity derived from expenses, incomes, and goal contributions (not budget mutations)
+- Nido and personal budgets for the current month (create / edit / soft-delete from Home and `+`; lists are separate)
+- activity derived from expenses, incomes, and goal contributions (not budget mutations). Activity stays derived. Private personal rows of other members never enter the snapshot.
 
 Not in this product and not pending 9.4 ([future.md](./future.md)):
 
@@ -264,13 +268,14 @@ The PostgREST client cannot run a multi-statement transaction. These operations 
 | `create_expense(...)` | `SECURITY INVOKER` | Expense + splits must be atomic. Split sums and personal cardinality are enforced here. RLS still applies. |
 | `create_goal(...)` / `update_goal` / `archive_goal` | `SECURITY INVOKER` | Goal definition. Only the creator may update or archive. |
 | `create_goal_contribution(...)` | `SECURITY INVOKER` | Any active member may contribute to an active goal of the same Nido. `member_id` and `created_by` are `auth.uid()`. |
-| `create_budget(...)` / `update_budget` / `soft_delete_budget` | `SECURITY INVOKER` | Nido-level monthly budget. Only the creator may update or soft-delete. Spent is not stored. |
+| `create_budget(...)` / `update_budget` / `soft_delete_budget` | `SECURITY INVOKER` | Monthly budget. `p_personal` true → `member_id = auth.uid()`; default → Nido (`NULL`). Only the creator may update or soft-delete. Spent is not stored. |
+| `update_personal_visibility(p_visibility)` | `SECURITY INVOKER` | Self only. Writes `profiles.personal_visibility` (`nido` \| `private`). Does not take a user id. |
 | `lookup_invitation(p_token)` | `SECURITY DEFINER` | Invitation SELECT is owner-only. Invitees and anonymous users need a name/status preview. |
 | `accept_invitation(p_token)` | `SECURITY DEFINER` | No client UPDATE on invitations and no client INSERT of a non-owner membership. |
 | `leave_household()` | `SECURITY DEFINER` | No client UPDATE on `household_members`. Last owner cannot leave. |
 | `transfer_household_ownership(p_new_owner_id)` | `SECURITY DEFINER` | No client UPDATE on `household_members`. Two role writes must be atomic. INVOKER would require an UPDATE policy that could leave a Nido without an owner. |
 
-`create_household` and `create_expense` live in `supabase/migrations/20260818000000_nido_household_lifecycle.sql` and `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`. Phase 9.4.1 (`20260822500000_nido_household_categories_split.sql`) adds `households.default_split_method` and the name / category / split RPCs, and updates `create_expense` for the household preference. Phase 9.4.2 (`20260822600000_nido_onboarding_savings_budgets.sql`) adds `savings_balances` and extends `create_household_with_onboarding_income`. Onboarding income persist was introduced in `supabase/migrations/20260822300000_nido_onboarding_financial.sql`. Owner transfer lives in `supabase/migrations/20260822000000_nido_owner_transfer.sql`. `SECURITY DEFINER` functions set `search_path = public`, require `auth.uid()`, and never take a user-supplied actor `user_id`. They do not bypass the one-active-Nido unique index.
+`create_household` and `create_expense` live in `supabase/migrations/20260818000000_nido_household_lifecycle.sql` and `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`. Phase 9.4.1 (`20260822500000_nido_household_categories_split.sql`) adds `households.default_split_method` and the name / category / split RPCs, and updates `create_expense` for the household preference. Phase 9.4.2 (`20260822600000_nido_onboarding_savings_budgets.sql`) adds `savings_balances` and extends `create_household_with_onboarding_income`. Phase 9.4.3 (`20260822700000_nido_personal_visibility.sql`) adds `profiles.personal_visibility`, `personal_finance_visible`, `update_personal_visibility`, and the personal path of `create_budget`. Onboarding income persist was introduced in `supabase/migrations/20260822300000_nido_onboarding_financial.sql`. Owner transfer lives in `supabase/migrations/20260822000000_nido_owner_transfer.sql`. `SECURITY DEFINER` functions set `search_path = public`, require `auth.uid()`, and never take a user-supplied actor `user_id`. They do not bypass the one-active-Nido unique index.
 
 There is no service-role client.
 
@@ -289,8 +294,10 @@ Code lives in `src/lib/nido/`.
 | `invitations.ts` | `createInvitation`, `listInvitations`, `cancelInvitation`, `lookupInvitation`, `acceptInvitation`, `completeJoinInvitation` |
 | `invitation-actions.ts` | `listInvitationsWithAuth`, `cancelInvitationWithAuth`, `listStatusFromClassification` |
 | `join-invitation.ts` | `joinDisplayNameDecision`, `completeJoinInvitationWithAuth` — name then a single `accept_invitation` |
-| `profile.ts` | `getMyProfile`, `updateMyDisplayName` |
+| `profile.ts` | `getMyProfile`, `updateMyDisplayName`, `updatePersonalVisibility` |
 | `update-display-name.ts` | `updateMyDisplayNameWithAuth`, `canSubmitDisplayName` |
+| `personal-visibility.ts` | `PersonalVisibility`, `DEFAULT_PERSONAL_VISIBILITY`, `canReadPersonalFinance` |
+| `update-personal-visibility.ts` | `updatePersonalVisibilityWithAuth`, `canSubmitPersonalVisibility` |
 | `rules.ts` | Pure classification and token helpers |
 | `invitation-copy.ts` | Safe invitation status copy for `/join/<token>` |
 | `transient-retry.ts` | Bounded retry for `useMyNido` transient `network` / session-establishment errors |

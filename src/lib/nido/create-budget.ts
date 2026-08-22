@@ -19,7 +19,8 @@ export type CreateBudgetAuth = {
  * Takes an auth adapter so unit tests do not load the Supabase browser client.
  *
  * created_by and member_id are never taken from the client. The RPC derives
- * created_by from auth.uid() and always writes member_id NULL.
+ * created_by from auth.uid() and writes member_id = auth.uid() only when
+ * personal is true.
  */
 export async function createBudgetWithAuth(
   input: CreateBudgetRequest,
@@ -37,6 +38,7 @@ export async function createBudgetWithAuth(
     p_amount: payload.data.amount,
     p_start_date: payload.data.startDate,
     p_end_date: payload.data.endDate,
+    p_personal: payload.data.personal,
   });
 
   if (error) return nidoFail(nidoErrorFromUnknown(error).code);

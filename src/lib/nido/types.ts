@@ -1,7 +1,8 @@
 import type { Tables } from "@/lib/supabase/types";
+import type { PersonalVisibility } from "./personal-visibility";
 import type { HouseholdSplitMethod } from "./split-method";
 
-export type { HouseholdSplitMethod };
+export type { HouseholdSplitMethod, PersonalVisibility };
 
 export type Household = Tables<"households">;
 export type SavingsBalance = Tables<"savings_balances">;
@@ -51,7 +52,7 @@ export type MyNidoState = {
   household: Household | null;
   membership: HouseholdMember | null;
   members: HouseholdMemberView[];
-  profile: Pick<Profile, "id" | "display_name" | "avatar_url"> | null;
+  profile: Pick<Profile, "id" | "display_name" | "avatar_url" | "personal_visibility"> | null;
   historicalCount: number;
 };
 
@@ -75,6 +76,7 @@ export type NidoErrorCode =
   | "invalid_description"
   | "invalid_category"
   | "invalid_split"
+  | "invalid_visibility"
   | "invalid_date"
   | "expense_not_found"
   | "expense_deleted"

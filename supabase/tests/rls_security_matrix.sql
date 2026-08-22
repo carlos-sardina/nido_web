@@ -11,7 +11,7 @@
 --      goal contribution edit / soft-delete, income mutations,
 --      budget mutations, owner transfer, recurrence mutations,
 --      onboarding financial persist, household categories/split,
---      onboarding savings / budgets)
+--      onboarding savings / budgets, personal visibility)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -5403,6 +5403,315 @@ BEGIN
         v_today,
         v_rita
       )
+    )
+  );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Phase 9.4.3 — personal visibility (V01–V22)
+-- Default is nido, so earlier SELECT cases stay valid until this block
+-- flips Carlos to private and back.
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_cat_expense_a uuid;
+  v_expense_a uuid;
+  v_split_a uuid;
+  v_budget_a uuid;
+  v_shared_expense uuid := 'f1111111-1111-4111-8111-111111111111';
+  v_personal_budget uuid := 'f2222222-2222-4222-8222-222222222222';
+  v_personal_savings uuid := 'f3333333-3333-4333-8333-333333333333';
+  v_shared_savings uuid := 'f4444444-4444-4444-8444-444444444444';
+  v_created_personal uuid;
+  v_created_nido uuid;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+  SELECT id INTO v_cat_expense_a FROM rls_ids WHERE key = 'cat_expense_a';
+  SELECT id INTO v_expense_a FROM rls_ids WHERE key = 'expense_a';
+  SELECT id INTO v_split_a FROM rls_ids WHERE key = 'split_a';
+  SELECT id INTO v_budget_a FROM rls_ids WHERE key = 'budget_a';
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+
+  INSERT INTO public.expenses (
+    id, household_id, category_id, amount, occurred_at, payer_id,
+    scope, distribution_method, created_by
+  ) VALUES (
+    v_shared_expense, v_nido_a, v_cat_expense_a, 120, DATE '2026-01-21', v_carlos,
+    'shared', 'equal', v_carlos
+  );
+
+  INSERT INTO public.expense_splits (
+    expense_id, member_id, amount, percentage
+  ) VALUES
+    (v_shared_expense, v_carlos, 60, 50),
+    (v_shared_expense, v_diana, 60, 50);
+
+  INSERT INTO public.budgets (
+    id, household_id, member_id, category_id, amount, period,
+    start_date, end_date, created_by
+  ) VALUES (
+    v_personal_budget, v_nido_a, v_carlos, v_cat_expense_a, 200, 'monthly',
+    DATE '2026-01-01', DATE '2026-01-31', v_carlos
+  );
+
+  INSERT INTO public.savings_balances (
+    id, household_id, member_id, amount, recorded_at, created_by
+  ) VALUES
+    (v_personal_savings, v_nido_a, v_carlos, 1500, DATE '2026-01-21', v_carlos),
+    (v_shared_savings, v_nido_a, NULL, 2000, DATE '2026-01-21', v_carlos);
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'V01', 'Carlos', 'A', 'active', 'owner can update own personal_visibility',
+    'allow',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.update_personal_visibility('private')
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.record_result(
+    'V02', 'Carlos', 'A', 'active', 'cannot update another member personal_visibility',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        UPDATE public.profiles
+        SET personal_visibility = 'private'
+        WHERE id = %L
+      $sql$,
+      v_diana
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'V03', 'Carlos', 'A', 'active', 'owner reads own private personal expense',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expenses WHERE id = %L', v_expense_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'V04', 'Diana', 'A', 'active', 'peer cannot read private personal expense',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expenses WHERE id = %L', v_expense_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'V05', 'Diana', 'A', 'active', 'peer cannot read splits of a private personal expense',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expense_splits WHERE expense_id = %L', v_expense_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'V06', 'Diana', 'A', 'active', 'peer still reads shared expense when owner is private',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expenses WHERE id = %L', v_shared_expense
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'V07', 'Luis', 'A', 'other Nido', 'other Nido cannot read personal expense',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expenses WHERE id = %L', v_expense_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'V08', 'Carlos', 'A', 'active', 'owner reads own private personal budget',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.budgets WHERE id = %L', v_personal_budget
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'V09', 'Diana', 'A', 'active', 'peer cannot read private personal budget',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.budgets WHERE id = %L', v_personal_budget
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'V10', 'Diana', 'A', 'active', 'peer still reads Nido budget when owner is private',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.budgets WHERE id = %L', v_budget_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'V11', 'Carlos', 'A', 'active', 'owner reads own private personal savings',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.savings_balances WHERE id = %L', v_personal_savings
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'V12', 'Diana', 'A', 'active', 'peer cannot read private personal savings',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.savings_balances WHERE id = %L', v_personal_savings
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'V13', 'Diana', 'A', 'active', 'peer still reads shared savings when owner is private',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.savings_balances WHERE id = %L', v_shared_savings
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'V14', 'Carlos', 'A', 'active', 'owner can restore visibility to nido',
+    'allow',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.update_personal_visibility('nido')
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'V15', 'Diana', 'A', 'active', 'peer reads personal expense when nido',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expenses WHERE id = %L', v_expense_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'V16', 'Diana', 'A', 'active', 'peer reads personal budget when nido',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.budgets WHERE id = %L', v_personal_budget
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'V17', 'Diana', 'A', 'active', 'peer reads personal savings when nido',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.savings_balances WHERE id = %L', v_personal_savings
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'V18', 'Luis', 'A', 'other Nido', 'other Nido still cannot read personal nido rows',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expenses WHERE id = %L', v_expense_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.create_budget(
+    v_nido_a,
+    v_cat_expense_a,
+    250,
+    DATE '2026-08-01',
+    DATE '2026-08-31',
+    true
+  ) INTO v_created_personal;
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  PERFORM pg_temp.record_result(
+    'V19', 'Carlos', 'A', 'active', 'create_budget personal writes member_id = caller',
+    'allow',
+    CASE WHEN EXISTS (
+      SELECT 1 FROM public.budgets
+      WHERE id = v_created_personal
+        AND member_id = v_carlos
+        AND created_by = v_carlos
+        AND deleted_at IS NULL
+    ) THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.create_budget(
+    v_nido_a,
+    v_cat_expense_a,
+    400,
+    DATE '2026-09-01',
+    DATE '2026-09-30'
+  ) INTO v_created_nido;
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  PERFORM pg_temp.record_result(
+    'V20', 'Carlos', 'A', 'active', 'create_budget default remains Nido-level',
+    'allow',
+    CASE WHEN EXISTS (
+      SELECT 1 FROM public.budgets
+      WHERE id = v_created_nido
+        AND member_id IS NULL
+        AND created_by = v_carlos
+        AND deleted_at IS NULL
+    ) THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'V21', 'Carlos', 'A', 'active', 'cannot insert a personal budget for another member',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.budgets (
+          household_id, member_id, category_id, amount, period,
+          start_date, end_date, created_by
+        ) VALUES (
+          %L, %L, %L, 90, 'monthly',
+          DATE '2026-10-01', DATE '2026-10-31', %L
+        )
+      $sql$,
+      v_nido_a,
+      v_diana,
+      v_cat_expense_a,
+      v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.clear_auth();
+  PERFORM pg_temp.record_result(
+    'V22', 'none', '-', 'none', 'unauthenticated cannot update visibility',
+    'deny',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.update_personal_visibility('private')
+      $sql$
     )
   );
 END;

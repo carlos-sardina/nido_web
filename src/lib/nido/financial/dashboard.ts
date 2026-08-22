@@ -1,6 +1,6 @@
 import type { HouseholdMemberView } from "../types.ts";
 import { buildActivityItems } from "./activity.ts";
-import { buildMonthBudgetView } from "./budgets.ts";
+import { buildBudgetItemView, buildMonthBudgetView, visiblePeriodBudgets } from "./budgets.ts";
 import { greetingForNow, type MonthRange } from "./dates.ts";
 import { householdSpent, isActiveExpense, visiblePeriodExpenses } from "./expenses.ts";
 import {
@@ -56,6 +56,11 @@ export function buildDashboardViewModel(input: {
     snapshot.contributions.filter(isActiveContribution).length > 0 ||
     snapshot.budgets.length > 0;
 
+  const periodBudgetRows = visiblePeriodBudgets(
+    snapshot.budgets,
+    range,
+    snapshot.householdId,
+  );
   const budget = buildMonthBudgetView(snapshot.budgets, periodExpenses, range);
   const health = computeHealth({
     incomeThisMonth: periodIncome,
@@ -105,14 +110,19 @@ export function buildDashboardViewModel(input: {
     periodIncomes,
     recentExpenses,
     recentIncomes,
-    periodBudgets: budget.items,
+    periodBudgets: periodBudgetRows.map((row) =>
+      buildBudgetItemView(row, periodExpenses, members),
+    ),
     activity,
     empty: {
       expenses: periodExpenses.length === 0 && recentExpenses.length === 0,
       incomes: periodIncomes.length === 0 && recentIncomes.length === 0,
       goals: activeGoals.length === 0,
       activity: activity.length === 0,
-      budget: !budget.hasBudget && budget.totalSpent === 0,
+      budget:
+        !budget.hasBudget &&
+        periodBudgetRows.length === 0 &&
+        budget.totalSpent === 0,
     },
   };
 }

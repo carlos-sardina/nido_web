@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { cn } from "@/app/components/ui/utils";
 import { Button } from "@/components/nido/Button";
+import { ChoiceCard } from "@/components/nido/ChoiceCard";
 import { EmptyState } from "@/components/nido/EmptyState";
 import {
   Field,
@@ -39,6 +40,7 @@ export type BudgetFormValue = {
   categoryId: string;
   amount: number;
   startDate: string;
+  memberId?: string | null;
 };
 
 export function BudgetFlow({
@@ -61,6 +63,7 @@ export function BudgetFlow({
     budget ? amountToBudgetInput(budget.amount) : "",
   );
   const [categoryId, setCategoryId] = useState(() => budget?.categoryId ?? "");
+  const [personal, setPersonal] = useState(() => Boolean(budget?.memberId));
   const [month, setMonth] = useState(
     () => budgetMonthInput(budget?.startDate ?? getCurrentMonthRange().start),
   );
@@ -131,6 +134,7 @@ export function BudgetFlow({
       categoryId,
       amount: parsedAmount,
       startDate: range.start,
+      personal,
       activeMemberIds: members.map((member) => member.userId),
       allowedCategoryIds: categories.map((category) => category.id),
     };
@@ -180,8 +184,10 @@ export function BudgetFlow({
               title={isEditing ? "Editar presupuesto" : "Crear un presupuesto"}
               description={
                 isEditing
-                  ? "El límite se guarda en tu Nido activo. El gasto se calcula de tus gastos reales."
-                  : "El límite se guarda en tu Nido activo. El gasto se calcula de tus gastos reales."
+                  ? personal
+                    ? "Este es tu presupuesto personal. Solo tú puedes editarlo."
+                    : "Este es un presupuesto del Nido. El gasto se calcula de tus gastos reales."
+                  : "Elige si el límite es del Nido o solo tuyo. El gasto se calcula de tus gastos reales."
               }
             />
           </div>
@@ -195,6 +201,28 @@ export function BudgetFlow({
             {errors.form ? (
               <FieldError id={`${ids}-form-error`}>{errors.form}</FieldError>
             ) : null}
+
+            <Field>
+              <p className="mb-2 text-label font-semibold text-muted-foreground">
+                Tipo
+              </p>
+              <div className="space-y-2">
+                <ChoiceCard
+                  title="Presupuesto del Nido"
+                  description="Visible para los miembros de tu Nido."
+                  selected={!personal}
+                  disabled={submitting || isEditing}
+                  onClick={() => setPersonal(false)}
+                />
+                <ChoiceCard
+                  title="Presupuesto personal"
+                  description="Es tuyo. La visibilidad sigue tu preferencia de Perfil."
+                  selected={personal}
+                  disabled={submitting || isEditing}
+                  onClick={() => setPersonal(true)}
+                />
+              </div>
+            </Field>
 
             <Field>
               <MoneyField

@@ -94,6 +94,7 @@ Application identity for a Supabase user.
 | `id` | `uuid` PK | References `auth.users.id`. ON DELETE CASCADE. |
 | `display_name` | `text` NOT NULL | |
 | `avatar_url` | `text` nullable | |
+| `personal_visibility` | `personal_visibility` | `nido` or `private`. Default `nido`. One global setting for personal expenses, personal budgets, and personal savings. |
 | `created_at` | `timestamptz` | |
 | `updated_at` | `timestamptz` | Maintained by trigger. |
 
@@ -307,7 +308,7 @@ Confirmed expense transactions.
 | `updated_at` | `timestamptz` | |
 | `deleted_at` | `timestamptz` nullable | Soft delete. |
 
-Personal and shared expenses use this same table. There is no separate personal-expense model.
+Personal and shared expenses use this same table. There is no separate personal-expense model. There is no `visibility` column on expenses. Personal SELECT uses `profiles.personal_visibility` of `created_by` (9.4.3). Shared expenses stay visible to household members regardless of that setting. `expense_splits` inherit the parent expense SELECT.
 
 A shared expense does not automatically include every Nido member. Participants are exactly the rows in `expense_splits`.
 
@@ -370,6 +371,8 @@ At most one **live** budget exists per `(household_id, category_id, member_id, s
 
 Physical DELETE is not granted. Do not hard-delete a budget; set `deleted_at`.
 
+`create_budget(..., p_personal := true)` writes `member_id = auth.uid()`. The default path stays Nido-level (`member_id` NULL). Personal SELECT follows `profiles.personal_visibility` of `member_id`. Nido budgets stay visible to household members. INSERT rejects `member_id` of another user.
+
 ### 3.13 `goals`
 
 Nido-level objectives.
@@ -428,7 +431,7 @@ Current savings stock. Added in 9.4.2. Not an income, expense, goal, or contribu
 
 One row per `(household_id, member_id)` (`UNIQUE NULLS NOT DISTINCT`). Update in place later; do not append fake movements. There is no `onboarding_id`: retry after a finished create returns the existing Nido and does not insert again.
 
-Personal-visibility RLS is **not** applied yet (9.4.3). SELECT follows the current member-read model.
+Personal SELECT follows `profiles.personal_visibility` of `member_id` (9.4.3). Shared (`member_id` NULL) stays visible to household members. The owner always reads their own row.
 
 ---
 
@@ -438,6 +441,7 @@ Personal-visibility RLS is **not** applied yet (9.4.3). SELECT follows the curre
 | --- | --- | --- |
 | `household_role` | `owner`, `member` | `household_members.role` |
 | `household_split_method` | `equal`, `proportional` | `households.default_split_method`. Product names only. Not `capacity`. Maps to `distribution_method` `equal` or `income_based` on new shared expenses. |
+| `personal_visibility` | `nido`, `private` | `profiles.personal_visibility`. Default `nido`. Applies to personal expenses, personal budgets, and personal savings. Shared / Nido rows ignore it. |
 | `category_type` | `income`, `expense` | `categories.type` |
 | `recurrence_frequency` | `weekly`, `biweekly`, `monthly`, `yearly` | `recurring_incomes.frequency`, `recurring_expenses.frequency` |
 | `expense_scope` | `personal`, `shared` | `expenses.scope`, `recurring_expenses.scope` |
@@ -933,7 +937,7 @@ Still deferred (not 9.4 unless [phase-9.4.md](./phase-9.4.md) says otherwise):
 9. **Stored `requires_review` flag** — derived at materialize time instead.
 10. **Separate pause vs archive on recurring rules** — `is_active` covers both for now.
 
-Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): personal budgets UI + visibility (9.4.3), budget consumption (9.4.4), refunds, derived monthly balance / settlements, pull-to-refresh. 9.4.1 (name, initials, categories, split column) and 9.4.2 (onboarding persist) are implemented.
+Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): budget consumption (9.4.4), refunds, derived monthly balance / settlements, pull-to-refresh. 9.4.1–9.4.3 (name, initials, categories, split column, onboarding persist, personal budgets + visibility) are implemented.
 
 Moved to **[future.md](./future.md)** (not pending 9.4): multi-currency, notifications, activity-feed persistence, insights, Google OAuth, image avatars, Realtime, receipts, email invitations, recurring budgets, push.
 
@@ -950,6 +954,7 @@ Moved to **[future.md](./future.md)** (not pending 9.4): multi-currency, notific
 - Onboarding income persist: `supabase/migrations/20260822300000_nido_onboarding_financial.sql` (`create_household_with_onboarding_income`)
 - Household name / categories / split preference: `supabase/migrations/20260822500000_nido_household_categories_split.sql`
 - Onboarding savings + estimates → budgets: `supabase/migrations/20260822600000_nido_onboarding_savings_budgets.sql` (`savings_balances`; extends the onboarding RPC)
+- Personal visibility + personal budgets: `supabase/migrations/20260822700000_nido_personal_visibility.sql` (`profiles.personal_visibility`, `personal_finance_visible`, `update_personal_visibility`, `create_budget` personal path)
 - 9.4.1 and 9.4.2 are local migrations. They were **not** applied to remote by this phase.
 - Security model: [docs/security.md](./security.md)
 - Application clients: [docs/supabase.md](./supabase.md)

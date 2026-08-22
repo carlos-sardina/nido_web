@@ -2,7 +2,7 @@
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
-Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1** and **9.4.2** are implemented. 9.4.3–9.4.9 are not. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
+Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1**, **9.4.2**, and **9.4.3** are implemented. 9.4.4–9.4.9 are not. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
 
 Phase 9.2.3 is the QA close of this integration. It does not add tables, columns, or product surfaces. The source of truth is the current code, the applied migrations on `nido_dev`, the RLS matrix, and the unit tests — not earlier “pending” notes in this file.
 
@@ -12,7 +12,8 @@ Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar
 - spent is `SUM(expenses.amount)` for the same household, category, and calendar range, with `deleted_at IS NULL`
 - there is no `current_spent`, remaining, or percentage column
 - `recurring_expenses` templates are never added to spent
-- any active member may create a Nido-level budget (`member_id` NULL, `created_by = auth.uid()`)
+- any active member may create a Nido-level budget (`member_id` NULL) or their own personal budget (`member_id = auth.uid()` via `p_personal`; never another member’s id)
+- personal SELECT follows `profiles.personal_visibility`; Nido / shared rows stay visible to the household
 - only the creator may update or soft-delete a live budget
 - period is monthly calendar dates in `America/Mexico_City` (`start_date` first day, `end_date` last day)
 
@@ -107,7 +108,9 @@ There is no `balances` table, no `current_amount` on goals, and no `current_spen
 
 Household dashboard spent uses `expenses.amount` (the Nido’s outflow). A member’s share uses `expense_splits`. Personal vs shared is `expenses.scope`. Recurring vs one-off is `recurring_id`. `recurring_expenses` templates are never added to period spent.
 
-Nido-level budgets (`member_id IS NULL`) overlapping the current month feed “Presupuesto del mes”. `budgets.amount` is a planning target, not a spending cap. Personal budgets (`member_id` set) remain in the schema and are excluded from Home / Presupuestos totals until phase 9.4. Recurring budgets will not be implemented ([future.md](./future.md)).
+Nido-level budgets (`member_id IS NULL`) overlapping the current month feed “Presupuesto del mes” on Home. `budgets.amount` is a planning target, not a spending cap. Personal budgets (`member_id = auth.uid()`) appear under **Presupuestos personales** and do not mix into the Nido monthly total. Recurring budgets will not be implemented ([future.md](./future.md)).
+
+`profiles.personal_visibility` (`nido` \| `private`, default `nido`) is one global setting. It applies to personal expenses, personal budgets, and personal savings. Shared / Nido rows ignore it. RLS is the authority: a peer cannot SELECT another member’s personal rows when that member is `private`. Dashboard, health, and derived Activity only see rows the viewer is allowed to read. Activity stays derived (no activity table).
 
 The canonical spent helper is `budgetSpent()` in `src/lib/nido/financial/budgets.ts`.
 
@@ -228,7 +231,7 @@ After success the form closes and Home/Gastos refresh the live snapshot. Totals,
 
 ## Authorization (product contract)
 
-Only the **creator** of an expense may edit or soft-delete it. Other members of the Nido may read it. This applies to personal and shared expenses.
+Only the **creator** of an expense may edit or soft-delete it. Shared expenses are readable by household members. Personal expenses are readable by the owner always, and by other household members only when the owner’s `personal_visibility = nido`.
 
 Authority:
 
@@ -239,8 +242,8 @@ The UI hides Editar/Eliminar for non-creators. That is not sufficient. RLS and R
 | Actor | SELECT | UPDATE / soft-delete |
 | --- | --- | --- |
 | Active member, creator | yes | yes, if `deleted_at` is null |
-| Active member, not creator | yes | no |
-| Historical member | yes (existing SELECT policy) | no |
+| Active member, not creator | shared always; personal only if owner is `nido` | no |
+| Historical member | shared always; personal if own or owner is `nido` | no |
 | Other household | no | no |
 
 ---
@@ -491,7 +494,7 @@ After success the `nido.onboardingDraft` key is cleared. Home reads the same `us
 
 No records → empty copy, not prototype numbers.
 
-A newly created Nido has default **expense and income categories**. If the user declared a monthly income greater than zero, Home / Ingresos / Actividad show that one `incomes` row (category **Sueldo**, description **Ingreso mensual neto**, `occurred_at` = today in `America/Mexico_City`). Amount `0` writes no income. Selected estimates become current-month budgets (Nido budgets appear on Home / Presupuestos; personal budgets have no UI yet). Savings stock has no Home metric UI yet. Patrimonio / meses de emergencia are not computed in 9.4.2.
+A newly created Nido has default **expense and income categories**. If the user declared a monthly income greater than zero, Home / Ingresos / Actividad show that one `incomes` row (category **Sueldo**, description **Ingreso mensual neto**, `occurred_at` = today in `America/Mexico_City`). Amount `0` writes no income. Selected estimates become current-month budgets (Nido and personal appear on Presupuestos; Home totals stay Nido-level). Savings stock has no Home metric UI yet. Patrimonio / meses de emergencia are not computed in 9.4.3.
 
 ---
 

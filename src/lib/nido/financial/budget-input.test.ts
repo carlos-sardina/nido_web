@@ -89,7 +89,17 @@ describe("buildCreateBudgetPayload", () => {
       assert.equal(payload.data.startDate, "2026-08-01");
       assert.equal(payload.data.endDate, "2026-08-31");
       assert.equal(payload.data.categoryId, "cat-expense");
+      assert.equal(payload.data.personal, false);
       assert.equal("createdBy" in payload.data, false);
+      assert.equal("memberId" in payload.data, false);
+    }
+  });
+
+  it("marks a personal budget without accepting a client member_id", () => {
+    const payload = buildCreateBudgetPayload(request({ personal: true }), "carlos");
+    assert.equal(payload.ok, true);
+    if (payload.ok) {
+      assert.equal(payload.data.personal, true);
       assert.equal("memberId" in payload.data, false);
     }
   });

@@ -617,4 +617,16 @@ Phase 9.4.2 (onboarding persist: savings stock + estimates → budgets + split p
 - Manual onboarding UI smoke (16 cases) is **BLOCKED**. This environment cannot operate the app with a real browser session. Do not treat unit/build success as a UI pass.
 - Verdict: **CASI CERRADA**. Implementation and unit/build checks are complete; UI smoke and the live RLS matrix remain open.
 
+Phase 9.4.3 (personal budgets UI + global visibility) against the repo on 2026-08-22:
+
+- New migration `20260822700000_nido_personal_visibility.sql`: enum `personal_visibility` (`nido` \| `private`), `profiles.personal_visibility` default `nido`, helper `personal_finance_visible` (SECURITY DEFINER, `search_path = public`), `update_personal_visibility` (SECURITY INVOKER, self only), `create_budget` extended with `p_personal` (`member_id = auth.uid()` or NULL). SELECT policies on `expenses`, `expense_splits`, `budgets`, and `savings_balances` honor the setting. Personal budget INSERT rejects another member’s `member_id`.
+- One global setting applies to personal expenses, personal budgets, and personal savings. Shared / Nido rows are unchanged. Activity stays derived. Dashboard aggregates only see RLS-authorized rows.
+- UI: Presupuestos del Nido / Presupuestos personales; Perfil **Visible al Nido** / **Solo yo**.
+- Unit tests 741 passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 15 tables (includes `personal_finance_visible`).
+- Local Docker / `supabase start` is not available in this environment, so the migration was **not** applied to a running database here. `supabase db push` against `nido_dev` was **not** run (project procedure). Remote still has the previous 14 migrations until the team applies 9.4.1–9.4.3.
+- RLS matrix cases `V01`–`V22` are in `rls_security_matrix.sql` (ROLLBACK). Do not treat them as executed.
+- **Departamento** and **Nido Smoke 924** were not modified. No temporary users, invitations, or permanent seeds.
+- Manual Perfil / Presupuestos UI smoke is **BLOCKED**. This environment cannot operate the app with a real browser session. Do not treat unit/build success as a UI pass.
+- Verdict: **CASI CERRADA**. Implementation and unit/build checks are complete; UI smoke and the live RLS matrix remain open.
+
 Do not record production results here unless they were performed.

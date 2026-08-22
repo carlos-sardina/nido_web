@@ -164,6 +164,16 @@ export function BudgetDetail({
                   label="Categoría"
                   value={`${budget.icon} ${budget.name}`}
                 />
+                <DetailRow
+                  label="Tipo"
+                  value={
+                    budget.memberId
+                      ? budget.memberId === currentUserId
+                        ? "Presupuesto personal"
+                        : `Presupuesto personal · ${budget.memberName?.split(/\s+/)[0] ?? "Miembro"}`
+                      : "Presupuesto del Nido"
+                  }
+                />
                 <DetailRow label="Periodo" value={periodLabel(budget)} />
                 {budget.usagePercent != null ? (
                   <DetailRow label="Uso" value={`${budget.usagePercent}%`} />

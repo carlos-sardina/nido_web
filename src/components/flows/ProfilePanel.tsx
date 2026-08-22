@@ -1,16 +1,42 @@
 import { useRef, useState } from "react";
 import { ChevronLeft } from "lucide-react";
+import { ChoiceCard } from "@/components/nido/ChoiceCard";
+import { Text } from "@/components/nido/Typography";
 import type { AuthIdentity } from "@/lib/auth/identity";
 import { canSubmitLeave } from "@/lib/nido/leave-household";
 import { leaveHousehold } from "@/lib/nido/membership";
-import { canSubmitDisplayName, updateMyDisplayName } from "@/lib/nido/profile";
+import type { PersonalVisibility } from "@/lib/nido/personal-visibility";
+import {
+  canSubmitDisplayName,
+  canSubmitPersonalVisibility,
+  updateMyDisplayName,
+  updatePersonalVisibility,
+} from "@/lib/nido/profile";
 import type { HouseholdRole } from "@/lib/nido/types";
 import { P } from "@/lib/palette";
+
+const VISIBILITY_OPTIONS: Array<{
+  value: PersonalVisibility;
+  title: string;
+  description: string;
+}> = [
+  {
+    value: "nido",
+    title: "Visible al Nido",
+    description: "Los miembros de tu Nido pueden ver tus gastos, presupuestos y ahorros personales.",
+  },
+  {
+    value: "private",
+    title: "Solo yo",
+    description: "Solo tú puedes ver tus datos personales.",
+  },
+];
 
 type NameStatus = "idle" | "editing" | "saving" | "success" | "error";
 
 export function ProfilePanel({
   identity,
+  personalVisibility,
   householdName,
   role,
   isLastOwner,
@@ -19,9 +45,11 @@ export function ProfilePanel({
   onLogout,
   onLeft,
   onDisplayNameSaved,
+  onVisibilitySaved,
   signingOut = false,
 }: {
   identity: AuthIdentity | null;
+  personalVisibility: PersonalVisibility;
   householdName: string;
   role: HouseholdRole;
   isLastOwner: boolean;
@@ -30,6 +58,7 @@ export function ProfilePanel({
   onLogout: () => void;
   onLeft: () => void;
   onDisplayNameSaved: (displayName: string) => void;
+  onVisibilitySaved: (visibility: PersonalVisibility) => void;
   signingOut?: boolean;
 }) {
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -38,7 +67,12 @@ export function ProfilePanel({
   const [nameStatus, setNameStatus] = useState<NameStatus>("idle");
   const [draftName, setDraftName] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
+  const [visibility, setVisibility] = useState<PersonalVisibility>(personalVisibility);
+  const [visibilitySaving, setVisibilitySaving] = useState(false);
+  const [visibilityError, setVisibilityError] = useState<string | null>(null);
+  const [visibilitySuccess, setVisibilitySuccess] = useState<string | null>(null);
   const savingRef = useRef(false);
+  const visibilityRef = useRef(false);
 
   const displayedName = identity?.displayName ?? "Usuario";
   const saving = nameStatus === "saving";
@@ -71,6 +105,36 @@ export function ProfilePanel({
     onDisplayNameSaved(result.data.display_name);
     setDraftName(result.data.display_name);
     setNameStatus("success");
+  };
+
+  const saveVisibility = async (next: PersonalVisibility) => {
+    if (!canSubmitPersonalVisibility(visibilitySaving) || visibilityRef.current) return;
+    setVisibility(next);
+    if (next === personalVisibility) {
+      setVisibilityError(null);
+      return;
+    }
+
+    visibilityRef.current = true;
+    setVisibilitySaving(true);
+    setVisibilityError(null);
+    setVisibilitySuccess(null);
+    const result = await updatePersonalVisibility(next);
+    visibilityRef.current = false;
+    setVisibilitySaving(false);
+    if (result.ok === false) {
+      setVisibility(personalVisibility);
+      setVisibilityError(result.error.message);
+      return;
+    }
+    const saved = result.data.personal_visibility;
+    setVisibility(saved);
+    onVisibilitySaved(saved);
+    setVisibilitySuccess(
+      saved === "private"
+        ? "Tus datos personales ahora son solo tuyos."
+        : "Tus datos personales ahora son visibles al Nido.",
+    );
   };
 
   return (
@@ -165,6 +229,35 @@ export function ProfilePanel({
           <div className="mt-2 px-3 py-1 rounded-full text-[10px] font-semibold" style={{ backgroundColor: P.sagePl, color: P.brnDp }}>
             Nido: {householdName} · {role === "owner" ? "Propietario" : "Miembro"}
           </div>
+        </div>
+
+        <div className="px-6 mb-5 space-y-3">
+          <Text size="label">Visibilidad de mis datos personales</Text>
+          <Text size="caption" tone="muted" className="leading-relaxed">
+            Una sola preferencia para tus gastos, presupuestos y ahorros personales. Los datos compartidos del Nido no cambian.
+          </Text>
+          <div className="space-y-2">
+            {VISIBILITY_OPTIONS.map((option) => (
+              <ChoiceCard
+                key={option.value}
+                title={option.title}
+                description={option.description}
+                selected={visibility === option.value}
+                disabled={visibilitySaving}
+                onClick={() => { void saveVisibility(option.value); }}
+              />
+            ))}
+          </div>
+          {visibilitySuccess && (
+            <p className="text-[11px]" role="status" style={{ color: P.sage }}>
+              {visibilitySuccess}
+            </p>
+          )}
+          {visibilityError && (
+            <p className="text-[11px]" role="alert" style={{ color: P.danger }}>
+              {visibilityError}
+            </p>
+          )}
         </div>
 
         {/* Leave + logout */}

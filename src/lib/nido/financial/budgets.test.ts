@@ -203,4 +203,35 @@ describe("budget visibility and mutation", () => {
     assert.equal(canMutateBudget(live, null), false);
     assert.equal(canMutateBudget(deleted, "carlos"), false);
   });
+
+  it("does not let a member mutate another member's personal budget", () => {
+    const personal = budget({
+      amount: 200,
+      categoryId: "spotify",
+      createdBy: "carlos",
+      memberId: "carlos",
+    });
+    assert.equal(canMutateBudget(personal, "carlos"), true);
+    assert.equal(canMutateBudget(personal, "diana"), false);
+    assert.equal(
+      canMutateBudget({ ...personal, createdBy: "diana", memberId: "carlos" }, "diana"),
+      false,
+    );
+  });
+
+  it("lists personal budgets in the period list without mixing them into Nido totals", () => {
+    const nido = budget({ amount: 20000, categoryId: "rent" });
+    const personal = budget({
+      id: "b-me",
+      amount: 200,
+      categoryId: "spotify",
+      memberId: "carlos",
+      category: { id: "spotify", name: "Spotify", icon: "🎵" },
+    });
+    const listed = visiblePeriodBudgets([nido, personal], range, "h1");
+    assert.equal(listed.length, 2);
+    assert.equal(listed[0].memberId, null);
+    assert.equal(listed[1].memberId, "carlos");
+    assert.equal(buildMonthBudgetView([nido, personal], [], range).totalBudget, 20000);
+  });
 });

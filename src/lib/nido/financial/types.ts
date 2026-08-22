@@ -217,6 +217,7 @@ export type BudgetItemView = {
   createdBy: string;
   deletedAt: string | null;
   memberId: string | null;
+  memberName: string | null;
 };
 
 export type MonthBudgetView = {

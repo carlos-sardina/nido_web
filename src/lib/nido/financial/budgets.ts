@@ -1,3 +1,4 @@
+import type { HouseholdMemberView } from "../types.ts";
 import { isDateInRange, type MonthRange } from "./dates.ts";
 import { ratioPercent, roundMoney, sumMoney } from "./money.ts";
 import { isActiveExpense } from "./expenses.ts";
@@ -19,11 +20,17 @@ export function isNidoBudget(budget: Pick<BudgetRow, "memberId">): boolean {
   return budget.memberId == null;
 }
 
+export function isPersonalBudget(budget: Pick<BudgetRow, "memberId">): boolean {
+  return budget.memberId != null;
+}
+
 export function canMutateBudget(
-  budget: Pick<BudgetRow, "createdBy" | "deletedAt">,
+  budget: Pick<BudgetRow, "createdBy" | "deletedAt" | "memberId">,
   userId: string | null | undefined,
 ): boolean {
-  return Boolean(userId) && budget.createdBy === userId && budget.deletedAt == null;
+  if (!userId || budget.createdBy !== userId || budget.deletedAt != null) return false;
+  if (budget.memberId != null && budget.memberId !== userId) return false;
+  return true;
 }
 
 export function budgetsOverlappingRange(budgets: BudgetRow[], range: MonthRange): BudgetRow[] {
@@ -81,9 +88,18 @@ export function isBudgetNearLimit(amount: number, spent: number): boolean {
   return percent != null && percent >= BUDGET_NEAR_LIMIT_PERCENT && !isBudgetOver(amount, spent);
 }
 
+function budgetMemberName(
+  memberId: string | null,
+  members: HouseholdMemberView[] | undefined,
+): string | null {
+  if (!memberId) return null;
+  return members?.find((member) => member.userId === memberId)?.displayName ?? null;
+}
+
 export function buildBudgetItemView(
   budget: BudgetRow,
   expenses: ExpenseRow[],
+  members?: HouseholdMemberView[],
 ): BudgetItemView {
   const spent = budgetSpent(budget, expenses);
   return {
@@ -103,7 +119,18 @@ export function buildBudgetItemView(
     createdBy: budget.createdBy,
     deletedAt: budget.deletedAt,
     memberId: budget.memberId,
+    memberName: budgetMemberName(budget.memberId, members),
   };
+}
+
+function sortPeriodBudgets(a: BudgetRow, b: BudgetRow): number {
+  const byStart = b.startDate.localeCompare(a.startDate);
+  if (byStart !== 0) return byStart;
+  const nidoFirst = Number(isPersonalBudget(a)) - Number(isPersonalBudget(b));
+  if (nidoFirst !== 0) return nidoFirst;
+  const nameA = a.category?.name ?? "";
+  const nameB = b.category?.name ?? "";
+  return nameA.localeCompare(nameB, "es");
 }
 
 export function visiblePeriodBudgets(
@@ -111,16 +138,26 @@ export function visiblePeriodBudgets(
   range: MonthRange,
   householdId?: string,
 ): BudgetRow[] {
-  return nidoBudgetsForMonth(budgets, range)
+  return budgetsOverlappingRange(budgets, range)
     .filter((budget) => householdId == null || budget.householdId === householdId)
     .slice()
-    .sort((a, b) => {
-      const byStart = b.startDate.localeCompare(a.startDate);
-      if (byStart !== 0) return byStart;
-      const nameA = a.category?.name ?? "";
-      const nameB = b.category?.name ?? "";
-      return nameA.localeCompare(nameB, "es");
-    });
+    .sort(sortPeriodBudgets);
+}
+
+export function visibleNidoPeriodBudgets(
+  budgets: BudgetRow[],
+  range: MonthRange,
+  householdId?: string,
+): BudgetRow[] {
+  return visiblePeriodBudgets(budgets, range, householdId).filter(isNidoBudget);
+}
+
+export function visiblePersonalPeriodBudgets(
+  budgets: BudgetRow[],
+  range: MonthRange,
+  householdId?: string,
+): BudgetRow[] {
+  return visiblePeriodBudgets(budgets, range, householdId).filter(isPersonalBudget);
 }
 
 /**

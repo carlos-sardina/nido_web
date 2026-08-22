@@ -58,12 +58,13 @@ export function MainApp({
   household: Household;
   membership: HouseholdMember;
   members: HouseholdMemberView[];
-  profile: Pick<Profile, "id" | "display_name" | "avatar_url"> | null;
+  profile: Pick<Profile, "id" | "display_name" | "avatar_url" | "personal_visibility"> | null;
   onLogout: () => void;
   onNidoChanged: () => void;
   signingOut?: boolean;
 }) {
   const [savedDisplayName, setSavedDisplayName] = useState<string | null>(null);
+  const [savedVisibility, setSavedVisibility] = useState<Profile["personal_visibility"] | null>(null);
   const [householdPatch, setHouseholdPatch] = useState<Partial<Household>>({});
   const liveHousehold = { ...household, ...householdPatch };
   const identity = applyProfileDisplayName(
@@ -335,6 +336,7 @@ export function MainApp({
         {showBudgets && activeFlow !== "budget" && !liveSelectedBudget && (
           <BudgetScreen
             dashboard={dashboard}
+            currentUserId={user?.id ?? null}
             onClose={() => setShowBudgets(false)}
             onOpenBudget={setSelectedBudget}
             onCreateBudget={openBudgetCreate}
@@ -522,6 +524,7 @@ export function MainApp({
         {profileOpen && (
           <ProfilePanel
             identity={identity}
+            personalVisibility={savedVisibility ?? profile?.personal_visibility ?? "nido"}
             householdName={liveHousehold.name}
             role={membership.role}
             isLastOwner={membership.role === "owner" && members.filter((row) => row.role === "owner").length <= 1}
@@ -531,6 +534,7 @@ export function MainApp({
             onLogout={onLogout}
             onLeft={onNidoChanged}
             onDisplayNameSaved={setSavedDisplayName}
+            onVisibilitySaved={setSavedVisibility}
           />
         )}
     </div>

@@ -17,6 +17,7 @@ export type CreateBudgetRequest = {
   categoryId: string;
   amount: number;
   startDate: string;
+  personal?: boolean;
   activeMemberIds: readonly string[];
   allowedCategoryIds: readonly string[];
 };
@@ -27,6 +28,7 @@ export type CreateBudgetPayload = {
   amount: number;
   startDate: string;
   endDate: string;
+  personal: boolean;
 };
 
 export function parseBudgetAmountInput(
@@ -73,8 +75,8 @@ export function budgetRangeMessage(startDate: string, endDate: string): string |
 
 /**
  * Domain payload for create/update. created_by and member_id are never
- * taken from the client; the RPC derives created_by from auth.uid() and
- * always writes a Nido-level budget (member_id NULL).
+ * taken from the client. The RPC derives created_by from auth.uid() and
+ * writes member_id = auth.uid() only when personal is true.
  */
 export function buildCreateBudgetPayload(
   input: CreateBudgetRequest,
@@ -104,6 +106,7 @@ export function buildCreateBudgetPayload(
       amount,
       startDate: range.start,
       endDate: range.end,
+      personal: input.personal === true,
     },
   };
 }

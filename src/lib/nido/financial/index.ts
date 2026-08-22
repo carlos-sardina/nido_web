@@ -17,8 +17,11 @@ export {
   isBudgetNearLimit,
   isBudgetOver,
   isNidoBudget,
+  isPersonalBudget,
   nidoBudgetsForMonth,
+  visibleNidoPeriodBudgets,
   visiblePeriodBudgets,
+  visiblePersonalPeriodBudgets,
 } from "./budgets.ts";
 export {
   amountToBudgetInput,
