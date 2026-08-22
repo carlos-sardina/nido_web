@@ -12,7 +12,7 @@ Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar
 - only the creator may update or soft-delete a live budget
 - period is monthly calendar dates in `America/Mexico_City` (`start_date` first day, `end_date` last day)
 
-Phase 9.1.5 connects **Recurrencias**. Owner transfer was already delivered in 9.2. Phase 9.2.1 connects the **Actividad** tab to the same live snapshot.
+Phase 9.1.5 connects **Recurrencias**. Owner transfer was already delivered in 9.2. Phase 9.2.1 connects the **Actividad** tab to the same live snapshot. Phase 9.2.2 persists the onboarding monthly income as a real `incomes` row when the Nido is created.
 
 **Las recurrencias son plantillas; los movimientos reales son los únicos que participan en cálculos financieros.** `recurring_incomes` y `recurring_expenses` nunca se suman a ingresos del mes, gastos del mes, presupuestos, salud, actividad ni progreso de metas. Solo las filas de `incomes` / `expenses` materializadas (`recurring_id` apuntando a la plantilla) entran en esos totales.
 
@@ -462,11 +462,31 @@ The screen reuses `ExpenseDetail`, `IncomeDetail`, and `GoalDetail`. Empty Nido:
 
 ---
 
+## Onboarding persist (Phase 9.2.2)
+
+The create-Nido draft from Fase 8.9 is reused. Finalize does **not** invent movements.
+
+| Draft field | Screen | Persist? | Table / reason |
+| --- | --- | --- | --- |
+| `nestName` | Dale nombre a tu Nido | yes | `households.name` |
+| `userName` | ¿Cómo te llamas? | yes | `profiles.display_name` (existing UPDATE) |
+| `salary` | Ingreso mensual neto | yes, if `> 0` | `incomes` via `create_income`. Category is the household **Sueldo** row (the screen does not pick a category; this is the catalog name that matches “ingreso mensual neto”). Date is today in `America/Mexico_City`, not UTC. `created_by = member_id = auth.uid()`. Not a `recurring_incomes` template. |
+| `freelance` | unused leftover | no | Field is not shown. Not persisted. |
+| `savings` / `savingsShared` | ¿Cuánto tienes ahorrado? | no | Existing saved stock. There is no target, so this is not a `goals` + `goal_contributions` pair. Kept as draft until a product decision exists. |
+| selected `expenses` | Gastos mensuales estimados | no | Monthly estimates, not historical `expenses`. Names do not map 1:1 to the default budget catalog (Renta / Internet / Luz collapse or miss). Not written as `budgets` or `recurring_expenses`. |
+| `contrib` | Método de división | no | Preference (`equal` / `proportional`). `distribution_method` lives on expenses, not on `households`. No fake expense is created to store it. |
+
+Atomicity: `create_household_with_onboarding_income` calls `create_household` then `create_income` in one Postgres function. If the income insert fails, the household is rolled back. A second call from an already-active member returns that household and does **not** insert another income. No unique “onboarding income” index was added: a later **Registrar un ingreso** on the same day would collide.
+
+After success the `nido.onboardingDraft` key is cleared. Home reads the same `useDashboard()` / `fetchDashboardSnapshot()` path. There is no onboarding-only dashboard and no mock figures.
+
+---
+
 ## Empty data
 
 No records → empty copy, not prototype numbers.
 
-Onboarding income/expenses are still not persisted. A newly created Nido has default **expense and income categories** and otherwise empty financial tables until the user registers a row.
+A newly created Nido has default **expense and income categories**. If the user declared a monthly income greater than zero, Home / Ingresos / Actividad show that one `incomes` row (category **Sueldo**, description **Ingreso mensual neto**, `occurred_at` = today in `America/Mexico_City`). Amount `0` writes no income. Onboarding savings, estimated expenses, and the division preference are **not** converted into goals, contributions, budgets, expenses, or recurring templates.
 
 ---
 
@@ -476,7 +496,7 @@ SELECT policies require historical membership (`is_household_member`). INSERT st
 
 `create_expense`, `update_expense`, `soft_delete_expense`, `create_income`, `update_income`, `soft_delete_income`, `create_budget`, `update_budget`, `soft_delete_budget`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, `soft_delete_goal_contribution`, `create_recurring_income`, `update_recurring_income`, `set_recurring_income_active`, `materialize_recurring_income`, `create_recurring_expense`, `update_recurring_expense`, `set_recurring_expense_active`, and `materialize_recurring_expense` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Recurring split writes follow `can_mutate_recurring_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
 
-SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`, `I01`–`I13`, `K01`–`K16`, `RE01`–`RE16`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
+SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`, `I01`–`I13`, `K01`–`K16`, `RE01`–`RE16`, `OB01`–`OB11`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
 
 ---
 

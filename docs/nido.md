@@ -4,7 +4,7 @@ This document describes household (Nido) creation, membership, leaving, invitati
 
 The schema in [database.md](./database.md) remains the source of truth. RLS in [security.md](./security.md) is unchanged: clients still cannot UPDATE `household_members`. Owner transfer is a new SECURITY DEFINER RPC. It does not change tables or weaken policies.
 
-Phase 9.1.1 connects the Home dashboard to live Supabase reads. Phase 9.1.2A adds household default expense categories and **Registrar un gasto**. Auth, recovery, onboarding, and RLS policies are unchanged. See [financial.md](./financial.md). Auth and onboarding visuals use the tokens in [design-system.md](./design-system.md).
+Phase 9.1.1 connects the Home dashboard to live Supabase reads. Phase 9.1.2A adds household default expense categories and **Registrar un gasto**. Phase 9.2.2 persists the onboarding monthly income with the new Nido. Auth, recovery, and RLS policies are unchanged. See [financial.md](./financial.md). Auth and onboarding visuals use the tokens in [design-system.md](./design-system.md).
 
 ---
 
@@ -48,16 +48,16 @@ Nido selection
   → gastos mensuales estimados
   → método de división
   → invitaciones
-  → Crear mi Nido
-  → create_household + profiles.display_name
-  → dashboard (live reads; empty financial rows until the user registers a gasto)
+  → Crear mi Nido / Invitar
+  → create_household_with_onboarding_income + profiles.display_name
+  → dashboard (live reads; the declared monthly income is a real incomes row)
 ```
 
-Draft fields (household name, display name, income, savings, expenses, classification, amounts, division method, invite UI) stay in React state and `sessionStorage` (`nido.onboardingDraft`). That key is not used for auth tokens.
+Draft fields stay in React state and `sessionStorage` (`nido.onboardingDraft`) until finalize succeeds. That key is not used for auth tokens. After a confirmed persist the draft is cleared so it cannot become a second source of truth.
 
-Abandoning before **Crear mi Nido** leaves no household, no membership, and no financial rows. Refresh during a draft step restores the local draft; it does not create a Nido. Logout clears the draft.
+Abandoning before **Crear mi Nido** leaves no household, no membership, and no financial rows. Refresh during a draft step restores the local draft; it does not create a Nido. Logout clears the draft. A failed Supabase call keeps the draft so the user can retry. A second tap while the request is in flight is ignored. A retry after a successful persist returns the existing Nido and does not insert another income.
 
-`profiles.display_name` is written when the Nido is finalized, not when the name step is shown. Default expense categories are inserted by `create_household` in the same transaction.
+`profiles.display_name` is written when the Nido is finalized, not when the name step is shown. Default expense and income categories are inserted in the same transaction as the household.
 
 ---
 
@@ -65,9 +65,9 @@ Abandoning before **Crear mi Nido** leaves no household, no membership, and no f
 
 The household is **not** created when the user enters onboarding.
 
-It is created on the invitations step, when the user taps **Crear mi Nido**, **Invitar por enlace**, or **Invitar por QR**. Those actions call `create_household(p_name)` (atomic household + owner membership + default expense categories) and then `updateMyDisplayName`. Optional invitation rows are inserted only after that RPC succeeds.
+It is created on the invitations step, when the user taps **Crear mi Nido**, **Invitar por enlace**, or **Invitar por QR**. Those actions call `create_household_with_onboarding_income(p_name, p_income_amount)` (atomic household + owner membership + default catalogs + the declared monthly income) after `updateMyDisplayName`. Optional invitation rows are inserted only after that RPC succeeds.
 
-Invitation links need a `household_id`, so generating a real link or QR finalizes the Nido first. Financial onboarding data is still not persisted.
+Invitation links need a `household_id`, so generating a real link or QR finalizes the Nido first. The income is persisted in that same transaction. Savings, estimated expenses, and the division preference are not.
 
 If the user leaves before that tap, nothing is written to `households` or `household_members`.
 
@@ -202,7 +202,8 @@ Accepted invitations stay accepted even if they would also be expired.
 | Invitation | `household_invitations` (token, optional email, expiry, accepted_at) |
 | Leave | `household_members.left_at` |
 | Owner transfer | `household_members.role` swapped atomically (`transfer_household_ownership`) |
-| Default expense categories | `categories` (`is_default = true`) via `create_household` |
+| Default expense and income categories | `categories` (`is_default = true`) via `create_household` |
+| Onboarding monthly income | `incomes` via `create_household_with_onboarding_income` → `create_income` |
 | Confirmed expense | `expenses` + `expense_splits` via `create_expense` |
 
 Auth identity still comes from Supabase Auth. The profile is the canonical application display name. Auth user metadata is not updated.
@@ -213,7 +214,12 @@ Auth identity still comes from Supabase Auth. The profile is the canonical appli
 
 Intentionally not persisted by onboarding (still true):
 
-- onboarding income, savings, expenses, classification, and distribution preference
+- personal / shared savings (existing stock; no goal target)
+- estimated monthly expenses (planning estimates, not confirmed `expenses` or `budgets`)
+- division preference (`equal` / `proportional`; no household column)
+- unused draft leftovers (`freelance`, `savingsType`, nest type)
+
+The onboarding **Ingreso mensual neto** is persisted. Category is the household **Sueldo** catalog row. `occurred_at` is today in `America/Mexico_City`. Description is `Ingreso mensual neto`. Amount `0` creates the Nido and writes no income row.
 
 Live on Home, empty when the Nido has no financial rows:
 
@@ -239,7 +245,8 @@ The PostgREST client cannot run a multi-statement transaction. These operations 
 
 | Function | Security | Why |
 | --- | --- | --- |
-| `create_household(p_name)` | `SECURITY INVOKER` | Household + first owner + default expense categories must be atomic. RLS still applies. |
+| `create_household(p_name)` | `SECURITY INVOKER` | Household + first owner + default catalogs must be atomic. RLS still applies. |
+| `create_household_with_onboarding_income(p_name, p_income_amount)` | `SECURITY INVOKER` | Reuses `create_household` + `create_income` so a failed income cannot leave a finished-looking Nido. Takes no household_id or identity. |
 | `create_expense(...)` | `SECURITY INVOKER` | Expense + splits must be atomic. Split sums and personal cardinality are enforced here. RLS still applies. |
 | `create_goal(...)` / `update_goal` / `archive_goal` | `SECURITY INVOKER` | Goal definition. Only the creator may update or archive. |
 | `create_goal_contribution(...)` | `SECURITY INVOKER` | Any active member may contribute to an active goal of the same Nido. `member_id` and `created_by` are `auth.uid()`. |
@@ -249,7 +256,7 @@ The PostgREST client cannot run a multi-statement transaction. These operations 
 | `leave_household()` | `SECURITY DEFINER` | No client UPDATE on `household_members`. Last owner cannot leave. |
 | `transfer_household_ownership(p_new_owner_id)` | `SECURITY DEFINER` | No client UPDATE on `household_members`. Two role writes must be atomic. INVOKER would require an UPDATE policy that could leave a Nido without an owner. |
 
-`create_household` and `create_expense` live in `supabase/migrations/20260818000000_nido_household_lifecycle.sql` and `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`. Owner transfer lives in `supabase/migrations/20260822000000_nido_owner_transfer.sql`. `SECURITY DEFINER` functions set `search_path = public`, require `auth.uid()`, and never take a user-supplied actor `user_id`. They do not bypass the one-active-Nido unique index.
+`create_household` and `create_expense` live in `supabase/migrations/20260818000000_nido_household_lifecycle.sql` and `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`. Onboarding income persist lives in `supabase/migrations/20260822300000_nido_onboarding_financial.sql`. Owner transfer lives in `supabase/migrations/20260822000000_nido_owner_transfer.sql`. `SECURITY DEFINER` functions set `search_path = public`, require `auth.uid()`, and never take a user-supplied actor `user_id`. They do not bypass the one-active-Nido unique index.
 
 There is no service-role client.
 
@@ -261,7 +268,7 @@ Code lives in `src/lib/nido/`.
 
 | Module | Functions |
 | --- | --- |
-| `household.ts` | `createHousehold` |
+| `household.ts` | `createHousehold`, `createHouseholdFromOnboarding` |
 | `membership.ts` | `getMyActiveHousehold`, `getMyMembership`, `getMyNidoState`, `getHouseholdMembers`, `leaveHousehold`, `transferHouseholdOwnership` |
 | `transfer-ownership.ts` | `transferOwnershipWithAuth`, `canSubmitTransfer` |
 | `leave-household.ts` | `leaveHouseholdWithAuth`, `canSubmitLeave` |
@@ -281,7 +288,7 @@ Code lives in `src/lib/nido/`.
 | `budgets.ts` | `createBudget` / `updateBudget` / `deleteBudget` |
 | `use-dashboard.ts` | Shared snapshot for Home, Gastos, Ingresos, Metas, Presupuestos, and Actividad; uses the active household from `useMyNido` |
 
-Onboarding draft helpers live in `src/lib/onboarding/` (`draft`, `validation`). They do not write to Supabase.
+Onboarding helpers live in `src/lib/onboarding/` (`draft`, `validation`, `financial-plan`). The draft does not write to Supabase. Finalize calls `createHouseholdFromOnboarding`.
 
 UI components call this layer. They do not query Supabase tables directly.
 
@@ -329,6 +336,6 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## Apply the migration
 
-This phase applied `20260822000000_nido_owner_transfer.sql` and `20260822120000_nido_recurrence_mutations.sql` to linked `nido_dev` (`pxfdvhavcddqmhuljxlf`). Types were regenerated with `npx supabase gen types typescript --linked`.
+This phase applied `20260822300000_nido_onboarding_financial.sql` to linked `nido_dev` (`pxfdvhavcddqmhuljxlf`). Types were regenerated with `npx supabase gen types typescript --linked`.
 
 `leave_household` now deactivates the leaving member’s `recurring_incomes` in that Nido. Recurring expense templates and already-materialized movements stay. A departed creator cannot materialize.

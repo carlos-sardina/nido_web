@@ -4,7 +4,7 @@ Use this against a real Vercel + Supabase + SMTP environment. Automated unit tes
 
 Confirm email stays enabled. Google OAuth stays disabled. Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
 
-Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Phase 9.1.3A connects Metas (list, create, edit, archive). Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (edit / soft-delete). Phase 9.1.3C connects **Ingresos**. Phase 9.1.4 connects **Presupuestos**. Phase 9.2.1 connects **Actividad** to the live snapshot (no `FEED` mock) and still does not invent budget events. See [financial.md](./financial.md).
+Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Phase 9.1.3A connects Metas (list, create, edit, archive). Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (edit / soft-delete). Phase 9.1.3C connects **Ingresos**. Phase 9.1.4 connects **Presupuestos**. Phase 9.2.1 connects **Actividad** to the live snapshot (no `FEED` mock) and still does not invent budget events. Phase 9.2.2 persists the onboarding monthly income with the Nido. See [financial.md](./financial.md).
 
 The 60-second email cooldown is a **UX protection**. It prevents accidental repeat clicks and shows a countdown. The real protection against abuse remains in **Supabase Auth rate limits** and **Brevo SMTP limits**. The frontend cooldown does not replace or weaken those provider limits.
 
@@ -123,7 +123,8 @@ The 60-second cooldown is a UX protection. Real abuse protection remains in Supa
 1. From Nido Selection, **Crear un nuevo Nido**.
 2. Empty / whitespace-only Nido name is rejected. Unicode names are accepted. Names are not globally unique.
 3. Display name is required, trimmed, and written to `profiles.display_name` only at finalization.
-4. **Crear mi Nido** creates one household. A second tap does not create a duplicate.
+4. **Crear mi Nido** / invite waits for `create_household_with_onboarding_income` before entering Home. A second tap does not create a duplicate Nido or a second income.
+5. After success, Home / Ingresos / Actividad show the declared monthly income (Sueldo). Gastos, Metas, and Presupuestos stay empty unless the user adds rows later. Savings and estimated expenses do not appear as movements.
 
 ## J. Refresh during onboarding
 
@@ -403,6 +404,31 @@ Manual runs actually executed for this checklist: none in this phase.
 
 ---
 
+## Persistencia financiera del onboarding (Phase 9.2.2)
+
+Unit coverage lives in `src/lib/onboarding/financial-plan.test.ts`, `src/lib/nido/create-household-onboarding.test.ts`, and the existing draft/validation tests. Those tests are **not** a live UI proof. SQL matrix `OB01`–`OB11` is the RLS proof.
+
+A. **Draft completo / mínimo** — ambos persisten solo el ingreso si `salary > 0`.
+B. **Ingreso válido** — aparece en Home, Ingresos y Actividad como Sueldo / Ingreso mensual neto, fecha de hoy en `America/Mexico_City`.
+C. **Ingreso inválido** — no se crea el Nido. El draft se conserva.
+D. **Ahorros** — opcionales en el draft; no aparecen en Metas ni como aportaciones.
+E. **Gastos estimados** — no aparecen en Gastos, Presupuestos ni Actividad.
+F. **Método de división** — no crea un gasto ni una columna de household.
+G. **Guardar → confirmar → entrar** — el botón espera la RPC. No entra a Home y luego intenta guardar.
+H. **Doble tap / retry** — un solo household y un solo ingreso.
+I. **Abandono** — refresh restaura el draft; no hay filas en Supabase.
+J. **Error de red** — mensaje `NidoError` en español; el draft sigue; Reintentar no duplica.
+K. **Mobile** — scroll manual en gastos estimados; el CTA de invitaciones no queda tapado.
+
+Manual runs actually executed for this checklist:
+
+- `20260822300000_nido_onboarding_financial.sql` applied to linked `nido_dev` (`pxfdvhavcddqmhuljxlf`)
+- `npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql` — all assertions passed, including `OB01`–`OB11`; the script ended in `ROLLBACK`
+- Unit tests / `tsc` / `npm run build` passed in this phase
+- Full UI walkthrough (Home / Ingresos / Gastos / Metas / Presupuestos / Actividad, double tap, mobile scroll) still needs a signed-in session in the running app
+
+---
+
 ## Unconfirmed login
 
 If Supabase reports email-not-confirmed on login:
@@ -421,7 +447,7 @@ If Supabase reports email-not-confirmed on login:
 - No sensitive auth data in `sessionStorage` (draft is onboarding fields only; pending invite is a join token, not an access token; email cooldown stores only action, normalized email, and a timestamp)
 - `?next=` rejects absolute URLs (`safeNextPath`)
 - Recovery marker still distinguishes recovery from login
-- RLS for expense UPDATE/splits is now creator-only (`20260821120000`); goal UPDATE/archive is creator-only (`20260821180000`). SQL matrix `X01`–`X14` and `Y01`–`Y12` needs a real database. Unit mocks are not RLS proofs.
+- RLS for expense UPDATE/splits is now creator-only (`20260821120000`); goal UPDATE/archive is creator-only (`20260821180000`). SQL matrix `X01`–`X14`, `Y01`–`Y12`, and onboarding persist `OB01`–`OB11` need a real database. Unit mocks are not RLS proofs.
 - No account enumeration on signup, resend, or recovery
 - No “email exists” lookup, RPC, or client query to `auth.users`
 - Signup does not inspect `identities` / user id to branch the UI

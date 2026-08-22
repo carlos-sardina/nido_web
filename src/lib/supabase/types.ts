@@ -945,6 +945,22 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_household_with_onboarding_income: {
+        Args: { p_income_amount: number; p_name: string }
+        Returns: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "households"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_income: {
         Args: {
           p_amount: number

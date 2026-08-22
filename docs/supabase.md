@@ -58,6 +58,7 @@ Repository migrations on that project, in order:
 10. `20260821230000_nido_budget_mutations.sql` (apply on nido_dev; do not edit earlier files)
 11. `20260822000000_nido_owner_transfer.sql` (apply on nido_dev; do not edit earlier files)
 12. `20260822120000_nido_recurrence_mutations.sql` (apply on nido_dev; do not edit earlier files)
+13. `20260822300000_nido_onboarding_financial.sql` (apply on nido_dev; do not edit earlier files)
 
 Do not put the database password, service-role key, or anon key in this document.
 
@@ -244,12 +245,12 @@ The onboarding name field is persisted to `profiles.display_name` when the Nido 
 
 ### Current-phase limitations
 
-Household identity is real after the user finishes onboarding. Financial onboarding fields remain a local draft until Phase 9.
+Household identity is real after the user finishes onboarding. The declared monthly income is persisted with the Nido. Other financial onboarding fields remain a local draft.
 
 This phase does **not**:
 
-- persist onboarding income, savings, expenses, or contribution model
-- replace mock financial dashboard data
+- persist onboarding savings, estimated expenses, or the division preference
+- replace live dashboard reads with mock figures
 - send invitation emails
 - use a service-role client
 - enable Google OAuth (explicitly out of this iteration)

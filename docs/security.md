@@ -273,6 +273,7 @@ RLS does not replace the application transaction rules in [database.md](./databa
 Still application/service work:
 
 - Household create + first owner row in one transaction (`create_household`)
+- Onboarding finalize + first income in one transaction (`create_household_with_onboarding_income`; INVOKER; no client household_id)
 - Leave / invite accept (`leave_household`, `accept_invitation`)
 - Owner transfer (`transfer_household_ownership`; atomic demote + promote)
 - At-least-one-owner invariant (enforced on leave and transfer; not an RLS trigger)
@@ -329,6 +330,12 @@ Expected results for the documented actors. `allow` / `deny` are RLS outcomes. S
 | Carlos | A | last owner | leave without transfer | deny |
 | Carlos | A | member after transfer | leave | allow |
 | Luis | A | never member | SELECT household | deny |
+| none | - | none | `create_household_with_onboarding_income` | deny |
+| new user | new | none | `create_household_with_onboarding_income` with valid amount | allow (one income) |
+| new user | new | none | invalid amount | deny (no household) |
+| same user | own | owner | second call | allow (same household, no second income) |
+| Carlos | B | active | second Nido / inject income into A | no new household; A unchanged |
+| historical member | old | left | `create_household_with_onboarding_income` | allow new Nido; old household unchanged |
 | Luis | A | never member | INSERT anything into A | deny |
 | Carlos | B | never member | SELECT household B | deny |
 | Carlos | B | active | SELECT household B | allow |
@@ -467,7 +474,7 @@ Result: RLS coverage validation passed for 14 tables. The script confirmed RLS i
 
 ### Behavioral matrix against the linked project
 
-`supabase/tests/rls_security_matrix.sql` was executed against the linked hosted project in this phase, including `X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`, and owner-transfer cases `T01`–`T13` and `T20`–`T30`. All assertions passed. The script rolls back seeded users.
+`supabase/tests/rls_security_matrix.sql` was executed against the linked hosted project in this phase, including `X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`, owner-transfer cases `T01`–`T13` and `T20`–`T30`, and onboarding persist `OB01`–`OB11`. All assertions passed. The script rolls back seeded users.
 
 ```bash
 npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
@@ -475,7 +482,7 @@ npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
 
 It impersonates Carlos, Diana, Luis, and Eva with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, expense mutation cases `X01`–`X14`, goal mutation cases `Y01`–`Y12`, contribution cases `Z01`–`Z22`, and owner-transfer / leave cases `T01`–`T13` and `T20`–`T30`.
 
-`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. `Z12`–`Z22` (creator update/delete, non-creator deny, other household, deleted row, archived goal, other Nido goal, unauthenticated, historical member, member who left) require migration `20260821210000`. `I01`–`I13` require `20260821220000`. `K01`–`K16` (budget create/update/soft-delete, non-creator deny, other household, historical member, deleted row, spent derivation; 1:1 with the requested B01–B16 list) require `20260821230000`. Prefix **K** is used because **B01–B09** already cover Luis / never-member and **P01–P07** already cover child-table SELECT. `T01`–`T13` and `T20`–`T30` (owner transfer, last-owner leave, historical / other-Nido / unauthenticated deny, atomic role swap, privilege change after transfer) require `20260822000000`. They are runtime SQL, not unit mocks.
+`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. `Z12`–`Z22` (creator update/delete, non-creator deny, other household, deleted row, archived goal, other Nido goal, unauthenticated, historical member, member who left) require migration `20260821210000`. `I01`–`I13` require `20260821220000`. `K01`–`K16` (budget create/update/soft-delete, non-creator deny, other household, historical member, deleted row, spent derivation; 1:1 with the requested B01–B16 list) require `20260821230000`. Prefix **K** is used because **B01–B09** already cover Luis / never-member and **P01–P07** already cover child-table SELECT. `T01`–`T13` and `T20`–`T30` (owner transfer, last-owner leave, historical / other-Nido / unauthenticated deny, atomic role swap, privilege change after transfer) require `20260822000000`. `OB01`–`OB11` (onboarding persist: unauthenticated, no membership, invalid amount, double execution, already-active member, historical member, other Nido) require `20260822300000`. They are runtime SQL, not unit mocks.
 
 The script rolls back seeded users. After the run, `auth.users` and application tables were empty.
 

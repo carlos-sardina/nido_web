@@ -9,7 +9,8 @@
 --   2. Migrations applied (foundation, RLS, lifecycle, categories/create_expense,
 --      expense mutations, goal mutations, goal contribution mutations,
 --      goal contribution edit / soft-delete, income mutations,
---      budget mutations, owner transfer, recurrence mutations)
+--      budget mutations, owner transfer, recurrence mutations,
+--      onboarding financial persist)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -3794,6 +3795,264 @@ BEGIN
     CASE WHEN pg_temp.expect_count(format(
       'SELECT count(*) FROM public.profiles WHERE id = %L', v_luis
     )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+END;
+$$;
+
+-- Phase 9.2.2 — onboarding financial persist (OB01–OB11)
+-- Uses dedicated users so existing Carlos/Diana/Luis assertions stay intact.
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_luis uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_sofia uuid := gen_random_uuid();
+  v_pablo uuid := gen_random_uuid();
+  v_nora uuid := gen_random_uuid();
+  v_nido_hist uuid := gen_random_uuid();
+  v_sofia_nido uuid;
+  v_sofia_nido_retry uuid;
+  v_pablo_count integer;
+  v_sofia_income integer;
+  v_carlos_b_before integer;
+  v_carlos_b_after integer;
+  v_carlos_a_before integer;
+  v_carlos_a_after integer;
+  v_hist_before integer;
+  v_hist_after integer;
+  v_nora_nido uuid;
+  v_luis_nido uuid;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  PERFORM pg_temp.create_auth_user(v_sofia, 'sofia-rls@example.test', 'Sofia');
+  PERFORM pg_temp.create_auth_user(v_pablo, 'pablo-rls@example.test', 'Pablo');
+  PERFORM pg_temp.create_auth_user(v_nora, 'nora-rls@example.test', 'Nora');
+
+  INSERT INTO public.households (id, name, created_by)
+  VALUES (v_nido_hist, 'Nido histórico Nora', v_nora);
+  INSERT INTO public.household_members (
+    household_id, user_id, role, joined_at, left_at
+  ) VALUES (
+    v_nido_hist, v_nora, 'owner',
+    timestamptz '2026-01-01 00:00:00+00',
+    timestamptz '2026-06-01 00:00:00+00'
+  );
+
+  SELECT count(*) INTO v_hist_before
+  FROM public.incomes
+  WHERE household_id = v_nido_hist AND deleted_at IS NULL;
+
+  SELECT count(*) INTO v_carlos_b_before
+  FROM public.incomes
+  WHERE household_id = v_nido_b AND deleted_at IS NULL;
+  SELECT count(*) INTO v_carlos_a_before
+  FROM public.incomes
+  WHERE household_id = v_nido_a AND deleted_at IS NULL;
+
+  PERFORM pg_temp.clear_auth();
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.record_result(
+    'OB01', 'none', '-', 'none', 'unauthenticated cannot finalize onboarding',
+    'deny',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.create_household_with_onboarding_income('Nido huérfano', 1000)
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.set_auth(v_pablo);
+  PERFORM pg_temp.record_result(
+    'OB10', 'Pablo', 'new', 'none', 'invalid amount does not create a Nido',
+    'deny',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.create_household_with_onboarding_income('Nido inválido', -10)
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  SELECT count(*) INTO v_pablo_count
+  FROM public.household_members
+  WHERE user_id = v_pablo AND left_at IS NULL;
+  PERFORM pg_temp.record_result(
+    'OB10b', 'Pablo', 'new', 'none', 'partially invalid data left no membership',
+    'allow',
+    CASE WHEN v_pablo_count = 0 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_sofia);
+  PERFORM pg_temp.record_result(
+    'OB02', 'Sofia', 'new', 'none', 'authenticated user without membership can persist',
+    'allow',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.create_household_with_onboarding_income('Nido Sofia', 25000)
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  SELECT h.id INTO v_sofia_nido
+  FROM public.households AS h
+  INNER JOIN public.household_members AS hm ON hm.household_id = h.id
+  WHERE hm.user_id = v_sofia AND hm.left_at IS NULL;
+  SELECT count(*) INTO v_sofia_income
+  FROM public.incomes
+  WHERE household_id = v_sofia_nido
+    AND created_by = v_sofia
+    AND deleted_at IS NULL;
+
+  PERFORM pg_temp.record_result(
+    'OB02b', 'Sofia', 'new', 'owner', 'one Sueldo income on finalize',
+    'allow',
+    CASE WHEN v_sofia_income = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_sofia);
+  PERFORM pg_temp.record_result(
+    'OB03', 'Sofia', 'own', 'owner', 'double execution does not create a second Nido',
+    'allow',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.create_household_with_onboarding_income('Nido Sofia otra vez', 25000)
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  SELECT h.id INTO v_sofia_nido_retry
+  FROM public.households AS h
+  INNER JOIN public.household_members AS hm ON hm.household_id = h.id
+  WHERE hm.user_id = v_sofia AND hm.left_at IS NULL;
+  SELECT count(*) INTO v_sofia_income
+  FROM public.incomes
+  WHERE household_id = v_sofia_nido
+    AND created_by = v_sofia
+    AND deleted_at IS NULL;
+
+  PERFORM pg_temp.record_result(
+    'OB03b', 'Sofia', 'own', 'owner', 'double execution does not duplicate income',
+    'allow',
+    CASE
+      WHEN v_sofia_nido_retry = v_sofia_nido AND v_sofia_income = 1
+      THEN 'allow' ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'OB05', 'Carlos', 'B', 'active elsewhere', 'already-active member does not create another Nido',
+    'allow',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.create_household_with_onboarding_income('Nido hackeado', 99999)
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  SELECT count(*) INTO v_carlos_b_after
+  FROM public.incomes
+  WHERE household_id = v_nido_b AND deleted_at IS NULL;
+  SELECT count(*) INTO v_carlos_a_after
+  FROM public.incomes
+  WHERE household_id = v_nido_a AND deleted_at IS NULL;
+
+  PERFORM pg_temp.record_result(
+    'OB06', 'Carlos', 'A', 'historical', 'cannot write onboarding income into a previous Nido',
+    'allow',
+    CASE
+      WHEN v_carlos_a_after = v_carlos_a_before
+       AND v_carlos_b_after = v_carlos_b_before
+      THEN 'allow' ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  SELECT id INTO v_luis_nido
+  FROM public.create_household_with_onboarding_income('Nido Luis falso', 100);
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  PERFORM pg_temp.record_result(
+    'OB08', 'Luis', 'B', 'active other Nido', 'cannot target another household',
+    'allow',
+    CASE
+      WHEN v_luis_nido = v_nido_b
+       AND NOT EXISTS (
+         SELECT 1 FROM public.households WHERE name = 'Nido Luis falso'
+       )
+      THEN 'allow' ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_nora);
+  PERFORM pg_temp.record_result(
+    'OB07', 'Nora', 'hist', 'historical only', 'historical member can create a new Nido',
+    'allow',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.create_household_with_onboarding_income('Nido Nora nuevo', 18000)
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  SELECT h.id INTO v_nora_nido
+  FROM public.households AS h
+  INNER JOIN public.household_members AS hm ON hm.household_id = h.id
+  WHERE hm.user_id = v_nora AND hm.left_at IS NULL;
+  SELECT count(*) INTO v_hist_after
+  FROM public.incomes
+  WHERE household_id = v_nido_hist AND deleted_at IS NULL;
+
+  PERFORM pg_temp.record_result(
+    'OB07b', 'Nora', 'hist', 'left', 'new income is not written to the old Nido',
+    'allow',
+    CASE
+      WHEN v_nora_nido IS NOT NULL
+       AND v_nora_nido IS DISTINCT FROM v_nido_hist
+       AND v_hist_after = v_hist_before
+      THEN 'allow' ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_pablo);
+  PERFORM pg_temp.record_result(
+    'OB11', 'Pablo', 'new', 'none', 'zero income creates the Nido without a movement',
+    'allow',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.create_household_with_onboarding_income('Nido Pablo', 0)
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  PERFORM pg_temp.record_result(
+    'OB11b', 'Pablo', 'own', 'owner', 'zero amount left no incomes row',
+    'allow',
+    CASE WHEN (
+      SELECT count(*) FROM public.incomes
+      WHERE created_by = v_pablo AND deleted_at IS NULL
+    ) = 0 THEN 'allow' ELSE 'deny'
+    END
   );
 END;
 $$;

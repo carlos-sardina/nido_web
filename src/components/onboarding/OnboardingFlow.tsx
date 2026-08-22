@@ -10,7 +10,8 @@ import { AuthPanel, type AuthView } from "@/components/auth/AuthPanel";
 import { CONFIRM_EMAIL_HEADING } from "@/lib/auth/credentials";
 import { resolveNidoChoice } from "@/lib/auth/destination";
 import { identityFromUser } from "@/lib/auth/identity";
-import { createHousehold } from "@/lib/nido/household";
+import { createHouseholdFromOnboarding } from "@/lib/nido/household";
+import { planOnboardingFinances } from "@/lib/onboarding/financial-plan";
 import { createInvitation } from "@/lib/nido/invitations";
 import { updateMyDisplayName } from "@/lib/nido/profile";
 import { extractInvitationToken, normalizeDisplayName, normalizeHouseholdName } from "@/lib/nido/rules";
@@ -35,7 +36,6 @@ import {
   validateExpenseEntry,
   validateHouseholdName,
   validateIncome,
-  validateOnboardingFinalize,
   validateSavings,
 } from "@/lib/onboarding/validation";
 import { EXP_SUGG, NEST_TYPES, NIDO_NAMES } from "@/lib/constants";
@@ -193,15 +193,14 @@ export function OnboardingFlow({
   const ensureHouseholdCreated = async (): Promise<string | null> => {
     if (createdHouseholdId) return createdHouseholdId;
 
-    const invalid = validateOnboardingFinalize(data);
-    if (invalid) {
-      setNidoError(invalid);
+    const plan = planOnboardingFinances(data);
+    if (plan.ok === false) {
+      setNidoError(plan.error);
       return null;
     }
 
-    const normalizedNestName = normalizeHouseholdName(data.nestName);
-    if (normalizedNestName && normalizedNestName !== data.nestName) {
-      setData((prev) => ({ ...prev, nestName: normalizedNestName }));
+    if (plan.plan.householdName !== data.nestName) {
+      setData((prev) => ({ ...prev, nestName: plan.plan.householdName }));
     }
 
     const nameResult = await persistDisplayName();
@@ -210,7 +209,10 @@ export function OnboardingFlow({
       return null;
     }
 
-    const result = await createHousehold({ name: normalizedNestName ?? data.nestName });
+    const result = await createHouseholdFromOnboarding({
+      name: plan.plan.householdName,
+      incomeAmount: plan.plan.income.amount ?? 0,
+    });
     if (result.ok === false) {
       setNidoError(result.error.message);
       if (result.error.code === "already_in_nido") onComplete();

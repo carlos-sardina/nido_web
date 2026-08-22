@@ -229,6 +229,8 @@ One-time income has `recurring_id = NULL`.
 
 Phase 9.1.3C product writes (`create_income` / `update_income` / `soft_delete_income`) set `member_id = created_by = auth.uid()`. The client cannot attribute an income to another member. Soft-delete via `deleted_at`; do not physically delete income rows during normal operation.
 
+Phase 9.2.2 writes at most one onboarding income through `create_household_with_onboarding_income`. That function reuses `create_income`. The category is the household **Sueldo** row. `occurred_at` is today in `America/Mexico_City`. There is no extra “onboarding” column.
+
 ### 3.8 `recurring_expenses`
 
 Expense templates / rules. They are not transactions.
@@ -921,6 +923,7 @@ These remain out of scope for the current schema and RLS migrations:
 - Owner transfer RPC: `supabase/migrations/20260822000000_nido_owner_transfer.sql`
 - Categories catalog + `create_expense`: `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`
 - Income catalog + `create_income` / `update_income` / `soft_delete_income`: `supabase/migrations/20260821220000_nido_income_mutations.sql`
+- Onboarding income persist: `supabase/migrations/20260822300000_nido_onboarding_financial.sql` (`create_household_with_onboarding_income`)
 - Security model: [docs/security.md](./security.md)
 - Application clients: [docs/supabase.md](./supabase.md)
 - These migrations are applied on the linked hosted project. See [docs/supabase.md](./supabase.md).

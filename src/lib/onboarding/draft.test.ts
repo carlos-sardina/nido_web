@@ -131,4 +131,28 @@ describe("onboarding draft", () => {
   it("clears the draft after a successful household create", () => {
     assert.equal(draftAfterHouseholdCreateAttempt(true), "clear");
   });
+
+  it("keeps an abandoned draft so the user can resume", () => {
+    installSessionStorage();
+    memory.clear();
+    const data = emptyOnboardingData();
+    data.nestName = "Casa Roma";
+    data.salary = "40000";
+    saveOnboardingDraft({ step: "p-savings", data, joinCode: "" });
+    assert.equal(loadOnboardingDraft()?.step, "p-savings");
+    assert.equal(loadOnboardingDraft()?.data.salary, "40000");
+  });
+
+  it("does not keep a completed persist as a second source of truth", () => {
+    installSessionStorage();
+    memory.clear();
+    saveOnboardingDraft({
+      step: "c-invite",
+      data: { ...emptyOnboardingData(), nestName: "Casa", salary: "40000" },
+      joinCode: "",
+    });
+    assert.equal(draftAfterHouseholdCreateAttempt(true), "clear");
+    clearOnboardingDraft();
+    assert.equal(loadOnboardingDraft(), null);
+  });
 });

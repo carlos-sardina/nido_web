@@ -1,7 +1,13 @@
+import {
+  createHouseholdFromOnboardingWithAuth,
+  type CreateHouseholdOnboardingRequest,
+} from "./create-household-onboarding.ts";
 import { nidoErrorFromUnknown, nidoFail, nidoOk, type NidoResult } from "./errors";
 import { normalizeHouseholdName } from "./rules";
 import { nidoClient, requireUser, type NidoClient } from "./session";
 import type { Household } from "./types";
+
+export type { CreateHouseholdOnboardingRequest };
 
 export async function createHousehold(
   input: { name: string },
@@ -20,4 +26,17 @@ export async function createHousehold(
   if (error) return nidoFail(nidoErrorFromUnknown(error).code);
   if (!data) return nidoFail("network");
   return nidoOk(data);
+}
+
+export async function createHouseholdFromOnboarding(
+  input: CreateHouseholdOnboardingRequest,
+  supabase: NidoClient = nidoClient(),
+): Promise<NidoResult<Household>> {
+  const auth = await requireUser(supabase);
+  if (auth.ok === false) return nidoFail(auth.error.code);
+
+  return createHouseholdFromOnboardingWithAuth(input, {
+    getUserId: async () => auth.data.user.id,
+    rpc: async (fn, args) => auth.data.supabase.rpc(fn, args as never),
+  });
 }
