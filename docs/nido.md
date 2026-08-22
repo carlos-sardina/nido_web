@@ -164,7 +164,7 @@ Invitations use `household_invitations`. No new table.
 2. The service inserts a row with a cryptographically random token and an expiration.
 3. Hogar copies `/join/<token>` and refreshes the invitation list. Email delivery is not implemented.
 4. `listInvitations()` reads the owner's rows via RLS. Status is derived with `classifyInvitation` (`valid` → Pendiente, `accepted` → Aceptada, `expired` → Expirada). There is no `status` column.
-5. A pending invitation can copy the existing token again (`buildInvitationUrl`) or be cancelled.
+5. A pending invitation can copy the existing token again (`buildInvitationUrl`), show a real QR of that same URL, or be cancelled.
 6. Cancel is a client `DELETE` of `household_invitations.id` only. RLS restricts it to the active owner. There is no cancel RPC and no `cancelled_at`.
 7. Anyone with the link can look up status and the Nido name.
 8. An authenticated user with no active Nido can accept. If `profiles.display_name` is still the email local-part fallback, they enter a name first; that UPDATE uses the existing self policy.
@@ -179,7 +179,7 @@ Join-page statuses shown to the invitee:
 - already belongs to a Nido
 - already belongs to this Nido
 
-Hogar does not show the full token or URL. Lookups and RPCs do not return the token, email, household id, or financial data. QR generation is not implemented (placeholder modal only).
+Hogar does not show the full token or URL. Lookups and RPCs do not return the token, email, household id, or financial data. `InviteQrModal` renders a real QR that encodes exactly `buildInvitationUrl(origin, token)` (`/join/<token>`). Copy and optional Web Share (`navigator.share({ url })`, only when the browser supports it) use that same URL. Accepted and expired invitations cannot open the QR. There is no short code, alternate URL, or extra identifier.
 
 ---
 
@@ -342,7 +342,6 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 - household planning widgets and Profile personal-expense lists
 - invitation email delivery
-- real QR generation (InviteQrModal is still a placeholder)
 - Google OAuth
 - category CRUD (create / rename / archive) beyond the default catalog
 - personal budgets (`member_id` set) in the UI

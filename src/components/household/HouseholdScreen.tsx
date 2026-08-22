@@ -7,11 +7,13 @@ import {
   canSubmitInvitationAction,
   formatInvitationDay,
 } from "@/lib/nido/invitation-actions";
+import { canShowInvitationQr, invitationDestination } from "@/lib/nido/invitation-qr";
 import { cancelInvitation, createInvitation, listInvitations } from "@/lib/nido/invitations";
 import { transferHouseholdOwnership } from "@/lib/nido/membership";
-import { buildInvitationUrl, transferableMembers } from "@/lib/nido/rules";
+import { transferableMembers } from "@/lib/nido/rules";
 import { canSubmitTransfer } from "@/lib/nido/transfer-ownership";
 import type { Household, HouseholdMember, HouseholdMemberView, ListedInvitation } from "@/lib/nido/types";
+import { InviteQrModal } from "@/components/flows/InviteQrModal";
 import { Button } from "@/components/nido/Button";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
 import { TextLink } from "@/components/nido/TextLink";
@@ -49,6 +51,7 @@ export function HouseholdScreen({
   const [invitationsLoading, setInvitationsLoading] = useState(false);
   const [invitationsError, setInvitationsError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [qrInvitation, setQrInvitation] = useState<ListedInvitation | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -108,12 +111,18 @@ export function HouseholdScreen({
     await loadInvitations();
   };
 
+  const invitationOrigin = () => (typeof window !== "undefined" ? window.location.origin : "");
+
   const handleCopyLink = async (invitation: ListedInvitation) => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const url = buildInvitationUrl(origin, invitation.token);
+    const url = invitationDestination(invitationOrigin(), invitation.token);
     const copied = await copyInvitationUrl(url);
     setCopiedId(copied ? invitation.id : null);
     if (!copied) setInviteError("No se pudo copiar el enlace.");
+  };
+
+  const handleShowQr = (invitation: ListedInvitation) => {
+    if (!canShowInvitationQr(invitation.status)) return;
+    setQrInvitation(invitation);
   };
 
   const handleConfirmCancel = async (invitationId: string) => {
@@ -254,6 +263,13 @@ export function HouseholdScreen({
                     >
                       {copiedId === invitation.id ? "Enlace copiado" : "Copiar enlace"}
                     </TextLink>
+                    {canShowInvitationQr(invitation.status) && (
+                      <TextLink
+                        onClick={() => { handleShowQr(invitation); }}
+                      >
+                        Mostrar QR
+                      </TextLink>
+                    )}
                     <TextLink
                       tone="muted"
                       onClick={() => {
@@ -417,6 +433,13 @@ export function HouseholdScreen({
           </div>
         )}
       </div>
+      {qrInvitation && canShowInvitationQr(qrInvitation.status) && (
+        <InviteQrModal
+          inviteUrl={invitationDestination(invitationOrigin(), qrInvitation.token)}
+          nestName={household.name}
+          onClose={() => setQrInvitation(null)}
+        />
+      )}
     </div>
   );
 }

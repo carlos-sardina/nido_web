@@ -147,10 +147,10 @@ The 60-second cooldown is a UX protection. Real abuse protection remains in Supa
 
 ## M. Invite another user
 
-1. After creating a Nido, the owner generates a link from Hogar. QR is still a placeholder, not a real code.
+1. After creating a Nido, the owner generates a link from Hogar. **Mostrar QR** on a pending invitation opens `InviteQrModal` with a real QR of `buildInvitationUrl(origin, token)`.
 2. `/join/<token>` shows the Nido name, not financial data.
-3. The invitation appears in the Hogar list as **Pendiente**, with **Copiar enlace** and **Cancelar**.
-4. The full token / URL is not shown as text.
+3. The invitation appears in the Hogar list as **Pendiente**, with **Copiar enlace**, **Mostrar QR**, and **Cancelar**. Accepted and expired rows have no QR action.
+4. The full token / URL is not shown as text. Copy and Share (when `navigator.share` exists) use the same URL as the QR. Cancelling the share sheet is not a product error.
 
 ## N. Duplicate invitation
 
@@ -547,5 +547,14 @@ Phase 9.3.2 (join + identity) against the repo on 2026-08-22:
 - **Departamento** and **Nido Smoke 924** were not modified. No temporary users or invitations were created.
 - Manual UI smoke (new invitee enters a name, fallback rename, same/other Nido accept errors, post-login retry) is **BLOCKED**. This environment cannot operate the app with real browser sessions. Do not treat unit/build success as a UI pass.
 - Verdict: **CASI CERRADA**. Implementation and automated checks are complete; the 6-case UI smoke is the only open 9.3.2 item.
+
+Phase 9.3.3 (real QR + Web Share) against the repo on 2026-08-22:
+
+- No new migration, table, column, RPC, or RLS change. The QR encodes the existing `/join/<token>` URL. Web Share is optional and client-only.
+- Unit tests 676 passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 14 tables. RLS matrix was **not** re-run: schema and policies are unchanged from the 9.3.1 run (239 passed, 0 failed).
+- New coverage: `canShowInvitationQr` (pending only), `invitationDestination` / `invitationQrValue` / `shareInvitationPayload` (same `buildInvitationUrl` destination), `shareInvitationUrl` (correct URL, cancellation vs failure, no share UI when `navigator.share` is missing).
+- Physical scan of the QR and the 6-case Hogar/share UI smoke are **BLOCKED**. This environment cannot operate the app with a real browser session or a second device. Do not treat unit/build success as a UI or scan pass.
+- **Departamento** and **Nido Smoke 924** were not modified. No temporary users or invitations were created.
+- Verdict: recorded in the 9.3.3 execution report.
 
 Do not record production results here unless they were performed.

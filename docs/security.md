@@ -481,6 +481,8 @@ Result: RLS coverage validation passed for 14 tables. The script confirmed RLS i
 
 Phase 9.3.2 did not add a migration, RPC, or RLS policy. Join writes `profiles.display_name` with the existing `profiles_update_self` policy (`id = auth.uid()`) and still accepts through `accept_invitation`. The matrix was not re-run; coverage remains 14 tables.
 
+Phase 9.3.3 did not add a migration, table, column, RPC, or RLS policy. The QR is a client encoding of the existing invitation URL (`buildInvitationUrl` → `/join/<token>`). It is not a new authorization path. `lookup_invitation` and `accept_invitation` are unchanged. Web Share sends only that URL. The matrix was not re-run; coverage remains 14 tables.
+
 ```bash
 npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
 ```
