@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import type { AuthIdentity } from "@/lib/auth/identity";
 import { canSubmitLeave } from "@/lib/nido/leave-household";
 import { leaveHousehold } from "@/lib/nido/membership";
+import { canSubmitDisplayName, updateMyDisplayName } from "@/lib/nido/profile";
 import type { HouseholdRole } from "@/lib/nido/types";
-import { DIANA_EXTRAS, DIANA_ITEMS } from "@/lib/constants";
-import { $k } from "@/lib/helpers";
 import { P } from "@/lib/palette";
+
+type NameStatus = "idle" | "editing" | "saving" | "success" | "error";
 
 export function ProfilePanel({
   identity,
@@ -17,6 +18,7 @@ export function ProfilePanel({
   onClose,
   onLogout,
   onLeft,
+  onDisplayNameSaved,
   signingOut = false,
 }: {
   identity: AuthIdentity | null;
@@ -27,13 +29,50 @@ export function ProfilePanel({
   onClose: () => void;
   onLogout: () => void;
   onLeft: () => void;
+  onDisplayNameSaved: (displayName: string) => void;
   signingOut?: boolean;
 }) {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
-  const fixedTotal = DIANA_ITEMS.reduce((s, i) => s + i.amount, 0);
-  const extraTotal = DIANA_EXTRAS.reduce((s, i) => s + i.amount, 0);
+  const [nameStatus, setNameStatus] = useState<NameStatus>("idle");
+  const [draftName, setDraftName] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
+  const savingRef = useRef(false);
+
+  const displayedName = identity?.displayName ?? "Usuario";
+  const saving = nameStatus === "saving";
+  const editing = nameStatus === "editing" || nameStatus === "saving" || nameStatus === "error";
+
+  const startEdit = () => {
+    setDraftName(identity?.displayName ?? "");
+    setNameError(null);
+    setNameStatus("editing");
+  };
+
+  const cancelEdit = () => {
+    if (saving) return;
+    setNameError(null);
+    setNameStatus("idle");
+  };
+
+  const saveName = async () => {
+    if (!canSubmitDisplayName(saving) || savingRef.current) return;
+    savingRef.current = true;
+    setNameStatus("saving");
+    setNameError(null);
+    const result = await updateMyDisplayName(draftName);
+    savingRef.current = false;
+    if (result.ok === false) {
+      setNameError(result.error.message);
+      setNameStatus("error");
+      return;
+    }
+    onDisplayNameSaved(result.data.display_name);
+    setDraftName(result.data.display_name);
+    setNameStatus("success");
+  };
+
   return (
     <div className="absolute inset-0 z-40 flex flex-col" style={{ backgroundColor: P.bgL }}>
       {/* Header */}
@@ -53,49 +92,78 @@ export function ProfilePanel({
               ? <img src={identity.avatarUrl} alt="" className="w-full h-full object-cover" />
               : (identity?.initials ?? "?")}
           </div>
-          <p className="text-base font-bold mb-0.5" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{identity?.displayName ?? "Usuario"}</p>
+          {editing ? (
+            <div className="w-full max-w-sm">
+              <label htmlFor="profile-display-name" className="sr-only">Nombre</label>
+              <input
+                id="profile-display-name"
+                type="text"
+                autoComplete="name"
+                value={draftName}
+                disabled={saving}
+                aria-invalid={nameStatus === "error" || undefined}
+                aria-describedby={nameError ? "profile-display-name-error" : undefined}
+                onChange={(event) => {
+                  setDraftName(event.target.value);
+                  if (nameStatus === "error") {
+                    setNameError(null);
+                    setNameStatus("editing");
+                  }
+                }}
+                className="w-full h-12 px-4 rounded-2xl text-sm font-medium outline-none border-2"
+                style={{
+                  backgroundColor: P.card,
+                  color: P.text,
+                  borderColor: nameStatus === "error" ? P.danger : P.border,
+                }}
+              />
+              {nameError && (
+                <p id="profile-display-name-error" className="text-[11px] mt-2 text-center" role="alert" style={{ color: P.danger }}>
+                  {nameError}
+                </p>
+              )}
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  disabled={saving}
+                  className="flex-1 py-3 rounded-2xl text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  style={{ borderColor: P.border, color: P.muted, opacity: saving ? 0.7 : 1 }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveName()}
+                  disabled={!canSubmitDisplayName(saving)}
+                  className="flex-1 py-3 rounded-2xl text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  style={{ backgroundColor: P.sage, color: "#fff", opacity: saving ? 0.7 : 1 }}
+                >
+                  {saving ? "Guardando…" : "Guardar"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="text-base font-bold mb-0.5" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{displayedName}</p>
+              <button
+                type="button"
+                onClick={startEdit}
+                className="text-[11px] font-semibold mt-1 mb-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md px-2 py-0.5"
+                style={{ color: P.sage }}
+              >
+                Editar nombre
+              </button>
+              {nameStatus === "success" && (
+                <p className="text-[11px] mb-1" role="status" style={{ color: P.sage }}>
+                  Nombre actualizado
+                </p>
+              )}
+            </>
+          )}
           <p className="text-xs" style={{ color: P.muted }}>{identity?.email ?? ""}</p>
           <div className="mt-2 px-3 py-1 rounded-full text-[10px] font-semibold" style={{ backgroundColor: P.sagePl, color: P.brnDp }}>
             Nido: {householdName} · {role === "owner" ? "Propietario" : "Miembro"}
-          </div>
-        </div>
-
-        {/* Fixed personal expenses */}
-        <div className="px-6 mb-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: P.muted }}>Gastos fijos personales</h3>
-            <span className="text-xs font-bold" style={{ color: P.text }}>{$k(fixedTotal)}/mes</span>
-          </div>
-          <div className="rounded-2xl overflow-hidden shadow-sm" style={{ backgroundColor: P.card }}>
-            {DIANA_ITEMS.map((item, idx) => (
-              <div key={item.name} className="flex items-center gap-3 px-4 py-3"
-                style={{ borderTop: idx === 0 ? "none" : `1px solid ${P.border}` }}>
-                <span className="text-base w-7 text-center flex-shrink-0">{item.icon}</span>
-                <p className="flex-1 text-xs font-medium" style={{ color: P.text }}>{item.name}</p>
-                <p className="text-xs font-semibold tabular-nums" style={{ color: P.text }}>{$k(item.amount)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Extra this month */}
-        <div className="px-6 mb-8">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: P.muted }}>Extra este mes</h3>
-            <span className="text-xs font-bold" style={{ color: P.text }}>{$k(extraTotal)}</span>
-          </div>
-          <div className="rounded-2xl overflow-hidden shadow-sm" style={{ backgroundColor: P.card }}>
-            {DIANA_EXTRAS.map((item, idx) => (
-              <div key={item.name} className="flex items-center gap-3 px-4 py-3"
-                style={{ borderTop: idx === 0 ? "none" : `1px solid ${P.border}` }}>
-                <span className="text-base w-7 text-center flex-shrink-0">{item.icon}</span>
-                <div className="flex-1">
-                  <p className="text-xs font-medium" style={{ color: P.text }}>{item.name}</p>
-                  <p className="text-[10px]" style={{ color: P.muted }}>{item.date}</p>
-                </div>
-                <p className="text-xs font-semibold tabular-nums" style={{ color: P.text }}>{$k(item.amount)}</p>
-              </div>
-            ))}
           </div>
         </div>
 

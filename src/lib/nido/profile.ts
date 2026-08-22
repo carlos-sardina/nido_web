@@ -1,7 +1,12 @@
 import { nidoErrorFromUnknown, nidoFail, nidoOk, type NidoResult } from "./errors";
-import { normalizeDisplayName } from "./rules";
 import { nidoClient, requireUser, type NidoClient } from "./session";
 import type { Profile } from "./types";
+import {
+  canSubmitDisplayName,
+  updateMyDisplayNameWithAuth,
+} from "./update-display-name";
+
+export { canSubmitDisplayName, updateMyDisplayNameWithAuth };
 
 export async function getMyProfile(
   supabase: NidoClient = nidoClient(),
@@ -26,17 +31,16 @@ export async function updateMyDisplayName(
   const auth = await requireUser(supabase);
   if (auth.ok === false) return nidoFail(auth.error.code);
 
-  const trimmed = normalizeDisplayName(displayName);
-  if (!trimmed) return nidoFail("invalid_name", "El nombre no puede estar vacío.");
-
-  const { data, error } = await auth.data.supabase
-    .from("profiles")
-    .update({ display_name: trimmed })
-    .eq("id", auth.data.user.id)
-    .select("id, display_name")
-    .maybeSingle();
-
-  if (error) return nidoFail(nidoErrorFromUnknown(error).code);
-  if (!data) return nidoFail("network");
-  return nidoOk(data);
+  return updateMyDisplayNameWithAuth(displayName, {
+    getUserId: async () => auth.data.user.id,
+    updateSelfDisplayName: async (payload) => {
+      const { data, error } = await auth.data.supabase
+        .from("profiles")
+        .update(payload)
+        .eq("id", auth.data.user.id)
+        .select("id, display_name")
+        .maybeSingle();
+      return { data, error };
+    },
+  });
 }

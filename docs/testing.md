@@ -452,7 +452,7 @@ The matrix did not leave `rls-matrix` / `@nido.test` users. Existing `nido_dev` 
 
 Manual UI smoke (two real users, mobile, double-tap in the running app) was **not** executed in this audit. Checklists A–J in the 9.2.3 brief remain the product walkthrough.
 
-Hogar no longer renders the prototype split-model constants (`D_INC`, `TOT_B`). Profile “gastos fijos / extra” still uses `DIANA_ITEMS` (Phase 9.3.5). Those leftovers are not dashboard sources. Home, Gastos, Ingresos, Metas, Presupuestos, and Actividad use `useDashboard()` → `fetchDashboardSnapshot()` → `buildDashboardViewModel()`.
+Hogar no longer renders the prototype split-model constants (`D_INC`, `TOT_B`). Perfil no longer renders `DIANA_ITEMS` / `DIANA_EXTRAS`. Those leftovers are not dashboard sources. Home, Gastos, Ingresos, Metas, Presupuestos, and Actividad use `useDashboard()` → `fetchDashboardSnapshot()` → `buildDashboardViewModel()`.
 
 ---
 
@@ -565,5 +565,15 @@ Phase 9.3.4 (Hogar prototype financial mock cleanup) against the repo on 2026-08
 - **Departamento** and **Nido Smoke 924** were not modified. No temporary users or invitations were created.
 - Manual Hogar UI smoke (10 cases: mocks gone, members/invitations/QR/ownership/name unchanged, no new financial widget) is **BLOCKED**. This environment cannot operate the app with a real browser session. Do not treat unit/build success as a UI pass.
 - Verdict: **CASI CERRADA**. Implementation and automated checks are complete; the 10-step UI smoke is the only open 9.3.4 item.
+
+Phase 9.3.5 (Perfil: real identity + mock cleanup) against the repo on 2026-08-22:
+
+- No new migration, table, column, RPC, or RLS change. `profiles` UPDATE remains `profiles_update_self` (`id = auth.uid()`). Perfil edits `display_name` through the existing `updateMyDisplayName` / `normalizeDisplayName` path.
+- Unit tests 685 passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 14 tables. RLS matrix was **not** re-run: schema and policies are unchanged from the 9.3.1 run (239 passed, 0 failed).
+- Removed from Perfil: “Gastos fijos personales”, “Extra este mes”, and prototype constants `DIANA_ITEMS` / `DIANA_EXTRAS`. No personal-expense table or RPC was added.
+- New coverage: `normalizeDisplayName` valid/invalid cases, `updateMyDisplayNameWithAuth` (persist only `display_name`, Supabase error + retry, no email local-part overwrite), `canSubmitDisplayName`.
+- **Departamento** and **Nido Smoke 924** were not modified. No temporary users or invitations were created.
+- Manual Perfil UI smoke (edit name, persist after reload, reject empty/>80, email/Nido/role intact, mocks gone, Leave, Logout) is **BLOCKED**. This environment cannot operate the app with a real browser session. Do not treat unit/build success as a UI pass.
+- Verdict: **CASI CERRADA**. Implementation and automated checks are complete; the 18-case UI smoke is the only open 9.3.5 item.
 
 Do not record production results here unless they were performed.

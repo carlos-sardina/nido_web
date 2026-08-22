@@ -132,4 +132,17 @@ describe("applyProfileDisplayName", () => {
     assert.equal(updated?.firstName, "Alex");
     assert.equal(updated?.initials, "AN");
   });
+
+  it("does not replace a chosen profile name with the email local-part", () => {
+    const identity = identityFromUser(user({
+      email: "carlos@example.com",
+      user_metadata: {},
+    }));
+    assert.equal(identity?.displayName, "carlos");
+    const updated = applyProfileDisplayName(identity, "Carlos");
+    assert.equal(updated?.displayName, "Carlos");
+    assert.equal(updated?.firstName, "Carlos");
+    assert.equal(updated?.email, "carlos@example.com");
+    assert.notEqual(updated?.displayName, emailLocalPart("carlos@example.com"));
+  });
 });

@@ -10,10 +10,12 @@ import {
   extractInvitationToken,
   generateInvitationToken,
   hasActiveMembership,
+  DISPLAY_NAME_MAX,
   HOUSEHOLD_NAME_MAX,
   invitationEmailIssue,
   isInvitationTokenFormat,
   isInviteEmailValid,
+  normalizeDisplayName,
   normalizeHouseholdName,
   normalizeInviteEmail,
 } from "./rules.ts";
@@ -172,6 +174,16 @@ describe("last-owner leave prevention", () => {
 });
 
 describe("normalization helpers", () => {
+  it("trims display names, keeps accents, and rejects blanks or excess length", () => {
+    assert.equal(normalizeDisplayName("Carlos"), "Carlos");
+    assert.equal(normalizeDisplayName("  Carlos  "), "Carlos");
+    assert.equal(normalizeDisplayName("Sofía"), "Sofía");
+    assert.equal(normalizeDisplayName(""), null);
+    assert.equal(normalizeDisplayName("   "), null);
+    assert.equal(normalizeDisplayName("C".repeat(DISPLAY_NAME_MAX + 1)), null);
+    assert.equal(normalizeDisplayName("C".repeat(DISPLAY_NAME_MAX)), "C".repeat(DISPLAY_NAME_MAX));
+  });
+
   it("trims household names and rejects blanks", () => {
     assert.equal(normalizeHouseholdName("  Casa Roma  "), "Casa Roma");
     assert.equal(normalizeHouseholdName("   "), null);

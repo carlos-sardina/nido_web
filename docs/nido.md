@@ -211,6 +211,8 @@ Accepted invitations stay accepted even if they would also be expired.
 
 Auth identity still comes from Supabase Auth. The profile is the canonical application display name. Auth user metadata is not updated.
 
+Perfil shows that persisted name and lets the signed-in user edit `profiles.display_name` only. The write is the existing `updateMyDisplayName` path (`normalizeDisplayName` + `profiles` UPDATE). RLS remains `profiles_update_self` (`id = auth.uid()`). No RPC, column, or personal-expense model was added. After a successful save, the UI applies the normalized name with `applyProfileDisplayName` and does not reload the app.
+
 ---
 
 ## What is still mock / local
@@ -233,11 +235,12 @@ Live on Home, empty when the Nido has no financial rows:
 
 Still prototype UI (not wired):
 
-- Profile personal-expense lists
 - email or push delivery
 - real-time subscriptions
 
 Hogar no longer shows the prototype contribution-model block (`D_INC` / `TOT_B`, Persona A / Persona B). There is no persisted household contribution model and no schema was added to replace those mocks.
+
+Perfil no longer shows prototype personal-expense lists (`DIANA_ITEMS` / `DIANA_EXTRAS`). Those sections were removed; they were not replaced with another financial model.
 
 Gastos, Metas, Crear una meta, and Registrar una aportación are live. Household name, member list, membership role, and `profiles.display_name` come from Supabase after the Nido is finalized.
 
@@ -280,6 +283,7 @@ Code lives in `src/lib/nido/`.
 | `invitation-actions.ts` | `listInvitationsWithAuth`, `cancelInvitationWithAuth`, `listStatusFromClassification` |
 | `join-invitation.ts` | `joinDisplayNameDecision`, `completeJoinInvitationWithAuth` — name then a single `accept_invitation` |
 | `profile.ts` | `getMyProfile`, `updateMyDisplayName` |
+| `update-display-name.ts` | `updateMyDisplayNameWithAuth`, `canSubmitDisplayName` |
 | `rules.ts` | Pure classification and token/email helpers |
 | `invitation-copy.ts` | Safe invitation status copy for `/join/<token>` |
 | `transient-retry.ts` | Bounded retry for `useMyNido` transient `network` / session-establishment errors |
@@ -341,7 +345,6 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## What remains after owner transfer
 
-- Profile personal-expense lists
 - invitation email delivery
 - Google OAuth
 - category CRUD (create / rename / archive) beyond the default catalog

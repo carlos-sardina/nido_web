@@ -1,19 +1,6 @@
 import { P } from "./palette";
 
 // ── DATA ─────────────────────────────────────────────────────────────────────
-export const DIANA_ITEMS = [
-  { name: "Pago auto",      amount: 12000, icon: "🚗" },
-  { name: "Seguro médico",  amount: 1702,  icon: "🏥" },
-  { name: "Fondo retiro",   amount: 2414,  icon: "📈" },
-  { name: "Terapia",        amount: 800,   icon: "💆" },
-  { name: "Gastos médicos", amount: 1000,  icon: "💊" },
-  { name: "Deezer",         amount: 240,   icon: "🎵" },
-  { name: "Google One",     amount: 169,   icon: "📧" },
-  { name: "YouTube",        amount: 280,   icon: "▶️" },
-  { name: "Móvil",          amount: 70,    icon: "📱" },
-  { name: "Mascotas",       amount: 2000,  icon: "🐾" },
-];
-
 export const CATS = [
   { name: "Renta",        icon: "🏠", budget: 20000, spent: 20000, color: "#8BA89E" },
   { name: "Restaurantes", icon: "🍔", budget: 6000,  spent: 7200,  color: P.brn     },
@@ -145,10 +132,4 @@ export const EXP_SUGG = [
   { name: "Mascotas",           icon: "🐾", selected: false, amount: "", type: "shared"   as const, kind: "variable"  as const },
   { name: "Tarjeta de crédito", icon: "💳", selected: false, amount: "", type: "personal" as const, kind: "variable"  as const },
   { name: "Terapia",            icon: "💆", selected: false, amount: "", type: "personal" as const, kind: "variable"  as const },
-];
-
-export const DIANA_EXTRAS = [
-  { name: "Cena cumpleaños", amount: 1800, icon: "🎂", date: "12 ago" },
-  { name: "Farmacia",        amount: 340,  icon: "💊", date: "9 ago"  },
-  { name: "Uber",            amount: 215,  icon: "🚕", date: "7 ago"  },
 ];

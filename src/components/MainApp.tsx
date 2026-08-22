@@ -63,7 +63,11 @@ export function MainApp({
   onNidoChanged: () => void;
   signingOut?: boolean;
 }) {
-  const identity = applyProfileDisplayName(identityFromUser(user), profile?.display_name);
+  const [savedDisplayName, setSavedDisplayName] = useState<string | null>(null);
+  const identity = applyProfileDisplayName(
+    identityFromUser(user),
+    savedDisplayName ?? profile?.display_name,
+  );
   const [tab, setTab]           = useState<Tab>("home");
   const [showSheet, setShowSheet] = useState(false);
   const [activeFlow, setActiveFlow] = useState<Flow>(null);
@@ -519,6 +523,7 @@ export function MainApp({
             onClose={() => setProfileOpen(false)}
             onLogout={onLogout}
             onLeft={onNidoChanged}
+            onDisplayNameSaved={setSavedDisplayName}
           />
         )}
     </div>

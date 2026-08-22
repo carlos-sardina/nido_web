@@ -485,6 +485,8 @@ Phase 9.3.3 did not add a migration, table, column, RPC, or RLS policy. The QR i
 
 Phase 9.3.4 did not add a migration, table, column, RPC, or RLS policy. It only removed Hogar prototype financial mocks. The matrix was not re-run; coverage remains 14 tables.
 
+Phase 9.3.5 did not add a migration, table, column, RPC, or RLS policy. Perfil writes `profiles.display_name` with the existing `profiles_update_self` policy (`id = auth.uid()`). It is not `SECURITY DEFINER` and does not use `service_role`. The matrix was not re-run; coverage remains 14 tables.
+
 ```bash
 npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
 ```
