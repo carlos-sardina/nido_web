@@ -279,7 +279,7 @@ Code lives in `src/lib/nido/`.
 | `contributions.ts` | `createContribution` (Supabase wrapper) |
 | `incomes.ts` | `createIncome` / `updateIncome` / `deleteIncome` |
 | `budgets.ts` | `createBudget` / `updateBudget` / `deleteBudget` |
-| `use-dashboard.ts` | Home data hook; uses the active household from `useMyNido` |
+| `use-dashboard.ts` | Shared snapshot for Home, Gastos, Ingresos, Metas, Presupuestos, and Actividad; uses the active household from `useMyNido` |
 
 Onboarding draft helpers live in `src/lib/onboarding/` (`draft`, `validation`). They do not write to Supabase.
 

@@ -670,4 +670,44 @@ describe("dashboard view model", () => {
       assert.equal(model.health.budgetUsagePercent, 25);
     }
   });
+
+  it("keeps activity on the active household and exposes recent rows for detail", () => {
+    const local: ExpenseRow = {
+      id: "e-local",
+      householdId: "h1",
+      categoryId: "c1",
+      amount: 80,
+      description: "Gas",
+      occurredAt: "2026-08-12",
+      payerId: "diana",
+      scope: "personal",
+      distributionMethod: "fixed",
+      recurringId: null,
+      createdBy: "diana",
+      createdAt: "2026-08-12T12:00:00.000Z",
+      deletedAt: null,
+      category: { id: "c1", name: "Servicios", icon: "🔥" },
+      payer: { id: "diana", displayName: "Diana Vega" },
+      splits: [],
+    };
+    const foreign: ExpenseRow = { ...local, id: "e-foreign", householdId: "h2", amount: 900 };
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        expenses: [local, foreign],
+        periodExpenses: [local, foreign],
+      }),
+      members,
+      range,
+    });
+
+    assert.deepEqual(
+      model.activity.map((item) => item.id),
+      ["expense:e-local"],
+    );
+    assert.deepEqual(
+      model.recentExpenses.map((row) => row.id),
+      ["e-local"],
+    );
+    assert.equal(model.recentIncomes.length, 0);
+  });
 });

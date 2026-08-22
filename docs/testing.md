@@ -4,7 +4,7 @@ Use this against a real Vercel + Supabase + SMTP environment. Automated unit tes
 
 Confirm email stays enabled. Google OAuth stays disabled. Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
 
-Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Phase 9.1.3A connects Metas (list, create, edit, archive). Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (edit / soft-delete). Phase 9.1.3C connects **Ingresos**. Phase 9.1.4 connects **Presupuestos**. Actividad uses the live snapshot (no `FEED` mock) and still does not invent budget events. See [financial.md](./financial.md).
+Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Phase 9.1.3A connects Metas (list, create, edit, archive). Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (edit / soft-delete). Phase 9.1.3C connects **Ingresos**. Phase 9.1.4 connects **Presupuestos**. Phase 9.2.1 connects **Actividad** to the live snapshot (no `FEED` mock) and still does not invent budget events. See [financial.md](./financial.md).
 
 The 60-second email cooldown is a **UX protection**. It prevents accidental repeat clicks and shows a countdown. The real protection against abuse remains in **Supabase Auth rate limits** and **Brevo SMTP limits**. The frontend cooldown does not replace or weaken those provider limits.
 
@@ -235,7 +235,7 @@ G. **Ver cambio en Home** — después de guardar, `useDashboard().refresh()` ac
 H. **Intentar editar como otro miembro** — no hay Editar/Eliminar; una mutación directa debe rechazarse (RLS/RPC, no solo UI).
 I. **Eliminar como creador** — confirmación **¿Eliminar este gasto?** / **Esta acción quitará el gasto de tus totales y actividad.** Cancelar (ghost) + Eliminar gasto (danger). No borra al primer tap.
 J. **Desaparece de totales** — el monto ya no entra en el mes.
-K. **Desaparece de actividad normal** — no aparece en la capa de actividad del snapshot (la pantalla Actividad sigue siendo prototipo).
+K. **Desaparece de actividad normal** — no aparece en Home ni en la pestaña Actividad después de `dashboard.refresh()`.
 L. **Intentar eliminar como otro miembro** — no hay botón; RPC/RLS rechaza.
 M. **Refresh** — los gastos reales siguen; el soft-deleted no vuelve.
 N. **Logout/login** — misma lista y totales.
@@ -379,6 +379,25 @@ G. **Otro miembro / otro Nido / histórico / no autenticado** — no pueden edit
 H. **Creador que salió** — no materializa; historial intacto. Sus `recurring_incomes` quedan inactivas.
 I. **Actividad** — solo el movimiento real. Crear/pausar una plantilla no es un evento financiero.
 J. **Doble tap** — un solo request; botón disabled + loading.
+
+Manual runs actually executed for this checklist: none in this phase.
+
+---
+
+## Actividad real (Phase 9.2.1)
+
+No new migration. Reads the existing dashboard snapshot. Unit coverage lives in `src/lib/nido/financial/activity.test.ts` and `dashboard.test.ts`. Those tests are **not** a live UI proof.
+
+A. **Sin mock** — la pestaña no usa `FEED` ni nombres/montos hardcodeados.
+B. **Gasto / ingreso / aportación** — cada tipo aparece con miembro, categoría o meta, monto y fecha reales.
+C. **Soft-delete** — un gasto, ingreso o aportación eliminado desaparece del feed.
+D. **Orden** — `occurred_at` / `contributed_at` desc, empate por `created_at` desc.
+E. **Nido activo** — no se mezclan movimientos de otro household.
+F. **Recurrencias** — una plantilla no aparece; el movimiento materializado sí.
+G. **Estados** — loading, vacío (**Todo tranquilo por aquí.** + las tres acciones existentes) y error con **Reintentar**.
+H. **Refresh** — crear / editar / eliminar actualiza Actividad vía `dashboard.refresh()` sin duplicar filas.
+I. **Detalle** — tap abre `ExpenseDetail` / `IncomeDetail` / `GoalDetail`.
+J. **Mobile** — scroll manual, safe-area, el contenido largo no queda bloqueado.
 
 Manual runs actually executed for this checklist: none in this phase.
 

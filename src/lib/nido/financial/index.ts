@@ -1,4 +1,10 @@
-export { buildActivityItems, contributionToActivity, expenseToActivity, incomeToActivity } from "./activity.ts";
+export {
+  buildActivityItems,
+  contributionToActivity,
+  expenseToActivity,
+  findActivitySource,
+  incomeToActivity,
+} from "./activity.ts";
 export {
   BUDGET_NEAR_LIMIT_PERCENT,
   budgetRemaining,
@@ -160,6 +166,7 @@ export {
 } from "./money.ts";
 export type {
   ActivityItem,
+  ActivitySource,
   BudgetItemView,
   BudgetRow,
   DashboardSnapshot,

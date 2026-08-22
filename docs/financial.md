@@ -1,4 +1,4 @@
-# Financial data layer (Phase 9.1.4)
+# Financial data layer (Phase 9.2.1)
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
@@ -12,7 +12,7 @@ Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar
 - only the creator may update or soft-delete a live budget
 - period is monthly calendar dates in `America/Mexico_City` (`start_date` first day, `end_date` last day)
 
-Phase 9.1.5 connects **Recurrencias**. Owner transfer was already delivered in 9.2.
+Phase 9.1.5 connects **Recurrencias**. Owner transfer was already delivered in 9.2. Phase 9.2.1 connects the **Actividad** tab to the same live snapshot.
 
 **Las recurrencias son plantillas; los movimientos reales son los únicos que participan en cálculos financieros.** `recurring_incomes` y `recurring_expenses` nunca se suman a ingresos del mes, gastos del mes, presupuestos, salud, actividad ni progreso de metas. Solo las filas de `incomes` / `expenses` materializadas (`recurring_id` apuntando a la plantilla) entran en esos totales.
 
@@ -272,7 +272,7 @@ The Gastos tab (`budget` in navigation) lists `model.periodExpenses` from `useDa
 
 Home `+` → **Registrar un ingreso** → form → `createIncome()` → `create_income` RPC → `useDashboard().refresh()`.
 
-The Ingresos tab lists `model.periodIncomes` from the same snapshot. Home shows `periodIncome` from that list. Actividad uses `model.activity` (union of live expenses, incomes, and contributions). The `FEED` mock is no longer used on Actividad.
+The Ingresos tab lists `model.periodIncomes` from the same snapshot. Home shows `periodIncome` from that list.
 
 ### Model
 
@@ -426,12 +426,39 @@ Double submit: **Guardando…** (`aria-busy`). After create, edit, or delete, Ho
 | `budgets.ts` | `createBudget` / `updateBudget` / `deleteBudget` |
 | `goals.ts` | `createGoal` / `updateGoal` / `archiveGoal` |
 | `contributions.ts` | `createContribution` / `updateContribution` / `deleteContribution` |
-| `financial/` | dates, money, splits, validation, dashboard view model |
+| `financial/` | dates, money, splits, validation, activity, dashboard view model |
 | `recurring-incomes.ts` | `createRecurringIncome` / `updateRecurringIncome` / `setRecurringIncomeActive` / `materializeRecurringIncome` |
 | `recurring-expenses.ts` | `createRecurringExpense` / `updateRecurringExpense` / `setRecurringExpenseActive` / `materializeRecurringExpense` |
 | `use-dashboard.ts` | shared snapshot; `refresh()` after create/edit/delete/archive/materialize |
 
 Visual components do not query Supabase tables directly. Home, Ingresos, Gastos, Presupuestos, Metas, and Actividad do not keep a parallel financial store.
+
+---
+
+## Actividad (Phase 9.2.1)
+
+The Actividad tab reads `model.activity` from the same `useDashboard()` / `fetchDashboardSnapshot()` snapshot as Home. There is no second financial query and no `FEED` mock.
+
+Events, and only these:
+
+| Type | Source | Copy |
+| --- | --- | --- |
+| Gasto | live `expenses` | quién pagó, descripción o categoría, monto, fecha, personal/compartido |
+| Ingreso | live `incomes` | quién lo registró, descripción o categoría, monto, fecha |
+| Aportación | live `goal_contributions` | quién aportó, meta, monto, fecha |
+
+Budgets and recurrence templates are not activity events. A template appears only after `materialize_recurring_*` writes a real `expenses` / `incomes` row.
+
+Rules:
+
+- Soft-deleted rows (`deleted_at IS NOT NULL`) are excluded in the query and again in `buildActivityItems()`
+- Order: `occurred_at` / `contributed_at` descending, then `created_at` descending
+- Calendar dates stay in `America/Mexico_City`; no UTC day shift
+- Scoped to the active Nido from `useMyNido()`; other-household rows are dropped even if an embed leaks them
+- Names come from `profiles` / `household_members`, not from IDs typed in the UI
+- After create / edit / soft-delete, `dashboard.refresh()` rebuilds the feed. Building the same snapshot twice does not duplicate rows
+
+The screen reuses `ExpenseDetail`, `IncomeDetail`, and `GoalDetail`. Empty Nido: **Todo tranquilo por aquí.** plus the existing **Registrar un gasto** / **Registrar un ingreso** / **Registrar una aportación** flows. Loading and retry use the same `NidoError` copy as Home.
 
 ---
 

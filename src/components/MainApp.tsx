@@ -89,8 +89,15 @@ export function MainApp({
   const [creatingRecurringIncome, setCreatingRecurringIncome] = useState(false);
   const [recurringRefresh, setRecurringRefresh] = useState(0);
   const dashboard = useDashboard(household.id, members);
+  const liveSelectedExpense = selectedExpense
+    ? dashboard.model?.recentExpenses.find((row) => row.id === selectedExpense.id)
+      ?? dashboard.model?.periodExpenses.find((row) => row.id === selectedExpense.id)
+      ?? selectedExpense
+    : null;
   const liveSelectedIncome = selectedIncome
-    ? dashboard.model?.periodIncomes.find((row) => row.id === selectedIncome.id) ?? selectedIncome
+    ? dashboard.model?.recentIncomes.find((row) => row.id === selectedIncome.id)
+      ?? dashboard.model?.periodIncomes.find((row) => row.id === selectedIncome.id)
+      ?? selectedIncome
     : null;
   const liveSelectedGoal = selectedGoal
     ? dashboard.model?.goals.find((row) => row.id === selectedGoal.id) ?? selectedGoal
@@ -218,7 +225,15 @@ export function MainApp({
             />
           )}
           {tab === "activity"  && (
-            <ActivityScreen dashboard={dashboard} />
+            <ActivityScreen
+              dashboard={dashboard}
+              onOpenExpense={setSelectedExpense}
+              onOpenIncome={setSelectedIncome}
+              onOpenGoal={setSelectedGoal}
+              onRegisterExpense={openExpenseCreate}
+              onRegisterIncome={openIncomeCreate}
+              onRegisterContribution={() => openFlow("contrib")}
+            />
           )}
         </div>
 
@@ -258,14 +273,14 @@ export function MainApp({
           />
         )}
 
-        {selectedExpense && activeFlow !== "expense" && (
+        {liveSelectedExpense && activeFlow !== "expense" && (
           <ExpenseDetail
-            expense={selectedExpense}
+            expense={liveSelectedExpense}
             members={members}
             currentUserId={user?.id ?? null}
             onClose={() => setSelectedExpense(null)}
             onEdit={() => {
-              setEditingExpense(selectedExpense);
+              setEditingExpense(liveSelectedExpense);
               setSelectedExpense(null);
               setActiveFlow("expense");
             }}

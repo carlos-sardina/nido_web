@@ -4,6 +4,7 @@ import { isActiveContribution } from "./goals.ts";
 import { isActiveIncome } from "./incomes.ts";
 import type {
   ActivityItem,
+  ActivitySource,
   ExpenseRow,
   GoalContributionRow,
   GoalRow,
@@ -25,6 +26,13 @@ function firstName(name: string | null): string | null {
   return name.split(/\s+/).filter(Boolean)[0] ?? name;
 }
 
+function belongsToHousehold(
+  householdId: string | undefined,
+  rowHouseholdId: string,
+): boolean {
+  return householdId == null || rowHouseholdId === householdId;
+}
+
 export function expenseToActivity(
   expense: ExpenseRow,
   members: HouseholdMemberView[],
@@ -38,6 +46,7 @@ export function expenseToActivity(
   return {
     id: `expense:${expense.id}`,
     type: "expense",
+    sourceId: expense.id,
     title,
     amount: expense.amount,
     date: expense.occurredAt,
@@ -66,6 +75,7 @@ export function incomeToActivity(
   return {
     id: `income:${income.id}`,
     type: "income",
+    sourceId: income.id,
     title,
     amount: income.amount,
     date: income.occurredAt,
@@ -94,6 +104,7 @@ export function contributionToActivity(
   return {
     id: `goal_contribution:${contribution.id}`,
     type: "goal_contribution",
+    sourceId: contribution.id,
     title,
     amount: contribution.amount,
     date: contribution.contributedAt,
@@ -102,13 +113,29 @@ export function contributionToActivity(
     memberName: name,
     icon: goal?.goalType === "purchase" ? "🎯" : "🛡️",
     metadata: {
+      goalId: contribution.goalId,
       goalName,
     },
   };
 }
 
-function sortKey(item: ActivityItem): string {
-  return `${item.date}T${item.createdAt ?? ""}`;
+function compareActivity(a: ActivityItem, b: ActivityItem): number {
+  const byDate = b.date.localeCompare(a.date);
+  if (byDate !== 0) return byDate;
+  const createdA = a.createdAt ?? "";
+  const createdB = b.createdAt ?? "";
+  const byCreated = createdB.localeCompare(createdA);
+  if (byCreated !== 0) return byCreated;
+  return b.id.localeCompare(a.id);
+}
+
+function uniqueById(items: ActivityItem[]): ActivityItem[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
 }
 
 export function buildActivityItems(input: {
@@ -117,26 +144,54 @@ export function buildActivityItems(input: {
   contributions: GoalContributionRow[];
   goals: GoalRow[];
   members: HouseholdMemberView[];
+  householdId?: string;
   limit?: number;
 }): ActivityItem[] {
+  const householdId = input.householdId;
+  const goals = input.goals.filter((goal) => belongsToHousehold(householdId, goal.householdId));
+
   const items: ActivityItem[] = [
     ...input.expenses
-      .filter(isActiveExpense)
+      .filter((row) => isActiveExpense(row) && belongsToHousehold(householdId, row.householdId))
       .map((row) => expenseToActivity(row, input.members)),
     ...input.incomes
-      .filter(isActiveIncome)
+      .filter((row) => isActiveIncome(row) && belongsToHousehold(householdId, row.householdId))
       .map((row) => incomeToActivity(row, input.members)),
     ...input.contributions
-      .filter(isActiveContribution)
-      .map((row) => contributionToActivity(row, input.goals, input.members)),
+      .filter((row) => {
+        if (!isActiveContribution(row)) return false;
+        if (!householdId) return true;
+        const goal = input.goals.find((item) => item.id === row.goalId);
+        return goal == null || goal.householdId === householdId;
+      })
+      .map((row) => contributionToActivity(row, goals, input.members)),
   ];
 
-  items.sort((a, b) => {
-    const byKey = sortKey(b).localeCompare(sortKey(a));
-    if (byKey !== 0) return byKey;
-    return b.id.localeCompare(a.id);
-  });
-
+  items.sort(compareActivity);
+  const unique = uniqueById(items);
   const limit = input.limit ?? 20;
-  return items.slice(0, limit);
+  return unique.slice(0, limit);
+}
+
+export function findActivitySource(
+  item: ActivityItem,
+  input: {
+    expenses: ExpenseRow[];
+    incomes: IncomeRow[];
+    goals: GoalRow[];
+  },
+): ActivitySource | null {
+  if (item.type === "expense") {
+    const expense = input.expenses.find((row) => row.id === item.sourceId);
+    return expense ? { type: "expense", expense } : null;
+  }
+  if (item.type === "income") {
+    const income = input.incomes.find((row) => row.id === item.sourceId);
+    return income ? { type: "income", income } : null;
+  }
+  const goalId = item.metadata.goalId;
+  const goal = goalId ? input.goals.find((row) => row.id === goalId) : null;
+  return goal
+    ? { type: "goal_contribution", goal, contributionId: item.sourceId }
+    : null;
 }

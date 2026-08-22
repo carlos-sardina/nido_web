@@ -156,6 +156,7 @@ export type ActivityType = "expense" | "income" | "goal_contribution";
 export type ActivityItem = {
   id: string;
   type: ActivityType;
+  sourceId: string;
   title: string;
   amount: number;
   date: string;
@@ -167,9 +168,15 @@ export type ActivityItem = {
     scope?: ExpenseScope;
     recurring?: boolean;
     categoryName?: string | null;
+    goalId?: string | null;
     goalName?: string | null;
   };
 };
+
+export type ActivitySource =
+  | { type: "expense"; expense: ExpenseRow }
+  | { type: "income"; income: IncomeRow }
+  | { type: "goal_contribution"; goal: GoalRow; contributionId: string };
 
 export type GoalProgress = {
   id: string;
@@ -275,6 +282,8 @@ export type DashboardViewModel = {
   activity: ActivityItem[];
   periodExpenses: ExpenseRow[];
   periodIncomes: IncomeRow[];
+  recentExpenses: ExpenseRow[];
+  recentIncomes: IncomeRow[];
   periodBudgets: BudgetItemView[];
   empty: {
     expenses: boolean;

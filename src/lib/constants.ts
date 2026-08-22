@@ -39,6 +39,7 @@ export const GOALS = [
   { name: "Fondo Mochi",         emoji: "🐶",  target: 20000,  current: 12000,  monthly: 2000, date: "Mayo 2026", color: "#C9785D", bg: "#FAF0EC", members: "Diana" },
 ];
 
+/** Prototype leftover. Actividad uses `model.activity` from `useDashboard()`, not this list. */
 export const FEED = [
   { user: "Carlos", action: "pagó Internet",       amount: 700,   time: "Hace 2h",     icon: "📡", type: "expense"   },
   { user: "Diana",  action: "compró supermercado", amount: 1200,  time: "Hace 5h",     icon: "🛒", type: "expense"   },

@@ -34,8 +34,12 @@ export function buildDashboardViewModel(input: {
     range,
     snapshot.householdId,
   );
-  const recentExpenses = snapshot.expenses.filter(isActiveExpense);
-  const recentIncomes = snapshot.incomes.filter(isActiveIncome);
+  const recentExpenses = snapshot.expenses.filter(
+    (row) => isActiveExpense(row) && row.householdId === snapshot.householdId,
+  );
+  const recentIncomes = snapshot.incomes.filter(
+    (row) => isActiveIncome(row) && row.householdId === snapshot.householdId,
+  );
   const periodSpent = householdSpent(periodExpenses);
   const activeGoals = activeGoalProgress(snapshot.goals);
   const featured = featuredSavingGoal(snapshot.goals);
@@ -82,6 +86,7 @@ export function buildDashboardViewModel(input: {
     contributions: snapshot.contributions,
     goals: snapshot.goals,
     members,
+    householdId: snapshot.householdId,
     limit: ACTIVITY_FEED,
   });
 
@@ -98,6 +103,8 @@ export function buildDashboardViewModel(input: {
     goals: snapshot.goals.filter((goal) => goal.status !== "archived"),
     periodExpenses,
     periodIncomes,
+    recentExpenses,
+    recentIncomes,
     periodBudgets: budget.items,
     activity,
     empty: {
