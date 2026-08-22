@@ -162,12 +162,15 @@ Invitations use `household_invitations`. No new table.
 
 1. An active owner calls `createInvitation({ householdId, email? })`.
 2. The service inserts a row with a cryptographically random token and an expiration.
-3. The UI copies `/join/<token>`. Email delivery is not implemented.
-4. Anyone with the link can look up status and the Nido name.
-5. An authenticated user with no active Nido can accept.
-6. Acceptance inserts a `member` row and sets `accepted_at`.
+3. Hogar copies `/join/<token>` and refreshes the invitation list. Email delivery is not implemented.
+4. `listInvitations()` reads the owner's rows via RLS. Status is derived with `classifyInvitation` (`valid` → Pendiente, `accepted` → Aceptada, `expired` → Expirada). There is no `status` column.
+5. A pending invitation can copy the existing token again (`buildInvitationUrl`) or be cancelled.
+6. Cancel is a client `DELETE` of `household_invitations.id` only. RLS restricts it to the active owner. There is no cancel RPC and no `cancelled_at`.
+7. Anyone with the link can look up status and the Nido name.
+8. An authenticated user with no active Nido can accept.
+9. Acceptance inserts a `member` row and sets `accepted_at`.
 
-Statuses shown to the user:
+Join-page statuses shown to the invitee:
 
 - valid
 - expired
@@ -176,7 +179,7 @@ Statuses shown to the user:
 - already belongs to a Nido
 - already belongs to this Nido
 
-The token is required to accept. Lookups and RPCs do not return the token, email, or financial data.
+Hogar does not show the full token or URL. Lookups and RPCs do not return the token, email, household id, or financial data. QR generation is not implemented (placeholder modal only).
 
 ---
 
@@ -272,7 +275,8 @@ Code lives in `src/lib/nido/`.
 | `membership.ts` | `getMyActiveHousehold`, `getMyMembership`, `getMyNidoState`, `getHouseholdMembers`, `leaveHousehold`, `transferHouseholdOwnership` |
 | `transfer-ownership.ts` | `transferOwnershipWithAuth`, `canSubmitTransfer` |
 | `leave-household.ts` | `leaveHouseholdWithAuth`, `canSubmitLeave` |
-| `invitations.ts` | `createInvitation`, `lookupInvitation`, `acceptInvitation` |
+| `invitations.ts` | `createInvitation`, `listInvitations`, `cancelInvitation`, `lookupInvitation`, `acceptInvitation` |
+| `invitation-actions.ts` | `listInvitationsWithAuth`, `cancelInvitationWithAuth`, `listStatusFromClassification` |
 | `profile.ts` | `getMyProfile`, `updateMyDisplayName` |
 | `rules.ts` | Pure classification and token/email helpers |
 | `invitation-copy.ts` | Safe invitation status copy for `/join/<token>` |
@@ -328,6 +332,7 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 - household planning widgets and Profile personal-expense lists
 - invitation email delivery
+- real QR generation (InviteQrModal is still a placeholder)
 - Google OAuth
 - category CRUD (create / rename / archive) beyond the default catalog
 - personal budgets (`member_id` set) in the UI

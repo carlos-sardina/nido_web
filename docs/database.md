@@ -138,20 +138,20 @@ Rejoining the same Nido creates a **new** membership row.
 
 ### 3.4 `household_invitations`
 
-Invite-by-email or token / QR.
+Invite-by-token. Optional email. There is no persisted `status`, `cancelled_at`, or short code. QR is not a database feature.
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | `uuid` PK | |
 | `household_id` | `uuid` FK → `households.id` | |
 | `invited_by` | `uuid` FK → `profiles.id` | |
-| `email` | `text` nullable | Null is allowed for token/QR invites. |
+| `email` | `text` nullable | Null is allowed for link invites. |
 | `token` | `text` UNIQUE NOT NULL | |
 | `expires_at` | `timestamptz` NOT NULL | |
 | `accepted_at` | `timestamptz` nullable | |
 | `created_at` | `timestamptz` | |
 
-Accepting an invitation is application work: validate token and expiry, enforce one-active-Nido, insert `household_members`, set `accepted_at`. See [nido.md](./nido.md) for the Phase 8 RPCs and service layer.
+Status is derived (`accepted_at`, `expires_at`, `now()`). Cancel is an owner `DELETE` of the row (RLS). Accepting is `accept_invitation(p_token)`: validate token and expiry, enforce one-active-Nido, insert `household_members`, set `accepted_at`. See [nido.md](./nido.md).
 
 ### 3.5 `categories`
 
@@ -898,7 +898,7 @@ Still deferred:
 4. **Pairwise settlements / payments** between members.
 5. **Refunds or negative amounts.**
 6. **Personal-budget spend attribution** and personal-budget UI.
-7. **Invitation email / QR product** beyond the current owner insert + `accept_invitation` RPC.
+7. **Invitation email / QR product** beyond owner list / copy / cancel (DELETE) + `lookup_invitation` / `accept_invitation`.
 8. **Owner-count trigger** — last-owner leave is enforced in `leave_household`, not by a table trigger.
 9. **Audit log** of edits.
 10. **Hard-delete prevention triggers** — physical `DELETE` is revoked on movement tables; application uses `deleted_at` / `is_active` / `archived_at` / goal `status`.

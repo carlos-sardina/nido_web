@@ -10,6 +10,8 @@ export type MembershipStatus = "no_nido" | "active" | "historical_only";
 
 export type InvitationStatus = "valid" | "expired" | "accepted" | "invalid";
 
+export type InvitationListStatus = "pending" | "accepted" | "expired";
+
 export type InvitationPreview = {
   status: InvitationStatus;
   householdName: string | null;
@@ -18,6 +20,17 @@ export type InvitationPreview = {
 export type CreatedInvitation = {
   url: string;
   expiresAt: string;
+};
+
+export type ListedInvitation = {
+  id: string;
+  email: string | null;
+  expiresAt: string;
+  acceptedAt: string | null;
+  createdAt: string;
+  status: InvitationListStatus;
+  /** Owner-only via RLS. Used to rebuild the join URL. Do not render. */
+  token: string;
 };
 
 export type HouseholdMemberView = {

@@ -1,5 +1,10 @@
 import { nidoErrorFromUnknown, nidoFail, nidoOk, type NidoResult } from "./errors";
 import {
+  cancelInvitationWithAuth,
+  listInvitationsWithAuth,
+} from "./invitation-actions";
+import { getMyMembership } from "./membership";
+import {
   buildInvitationUrl,
   generateInvitationToken,
   invitationEmailIssue,
@@ -7,7 +12,13 @@ import {
   normalizeInviteEmail,
 } from "./rules";
 import { nidoClient, requireUser, type NidoClient } from "./session";
-import { INVITATION_TTL_DAYS, type CreatedInvitation, type InvitationPreview, type InvitationStatus } from "./types";
+import {
+  INVITATION_TTL_DAYS,
+  type CreatedInvitation,
+  type InvitationPreview,
+  type InvitationStatus,
+  type ListedInvitation,
+} from "./types";
 
 const PREVIEW_STATUSES = new Set<InvitationStatus>([
   "valid",
@@ -54,6 +65,50 @@ export async function createInvitation(
   return nidoOk({
     url: buildInvitationUrl(origin, token),
     expiresAt,
+  });
+}
+
+export async function listInvitations(
+  supabase: NidoClient = nidoClient(),
+): Promise<NidoResult<ListedInvitation[]>> {
+  const auth = await requireUser(supabase);
+  if (auth.ok === false) return nidoFail(auth.error.code);
+
+  return listInvitationsWithAuth({
+    getUserId: async () => auth.data.user.id,
+    getActiveHouseholdId: async () => {
+      const membership = await getMyMembership(auth.data.supabase);
+      if (membership.ok === false) return null;
+      return membership.data?.household_id ?? null;
+    },
+    selectInvitations: async (householdId) => {
+      const result = await auth.data.supabase
+        .from("household_invitations")
+        .select("id, email, expires_at, accepted_at, created_at, token")
+        .eq("household_id", householdId)
+        .order("created_at", { ascending: false });
+      return { data: result.data, error: result.error };
+    },
+  });
+}
+
+export async function cancelInvitation(
+  invitationId: string,
+  supabase: NidoClient = nidoClient(),
+): Promise<NidoResult<null>> {
+  const auth = await requireUser(supabase);
+  if (auth.ok === false) return nidoFail(auth.error.code);
+
+  return cancelInvitationWithAuth(invitationId, {
+    getUserId: async () => auth.data.user.id,
+    deleteInvitation: async (id) => {
+      const result = await auth.data.supabase
+        .from("household_invitations")
+        .delete()
+        .eq("id", id)
+        .select("id");
+      return { data: result.data, error: result.error };
+    },
   });
 }
 

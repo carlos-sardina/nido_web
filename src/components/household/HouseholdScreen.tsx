@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "lucide-react";
 import { initialsFromName } from "@/lib/auth/identity";
-import { createInvitation } from "@/lib/nido/invitations";
+import {
+  canSubmitInvitationAction,
+  formatInvitationDay,
+} from "@/lib/nido/invitation-actions";
+import { cancelInvitation, createInvitation, listInvitations } from "@/lib/nido/invitations";
 import { transferHouseholdOwnership } from "@/lib/nido/membership";
-import { transferableMembers } from "@/lib/nido/rules";
+import { buildInvitationUrl, transferableMembers } from "@/lib/nido/rules";
 import { canSubmitTransfer } from "@/lib/nido/transfer-ownership";
-import type { Household, HouseholdMember, HouseholdMemberView } from "@/lib/nido/types";
+import type { Household, HouseholdMember, HouseholdMemberView, ListedInvitation } from "@/lib/nido/types";
 import { Button } from "@/components/nido/Button";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
 import { TextLink } from "@/components/nido/TextLink";
@@ -16,6 +20,12 @@ import { C_CAP, C_INC, D_CAP, D_INC, T_CAP, T_INC, TOT_B } from "@/lib/constants
 import { $k } from "@/lib/helpers";
 import { P } from "@/lib/palette";
 import type { Model } from "@/lib/types";
+
+const LIST_STATUS_LABEL: Record<ListedInvitation["status"], string> = {
+  pending: "Pendiente",
+  accepted: "Aceptada",
+  expired: "Expirada",
+};
 
 export function HouseholdScreen({
   household,
@@ -32,10 +42,17 @@ export function HouseholdScreen({
   setModel: (m: Model) => void;
   onOwnershipTransferred: () => void;
 }) {
-  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [invitations, setInvitations] = useState<ListedInvitation[]>([]);
+  const [invitationsLoading, setInvitationsLoading] = useState(false);
+  const [invitationsError, setInvitationsError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelSuccess, setCancelSuccess] = useState<string | null>(null);
   const [transferStep, setTransferStep] = useState<"idle" | "pick" | "confirm">("idle");
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
   const [transferring, setTransferring] = useState(false);
@@ -49,6 +66,34 @@ export function HouseholdScreen({
     : model === "proportional" ? { d: Math.round(D_INC/T_INC*100), c: Math.round(C_INC/T_INC*100) }
     : { d: Math.round(D_CAP/T_CAP*100), c: Math.round(C_CAP/T_CAP*100) };
 
+  const loadInvitations = useCallback(async () => {
+    if (membership.role !== "owner") return;
+    setInvitationsLoading(true);
+    setInvitationsError(null);
+    const result = await listInvitations();
+    if (result.ok === false) {
+      setInvitationsError(result.error.message);
+      setInvitations([]);
+      setInvitationsLoading(false);
+      return;
+    }
+    setInvitations(result.data);
+    setInvitationsLoading(false);
+  }, [membership.role]);
+
+  useEffect(() => {
+    void loadInvitations();
+  }, [loadInvitations]);
+
+  const copyInvitationUrl = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleInvite = async () => {
     setInviteBusy(true);
     setInviteError(null);
@@ -59,13 +104,31 @@ export function HouseholdScreen({
       setInviteError(result.error.message);
       return;
     }
-    setInviteUrl(result.data.url);
-    try {
-      await navigator.clipboard.writeText(result.data.url);
-      setInviteCopied(true);
-    } catch {
-      setInviteCopied(false);
+    setInviteCopied(await copyInvitationUrl(result.data.url));
+    await loadInvitations();
+  };
+
+  const handleCopyLink = async (invitation: ListedInvitation) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const url = buildInvitationUrl(origin, invitation.token);
+    const copied = await copyInvitationUrl(url);
+    setCopiedId(copied ? invitation.id : null);
+    if (!copied) setInviteError("No se pudo copiar el enlace.");
+  };
+
+  const handleConfirmCancel = async (invitationId: string) => {
+    if (!canSubmitInvitationAction(cancelling)) return;
+    setCancelling(true);
+    setCancelError(null);
+    const result = await cancelInvitation(invitationId);
+    setCancelling(false);
+    if (result.ok === false) {
+      setCancelError(result.error.message);
+      return;
     }
+    setConfirmingId(null);
+    setCancelSuccess("Invitación cancelada.");
+    await loadInvitations();
   };
 
   return (
@@ -106,12 +169,106 @@ export function HouseholdScreen({
               <p className="text-[10px]" style={{ color: P.muted }}>Comparte un link. No se envía correo todavía.</p>
             </div>
           </button>
-          {inviteUrl && (
-            <p className="text-[10px] break-all mt-2 px-1" style={{ color: P.muted }}>{inviteUrl}</p>
-          )}
           {inviteError && (
             <p className="text-[11px] mt-2" style={{ color: P.danger }}>{inviteError}</p>
           )}
+        </div>
+      )}
+      {isOwner && (
+        <div className="mx-6 mb-3 rounded-[1.5rem] p-4 space-y-3" style={{ backgroundColor: P.card }}>
+          <Text size="label">Invitaciones</Text>
+          {invitationsLoading && (
+            <Text size="caption" tone="muted">Cargando invitaciones...</Text>
+          )}
+          {!invitationsLoading && invitationsError && (
+            <Text size="caption" tone="danger" role="alert">{invitationsError}</Text>
+          )}
+          {!invitationsLoading && !invitationsError && invitations.length === 0 && (
+            <Text size="caption" tone="muted">No hay invitaciones</Text>
+          )}
+          {cancelSuccess && (
+            <Text size="caption" tone="brand" role="status">{cancelSuccess}</Text>
+          )}
+          {!invitationsLoading && invitations.map((invitation) => {
+            const expiryLabel = formatInvitationDay(invitation.expiresAt);
+            const createdLabel = formatInvitationDay(invitation.createdAt);
+            return (
+              <div key={invitation.id} className="rounded-2xl p-3 space-y-2" style={{ backgroundColor: P.sub }}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold" style={{ color: P.text }}>
+                      {LIST_STATUS_LABEL[invitation.status]}
+                    </p>
+                    {invitation.email && (
+                      <p className="text-[10px] truncate" style={{ color: P.muted }}>{invitation.email}</p>
+                    )}
+                    {invitation.status === "pending" && expiryLabel && (
+                      <p className="text-[10px]" style={{ color: P.muted }}>Expira el {expiryLabel}</p>
+                    )}
+                    {invitation.status === "expired" && expiryLabel && (
+                      <p className="text-[10px]" style={{ color: P.muted }}>Expiró el {expiryLabel}</p>
+                    )}
+                    {invitation.status === "accepted" && createdLabel && (
+                      <p className="text-[10px]" style={{ color: P.muted }}>Creada el {createdLabel}</p>
+                    )}
+                  </div>
+                </div>
+                {invitation.status === "pending" && confirmingId === invitation.id ? (
+                  <div className="space-y-2">
+                    <Text size="caption" className="leading-relaxed">¿Cancelar esta invitación?</Text>
+                    <Text size="caption" tone="muted" className="leading-relaxed">
+                      El enlace dejará de estar disponible.
+                    </Text>
+                    {cancelError && (
+                      <Text size="caption" tone="danger" role="alert">{cancelError}</Text>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={cancelling}
+                        onClick={() => {
+                          if (cancelling) return;
+                          setConfirmingId(null);
+                          setCancelError(null);
+                        }}
+                        className="flex-1 py-3 rounded-2xl text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        style={{ borderColor: P.border, color: P.muted }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canSubmitInvitationAction(cancelling)}
+                        onClick={() => { void handleConfirmCancel(invitation.id); }}
+                        className="flex-1 py-3 rounded-2xl text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        style={{ backgroundColor: P.danger, color: "#fff", opacity: cancelling ? 0.7 : 1 }}
+                      >
+                        {cancelling ? "Cancelando…" : "Confirmar"}
+                      </button>
+                    </div>
+                  </div>
+                ) : invitation.status === "pending" ? (
+                  <div className="flex flex-wrap gap-3">
+                    <TextLink
+                      onClick={() => { void handleCopyLink(invitation); }}
+                    >
+                      {copiedId === invitation.id ? "Enlace copiado" : "Copiar enlace"}
+                    </TextLink>
+                    <TextLink
+                      tone="muted"
+                      onClick={() => {
+                        setCancelSuccess(null);
+                        setCancelError(null);
+                        setConfirmingId(invitation.id);
+                      }}
+                    >
+                      Cancelar
+                    </TextLink>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       )}
       {isOwner && candidates.length > 0 && (

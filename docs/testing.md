@@ -147,8 +147,10 @@ The 60-second cooldown is a UX protection. Real abuse protection remains in Supa
 
 ## M. Invite another user
 
-1. After creating a Nido, generate a link/QR.
+1. After creating a Nido, the owner generates a link from Hogar. QR is still a placeholder, not a real code.
 2. `/join/<token>` shows the Nido name, not financial data.
+3. The invitation appears in the Hogar list as **Pendiente**, with **Copiar enlace** and **Cancelar**.
+4. The full token / URL is not shown as text.
 
 ## N. Duplicate invitation
 
@@ -441,7 +443,7 @@ Technical validations executed in this phase:
 | `npx tsc --noEmit` | pass |
 | `npm run build` | pass |
 | `node supabase/tests/validate_rls_coverage.mjs` | 14 tables |
-| `npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql` | 198 assertions, 0 failed, `ROLLBACK` |
+| `npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql` | 239 assertions, 0 failed, `ROLLBACK` |
 | Remote migrations | all 13 local files present on `nido_dev` |
 
 The matrix did not leave `rls-matrix` / `@nido.test` users. Existing `nido_dev` data after rollback was one household with one member and no financial rows — that is not matrix leftover.
@@ -523,5 +525,13 @@ Phase 9.2.4 against local app + linked `nido_dev` (`pxfdvhavcddqmhuljxlf`) on 20
 - Unit tests 627 passed. `tsc` pass. `npm run build` pass. `validate_rls_coverage.mjs` 14 tables.
 - Smoke UI used test accounts `nido.smoke.carlos.924@nido.test` and `nido.smoke.diana.924@nido.test` on a new household **Nido Smoke 924**. The preexisting **Departamento** household was left intact (1 member, 0 financial rows).
 - Walkthrough results: A, B, C, E, H, J observed against the live app/DB. D, F, G, I did not complete a full two-user proof in this run.
+
+Phase 9.3.1 against the repo + linked `nido_dev` (`pxfdvhavcddqmhuljxlf`) on 2026-08-22:
+
+- No new migration, table, column, or RPC.
+- Unit tests 642 passed. `tsc` pass. `npm run build` pass. `validate_rls_coverage.mjs` 14 tables.
+- RLS matrix: 239 assertions, 0 failed, script ended in `ROLLBACK`. Invitation product cases `J01`–`J30` cover lookup, accept, and owner DELETE cancel.
+- **Departamento** and **Nido Smoke 924** remained. No `nido-rls-j-%` invitation rows persisted.
+- Manual Hogar smoke (create → list → copy → cancel → accept as second user → accepted in list) was **not** executed in this run.
 
 Do not record production results here unless they were performed.

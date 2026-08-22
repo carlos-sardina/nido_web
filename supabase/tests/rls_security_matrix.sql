@@ -856,6 +856,427 @@ END;
 $$;
 
 -- -----------------------------------------------------------------------------
+-- Phase 9.3.1 — invitation product: lookup / accept / cancel
+-- Temporary users and tokens. Does not mutate invite_a.
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_sofia uuid := gen_random_uuid();
+  v_mateo uuid := gen_random_uuid();
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_income_a uuid;
+  v_expense_a uuid;
+  v_inv_pending uuid := gen_random_uuid();
+  v_inv_expired uuid := gen_random_uuid();
+  v_inv_accepted uuid := gen_random_uuid();
+  v_inv_cancel uuid := gen_random_uuid();
+  v_inv_accept uuid := gen_random_uuid();
+  v_inv_member uuid := gen_random_uuid();
+  v_inv_other uuid := gen_random_uuid();
+  v_suffix text := replace(v_sofia::text, '-', '');
+  v_tok_pending text := 'nido-rls-j-pending-' || v_suffix;
+  v_tok_expired text := 'nido-rls-j-expired-' || v_suffix;
+  v_tok_accepted text := 'nido-rls-j-accepted-' || v_suffix;
+  v_tok_cancel text := 'nido-rls-j-cancel-' || v_suffix;
+  v_tok_accept text := 'nido-rls-j-accept-' || v_suffix;
+  v_tok_member text := 'nido-rls-j-member-' || v_suffix;
+  v_tok_other text := 'nido-rls-j-other-' || v_suffix;
+  v_status text;
+  v_name text;
+  v_preview jsonb;
+  v_preview_keys text[];
+  v_members_before integer;
+  v_members_after integer;
+  v_hh_name_before text;
+  v_hh_name_after text;
+  v_income_before integer;
+  v_income_after integer;
+  v_expense_before integer;
+  v_expense_after integer;
+  v_accept_user uuid;
+  v_accept_role public.household_role;
+  v_accept_hh uuid;
+  v_fn_args text;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+  SELECT id INTO v_income_a FROM rls_ids WHERE key = 'income_a';
+  SELECT id INTO v_expense_a FROM rls_ids WHERE key = 'expense_a';
+
+  PERFORM pg_temp.clear_auth();
+  PERFORM pg_temp.create_auth_user(v_sofia, 'sofia-rls-' || v_suffix || '@example.test', 'Sofia');
+  PERFORM pg_temp.create_auth_user(v_mateo, 'mateo-rls-' || v_suffix || '@example.test', 'Mateo');
+
+  INSERT INTO public.household_invitations (
+    id, household_id, invited_by, email, token, expires_at, accepted_at
+  ) VALUES
+    (v_inv_pending, v_nido_a, v_carlos, NULL, v_tok_pending, now() + interval '7 days', NULL),
+    (v_inv_expired, v_nido_a, v_carlos, NULL, v_tok_expired, now() - interval '1 day', NULL),
+    (v_inv_accepted, v_nido_a, v_carlos, 'accepted@example.test', v_tok_accepted, now() + interval '7 days', now() - interval '1 day'),
+    (v_inv_cancel, v_nido_a, v_carlos, 'sofia-rls-' || v_suffix || '@example.test', v_tok_cancel, now() + interval '7 days', NULL),
+    (v_inv_accept, v_nido_a, v_carlos, NULL, v_tok_accept, now() + interval '7 days', NULL),
+    (v_inv_member, v_nido_a, v_carlos, NULL, v_tok_member, now() + interval '7 days', NULL),
+    (v_inv_other, v_nido_a, v_carlos, NULL, v_tok_other, now() + interval '7 days', NULL);
+
+  INSERT INTO rls_ids (key, id) VALUES
+    ('sofia', v_sofia),
+    ('mateo', v_mateo),
+    ('inv_pending', v_inv_pending),
+    ('inv_cancel', v_inv_cancel);
+
+  -- J01 anon + valid token
+  v_status := NULL;
+  v_name := NULL;
+  BEGIN
+    PERFORM pg_temp.clear_auth();
+    SET LOCAL ROLE anon;
+    SELECT status, household_name INTO v_status, v_name
+    FROM public.lookup_invitation(v_tok_pending);
+    RESET ROLE;
+  EXCEPTION
+    WHEN OTHERS THEN
+      RESET ROLE;
+      v_status := 'error';
+      v_name := SQLERRM;
+  END;
+  PERFORM pg_temp.record_result(
+    'J01', 'anon', 'A', 'none', 'lookup valid token',
+    'valid:Nido A',
+    v_status || ':' || coalesce(v_name, '')
+  );
+
+  -- J02 authenticated (non-owner) + valid token
+  PERFORM pg_temp.set_auth(v_sofia);
+  SELECT status, household_name INTO v_status, v_name
+  FROM public.lookup_invitation(v_tok_pending);
+  PERFORM pg_temp.record_result(
+    'J02', 'Sofia', 'A', 'invitee', 'lookup valid token',
+    'valid:Nido A',
+    v_status || ':' || coalesce(v_name, '')
+  );
+
+  -- J03 nonexistent
+  SELECT status INTO v_status
+  FROM public.lookup_invitation('nido-rls-j-missing-token');
+  PERFORM pg_temp.record_result(
+    'J03', 'Sofia', '-', 'none', 'lookup missing token',
+    'invalid',
+    v_status
+  );
+
+  -- J04 expired
+  SELECT status INTO v_status
+  FROM public.lookup_invitation(v_tok_expired);
+  PERFORM pg_temp.record_result(
+    'J04', 'Sofia', 'A', 'invitee', 'lookup expired token',
+    'expired',
+    v_status
+  );
+
+  -- J05 accepted
+  SELECT status INTO v_status
+  FROM public.lookup_invitation(v_tok_accepted);
+  PERFORM pg_temp.record_result(
+    'J05', 'Sofia', 'A', 'invitee', 'lookup accepted token',
+    'accepted',
+    v_status
+  );
+
+  -- J06 preview does not expose token, email, household_id, or finances
+  SELECT to_jsonb(t) INTO v_preview
+  FROM public.lookup_invitation(v_tok_pending) AS t;
+  SELECT array_agg(key ORDER BY key) INTO v_preview_keys
+  FROM jsonb_object_keys(v_preview) AS key;
+  PERFORM pg_temp.record_result(
+    'J06', 'Sofia', 'A', 'invitee', 'lookup preview keys only',
+    'household_name,status',
+    array_to_string(v_preview_keys, ',')
+  );
+  PERFORM pg_temp.record_result(
+    'J07', 'Sofia', 'A', 'invitee', 'lookup omits token email household_id amount',
+    'safe',
+    CASE
+      WHEN coalesce(v_preview ? 'token', false)
+        OR coalesce(v_preview ? 'email', false)
+        OR coalesce(v_preview ? 'household_id', false)
+        OR coalesce(v_preview ? 'amount', false)
+      THEN 'leaked'
+      ELSE 'safe'
+    END
+  );
+
+  -- J08 unauthenticated accept
+  PERFORM pg_temp.clear_auth();
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.record_result(
+    'J08', 'none', '-', 'none', 'anon cannot accept',
+    'nido.unauthenticated',
+    pg_temp.expect_exception(format(
+      'SELECT public.accept_invitation(%L)', v_tok_accept
+    ))
+  );
+
+  -- J11 missing token
+  PERFORM pg_temp.set_auth(v_sofia);
+  PERFORM pg_temp.record_result(
+    'J11', 'Sofia', '-', 'none', 'accept missing token',
+    'nido.invitation_invalid',
+    pg_temp.expect_exception(
+      'SELECT public.accept_invitation(''nido-rls-j-missing-token'')'
+    )
+  );
+
+  -- J12 expired
+  PERFORM pg_temp.record_result(
+    'J12', 'Sofia', 'A', 'none', 'accept expired token',
+    'nido.invitation_expired',
+    pg_temp.expect_exception(format(
+      'SELECT public.accept_invitation(%L)', v_tok_expired
+    ))
+  );
+
+  -- J13 already accepted
+  PERFORM pg_temp.record_result(
+    'J13', 'Sofia', 'A', 'none', 'accept already accepted token',
+    'nido.invitation_accepted',
+    pg_temp.expect_exception(format(
+      'SELECT public.accept_invitation(%L)', v_tok_accepted
+    ))
+  );
+
+  -- J14 already in another Nido
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'J14', 'Luis', 'A', 'other nido', 'accept while in another Nido',
+    'nido.already_in_nido',
+    pg_temp.expect_exception(format(
+      'SELECT public.accept_invitation(%L)', v_tok_other
+    ))
+  );
+
+  -- J15 already a member of the same Nido
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'J15', 'Diana', 'A', 'active member', 'accept while already a member',
+    'nido.already_member',
+    pg_temp.expect_exception(format(
+      'SELECT public.accept_invitation(%L)', v_tok_member
+    ))
+  );
+
+  -- J09 / J10 authenticated accept of a valid token
+  PERFORM pg_temp.set_auth(v_mateo);
+  PERFORM pg_temp.record_result(
+    'J09', 'Mateo', 'A', 'none', 'accept valid token',
+    'allow',
+    pg_temp.expect_allow(format(
+      'SELECT public.accept_invitation(%L)', v_tok_accept
+    ))
+  );
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  SELECT user_id, role, household_id
+    INTO v_accept_user, v_accept_role, v_accept_hh
+  FROM public.household_members
+  WHERE user_id = v_mateo AND left_at IS NULL;
+  PERFORM pg_temp.record_result(
+    'J10', 'Mateo', 'A', 'member after accept', 'accept uses auth.uid member role invitation household',
+    'allow',
+    CASE
+      WHEN v_accept_user = v_mateo
+       AND v_accept_role = 'member'
+       AND v_accept_hh = v_nido_a
+      THEN 'allow' ELSE 'deny'
+    END
+  );
+
+  -- J16 second accept of the same token
+  PERFORM pg_temp.set_auth(v_sofia);
+  PERFORM pg_temp.record_result(
+    'J16', 'Sofia', 'A', 'none', 'second accept of used token',
+    'nido.invitation_accepted',
+    pg_temp.expect_exception(format(
+      'SELECT public.accept_invitation(%L)', v_tok_accept
+    ))
+  );
+
+  -- J17–J19 accept cannot choose household_id / role / user_id
+  SELECT pg_get_function_identity_arguments(p.oid) INTO v_fn_args
+  FROM pg_proc AS p
+  JOIN pg_namespace AS n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public' AND p.proname = 'accept_invitation';
+  PERFORM pg_temp.record_result(
+    'J17', 'Mateo', 'A', 'member', 'accept has no household_id argument',
+    'p_token text',
+    v_fn_args
+  );
+  PERFORM pg_temp.record_result(
+    'J18', 'Mateo', 'A', 'member', 'accept has no role argument',
+    'reject',
+    CASE
+      WHEN v_fn_args LIKE '%role%' THEN 'allow'
+      ELSE 'reject'
+    END
+  );
+  PERFORM pg_temp.record_result(
+    'J19', 'Mateo', 'A', 'member', 'accept has no user_id argument',
+    'reject',
+    CASE
+      WHEN v_fn_args LIKE '%user_id%' THEN 'allow'
+      ELSE 'reject'
+    END
+  );
+  PERFORM pg_temp.record_result(
+    'J17b', 'none', '-', 'none', 'accept rejects extra household_id param',
+    'reject',
+    CASE
+      WHEN pg_temp.expect_exception(format(
+        'SELECT public.accept_invitation(p_token := %L, p_household_id := %L::uuid)',
+        v_tok_pending, v_nido_b
+      )) LIKE '%does not exist%' THEN 'reject'
+      ELSE 'allow'
+    END
+  );
+
+  -- Cancel / DELETE
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  SELECT count(*) INTO v_members_before
+  FROM public.household_members WHERE household_id = v_nido_a;
+  SELECT name INTO v_hh_name_before FROM public.households WHERE id = v_nido_a;
+  SELECT count(*) INTO v_income_before
+  FROM public.incomes WHERE household_id = v_nido_a AND deleted_at IS NULL;
+  SELECT count(*) INTO v_expense_before
+  FROM public.expenses WHERE household_id = v_nido_a AND deleted_at IS NULL;
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'J21', 'Diana', 'A', 'active member', 'member cannot cancel invitation',
+    'deny',
+    pg_temp.expect_allow(format(
+      'DELETE FROM public.household_invitations WHERE id = %L', v_inv_cancel
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'J22', 'Luis', 'B', 'other nido', 'other Nido cannot cancel invitation',
+    'deny',
+    pg_temp.expect_allow(format(
+      'DELETE FROM public.household_invitations WHERE id = %L', v_inv_cancel
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_sofia);
+  PERFORM pg_temp.record_result(
+    'J23', 'Sofia', 'A', 'invitee', 'invitee cannot cancel invitation',
+    'deny',
+    pg_temp.expect_allow(format(
+      'DELETE FROM public.household_invitations WHERE id = %L', v_inv_cancel
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'J20', 'Carlos', 'A', 'active owner', 'owner can cancel pending invitation',
+    'allow',
+    pg_temp.expect_allow(format(
+      'DELETE FROM public.household_invitations WHERE id = %L', v_inv_cancel
+    ))
+  );
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  SELECT count(*) INTO v_members_after
+  FROM public.household_members WHERE household_id = v_nido_a;
+  SELECT name INTO v_hh_name_after FROM public.households WHERE id = v_nido_a;
+  SELECT count(*) INTO v_income_after
+  FROM public.incomes WHERE household_id = v_nido_a AND deleted_at IS NULL;
+  SELECT count(*) INTO v_expense_after
+  FROM public.expenses WHERE household_id = v_nido_a AND deleted_at IS NULL;
+
+  PERFORM pg_temp.record_result(
+    'J24', 'Carlos', 'A', 'active owner', 'cancel does not create membership',
+    'allow',
+    CASE WHEN v_members_after = v_members_before THEN 'allow' ELSE 'deny' END
+  );
+  PERFORM pg_temp.record_result(
+    'J25', 'Carlos', 'A', 'active owner', 'cancel does not modify household',
+    'allow',
+    CASE WHEN v_hh_name_after = v_hh_name_before THEN 'allow' ELSE 'deny' END
+  );
+  PERFORM pg_temp.record_result(
+    'J26', 'Carlos', 'A', 'active owner', 'cancel does not modify finances',
+    'allow',
+    CASE
+      WHEN v_income_after = v_income_before
+       AND v_expense_after = v_expense_before
+       AND pg_temp.expect_count(format(
+         'SELECT count(*) FROM public.incomes WHERE id = %L', v_income_a
+       )) = 1
+       AND pg_temp.expect_count(format(
+         'SELECT count(*) FROM public.expenses WHERE id = %L', v_expense_a
+       )) = 1
+      THEN 'allow' ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_sofia);
+  SELECT status INTO v_status
+  FROM public.lookup_invitation(v_tok_cancel);
+  PERFORM pg_temp.record_result(
+    'J29', 'Sofia', 'A', 'invitee', 'lookup cancelled token is invalid',
+    'invalid',
+    v_status
+  );
+  PERFORM pg_temp.record_result(
+    'J30', 'Sofia', 'A', 'none', 'accept cancelled token is rejected',
+    'nido.invitation_invalid',
+    pg_temp.expect_exception(format(
+      'SELECT public.accept_invitation(%L)', v_tok_cancel
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'J27', 'Carlos', 'A', 'active owner', 'cannot UPDATE accepted invitation',
+    'deny',
+    pg_temp.expect_allow(format(
+      'UPDATE public.household_invitations SET accepted_at = NULL WHERE id = %L',
+      v_inv_accepted
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'J28', 'Diana', 'A', 'active member', 'member cannot DELETE expired invitation',
+    'deny',
+    pg_temp.expect_allow(format(
+      'DELETE FROM public.household_invitations WHERE id = %L', v_inv_expired
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_sofia);
+  PERFORM pg_temp.record_result(
+    'J28b', 'Sofia', 'A', 'invitee', 'invitee cannot DELETE expired invitation',
+    'deny',
+    pg_temp.expect_allow(format(
+      'DELETE FROM public.household_invitations WHERE id = %L', v_inv_expired
+    ))
+  );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
 -- Owner transfer deny cases (Carlos still owner of A; no role change)
 -- -----------------------------------------------------------------------------
 
