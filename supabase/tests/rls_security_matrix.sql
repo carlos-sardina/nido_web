@@ -7,7 +7,8 @@
 -- Required environment:
 --   1. Supabase local (`supabase start`) or a linked Supabase database
 --   2. Migrations applied (foundation, RLS, lifecycle, categories/create_expense,
---      expense mutations, goal mutations, goal contribution mutations)
+--      expense mutations, goal mutations, goal contribution mutations,
+--      goal contribution edit / soft-delete)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -1401,6 +1402,12 @@ DECLARE
   v_diana_goal uuid;
   v_goal_b uuid;
   v_contrib uuid;
+  v_contrib_mutate uuid;
+  v_contrib_b uuid;
+  v_arch_goal uuid;
+  v_arch_contrib uuid;
+  v_deleted_at timestamptz;
+  v_amount numeric;
 BEGIN
   SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
   SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
@@ -1556,6 +1563,217 @@ BEGIN
     )
   );
 
+  -- -------------------------------------------------------------------------
+  -- Contribution edit / soft-delete (Phase 9.1.3D) — while Carlos is active
+  -- -------------------------------------------------------------------------
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.create_goal_contribution(
+    v_goal_a,
+    25,
+    DATE '2026-08-20'
+  ) INTO v_contrib_mutate;
+
+  PERFORM pg_temp.record_result(
+    'Z12', 'Carlos', 'A', 'active', 'creator can update contribution',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.update_goal_contribution(
+          %L::uuid, 35, DATE '2026-08-21'
+        )
+      $sql$,
+      v_contrib_mutate
+    ))
+  );
+
+  SELECT amount INTO v_amount
+  FROM public.goal_contributions
+  WHERE id = v_contrib_mutate;
+
+  IF v_amount IS DISTINCT FROM 35 THEN
+    UPDATE rls_test_results
+    SET actual = 'deny', passed = false
+    WHERE test_id = 'Z12';
+  END IF;
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'Z13', 'Diana', 'A', 'active', 'non-creator cannot update contribution',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_goal_contribution(
+            %L::uuid, 15, DATE '2026-08-21'
+          )
+        $sql$,
+        v_contrib_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.goal_contributions SET amount = 15 WHERE id = %L',
+        v_contrib_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'Z14', 'Diana', 'A', 'active', 'non-creator cannot delete contribution',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_goal_contribution(%L::uuid)',
+        v_contrib_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.goal_contributions SET deleted_at = now() WHERE id = %L',
+        v_contrib_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'Z15', 'Luis', 'B', 'never member', 'other household cannot modify contribution',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_goal_contribution(
+            %L::uuid, 15, DATE '2026-08-21'
+          )
+        $sql$,
+        v_contrib_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_goal_contribution(%L::uuid)',
+        v_contrib_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  SELECT public.create_goal_contribution(
+    v_goal_b,
+    12,
+    DATE '2026-08-21'
+  ) INTO v_contrib_b;
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'Z19', 'Carlos', 'B', 'never member', 'other Nido goal_id does not authorize',
+    'deny',
+    CASE
+      WHEN v_contrib_b IS NOT NULL
+        AND pg_temp.expect_allow(format(
+          $sql$
+            SELECT public.update_goal_contribution(
+              %L::uuid, 20, DATE '2026-08-21'
+            )
+          $sql$,
+          v_contrib_b
+        )) = 'deny'
+        AND pg_temp.expect_allow(format(
+          'SELECT public.soft_delete_goal_contribution(%L::uuid)',
+          v_contrib_b
+        )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  SELECT public.create_goal(
+    v_nido_a,
+    'Para archivar con aportación',
+    100,
+    'saving',
+    NULL,
+    NULL
+  ) INTO v_arch_goal;
+
+  SELECT public.create_goal_contribution(
+    v_arch_goal,
+    10,
+    DATE '2026-08-21'
+  ) INTO v_arch_contrib;
+
+  PERFORM public.archive_goal(v_arch_goal);
+
+  PERFORM pg_temp.record_result(
+    'Z18', 'Carlos', 'A', 'active', 'archived goal does not accept contribution mutations',
+    'deny',
+    CASE
+      WHEN v_arch_contrib IS NOT NULL
+        AND pg_temp.expect_allow(format(
+          $sql$
+            SELECT public.update_goal_contribution(
+              %L::uuid, 20, DATE '2026-08-21'
+            )
+          $sql$,
+          v_arch_contrib
+        )) = 'deny'
+        AND pg_temp.expect_allow(format(
+          'SELECT public.soft_delete_goal_contribution(%L::uuid)',
+          v_arch_contrib
+        )) = 'deny'
+        AND pg_temp.expect_allow(format(
+          'UPDATE public.goal_contributions SET amount = 20 WHERE id = %L',
+          v_arch_contrib
+        )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'Z16', 'Carlos', 'A', 'active', 'creator can soft-delete contribution',
+    'allow',
+    pg_temp.expect_allow(format(
+      'SELECT public.soft_delete_goal_contribution(%L::uuid)',
+      v_contrib_mutate
+    ))
+  );
+
+  SELECT deleted_at INTO v_deleted_at
+  FROM public.goal_contributions
+  WHERE id = v_contrib_mutate;
+
+  IF v_deleted_at IS NULL THEN
+    UPDATE rls_test_results
+    SET actual = 'deny', passed = false
+    WHERE test_id = 'Z16';
+  END IF;
+
+  PERFORM pg_temp.record_result(
+    'Z17', 'Carlos', 'A', 'active', 'deleted contribution cannot be mutated',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_goal_contribution(
+            %L::uuid, 12, DATE '2026-08-21'
+          )
+        $sql$,
+        v_contrib_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_goal_contribution(%L::uuid)',
+        v_contrib_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.goal_contributions SET amount = 12 WHERE id = %L',
+        v_contrib_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
   PERFORM pg_temp.clear_auth();
   SET LOCAL ROLE authenticated;
   PERFORM pg_temp.record_result(
@@ -1569,6 +1787,27 @@ BEGIN
       $sql$,
       v_goal_a
     ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'Z20', 'none', '-', 'none', 'update/delete contribution unauthenticated',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_goal_contribution(
+            %L::uuid, 10, DATE '2026-08-21'
+          )
+        $sql$,
+        v_contrib
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_goal_contribution(%L::uuid)',
+        v_contrib
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
   );
 
   PERFORM pg_temp.clear_auth();
@@ -1826,6 +2065,44 @@ BEGIN
       $sql$,
       v_goal_a
     ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'Z21', 'Carlos', 'A', 'left', 'historical member cannot update contribution',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_goal_contribution(
+            %L::uuid, 12, DATE '2026-08-21'
+          )
+        $sql$,
+        v_contrib_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.goal_contributions SET amount = 12 WHERE id = %L',
+        v_contrib_a
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'Z22', 'Carlos', 'A', 'left', 'member who left cannot delete contribution',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_goal_contribution(%L::uuid)',
+        v_contrib_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.goal_contributions SET deleted_at = now() WHERE id = %L',
+        v_contrib_a
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
   );
 
   PERFORM pg_temp.record_result(

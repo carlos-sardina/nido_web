@@ -277,6 +277,7 @@ export type Database = {
           contributed_at: string
           created_at: string
           created_by: string
+          deleted_at: string | null
           goal_id: string
           id: string
           member_id: string
@@ -286,6 +287,7 @@ export type Database = {
           contributed_at: string
           created_at?: string
           created_by: string
+          deleted_at?: string | null
           goal_id: string
           id?: string
           member_id: string
@@ -295,6 +297,7 @@ export type Database = {
           contributed_at?: string
           created_at?: string
           created_by?: string
+          deleted_at?: string | null
           goal_id?: string
           id?: string
           member_id?: string
@@ -967,6 +970,10 @@ export type Database = {
       }
       shares_household_with: { Args: { p_user_id: string }; Returns: boolean }
       soft_delete_expense: { Args: { p_expense_id: string }; Returns: string }
+      soft_delete_goal_contribution: {
+        Args: { p_contribution_id: string }
+        Returns: string
+      }
       update_expense: {
         Args: {
           p_amount: number
@@ -987,6 +994,14 @@ export type Database = {
           p_name: string
           p_target_amount: number
           p_target_date: string
+        }
+        Returns: string
+      }
+      update_goal_contribution: {
+        Args: {
+          p_amount: number
+          p_contributed_at: string
+          p_contribution_id: string
         }
         Returns: string
       }

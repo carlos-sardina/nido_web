@@ -228,6 +228,7 @@ erDiagram
         date contributed_at
         uuid created_by FK
         timestamptz created_at
+        timestamptz deleted_at
     }
 ```
 

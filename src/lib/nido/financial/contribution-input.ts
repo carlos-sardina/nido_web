@@ -1,6 +1,7 @@
 import type { NidoErrorCode } from "../types.ts";
 import { isCalendarDate } from "./dates.ts";
 import {
+  amountToExpenseInput,
   expenseAmountMessage,
   parseExpenseAmountInput,
 } from "./expense-input.ts";
@@ -25,6 +26,10 @@ export function parseContributionAmountInput(
   raw: string | null | undefined,
 ): number | null {
   return parseExpenseAmountInput(raw);
+}
+
+export function amountToContributionInput(amount: number): string {
+  return amountToExpenseInput(amount);
 }
 
 export function contributionAmountMessage(raw: string): string | null {

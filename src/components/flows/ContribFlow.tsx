@@ -13,14 +13,16 @@ import {
 } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
 import { Text } from "@/components/nido/Typography";
-import { canSubmitContribution, createContribution } from "@/lib/nido/contributions";
+import { canSubmitContribution, createContribution, updateContribution } from "@/lib/nido/contributions";
 import {
+  amountToContributionInput,
   contributionAmountMessage,
   contributionDateMessage,
   formatCompactMoney,
   goalProgress,
   parseContributionAmountInput,
   todayIso,
+  type GoalContributionRow,
   type GoalRow,
 } from "@/lib/nido/financial";
 import type { HouseholdMemberView } from "@/lib/nido/types";
@@ -36,6 +38,7 @@ export function ContribFlow({
   householdId,
   members,
   goals,
+  contribution,
   loading = false,
   onClose,
   onDone,
@@ -44,6 +47,7 @@ export function ContribFlow({
   householdId: string;
   members: HouseholdMemberView[];
   goals: GoalRow[];
+  contribution?: GoalContributionRow | null;
   loading?: boolean;
   onClose: () => void;
   onDone: () => void;
@@ -51,17 +55,31 @@ export function ContribFlow({
 }) {
   const ids = useId();
   const submittingRef = useRef(false);
+  const isEditing = Boolean(contribution);
   const activeGoals = goals.filter((goal) => goal.status === "active");
-  const [goalId, setGoalId] = useState("");
-  const [amount, setAmount] = useState("");
-  const [contributedAt, setContributedAt] = useState(() => todayIso());
+  const [goalId, setGoalId] = useState(() => contribution?.goalId ?? "");
+  const [amount, setAmount] = useState(() =>
+    contribution ? amountToContributionInput(contribution.amount) : "",
+  );
+  const [contributedAt, setContributedAt] = useState(
+    () => contribution?.contributedAt ?? todayIso(),
+  );
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
 
   const amountId = `${ids}-amount`;
   const dateId = `${ids}-date`;
   const goalLabelId = `${ids}-goal`;
-  const empty = !loading && activeGoals.length === 0;
+  const empty = !loading && !isEditing && activeGoals.length === 0;
+  const editingGoal = contribution
+    ? activeGoals.find((goal) => goal.id === contribution.goalId) ??
+      goals.find((goal) => goal.id === contribution.goalId)
+    : null;
+  const saveLabel = submitting
+    ? "Guardando…"
+    : isEditing
+      ? "Guardar cambios"
+      : "Guardar aportación";
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -91,14 +109,24 @@ export function ContribFlow({
     setSubmitting(true);
     setErrors({});
 
-    const result = await createContribution({
-      householdId,
-      goalId,
-      amount: parsedAmount,
-      contributedAt,
-      activeMemberIds: members.map((member) => member.userId),
-      allowedGoalIds: activeGoals.map((goal) => goal.id),
-    });
+    const result = contribution
+      ? await updateContribution({
+          householdId,
+          goalId,
+          amount: parsedAmount,
+          contributedAt,
+          contributionId: contribution.id,
+          activeMemberIds: members.map((member) => member.userId),
+          allowedGoalIds: activeGoals.map((goal) => goal.id),
+        })
+      : await createContribution({
+          householdId,
+          goalId,
+          amount: parsedAmount,
+          contributedAt,
+          activeMemberIds: members.map((member) => member.userId),
+          allowedGoalIds: activeGoals.map((goal) => goal.id),
+        });
 
     if (result.ok === false) {
       submittingRef.current = false;
@@ -119,7 +147,7 @@ export function ContribFlow({
           empty || loading ? undefined : (
             <ScreenFooter>
               <Button type="submit" form={`${ids}-form`} loading={submitting}>
-                {submitting ? "Guardando…" : "Guardar aportación"}
+                {saveLabel}
               </Button>
             </ScreenFooter>
           )
@@ -130,8 +158,12 @@ export function ContribFlow({
             <BackLink onClick={onClose} label="Cerrar" />
             <ScreenIntro
               className="mb-6"
-              title="Registrar una aportación"
-              description="Elige una meta activa de tu Nido."
+              title={isEditing ? "Editar aportación" : "Registrar una aportación"}
+              description={
+                isEditing
+                  ? "Los cambios se guardan en tu Nido activo."
+                  : "Elige una meta activa de tu Nido."
+              }
             />
           </div>
 
@@ -161,30 +193,45 @@ export function ContribFlow({
                 <p id={goalLabelId} className="mb-2 text-label font-semibold text-muted-foreground">
                   Meta
                 </p>
-                <div className="space-y-2" role="group" aria-labelledby={goalLabelId}>
-                  {activeGoals.map((goal) => {
-                    const progress = goalProgress(goal);
-                    const targetLabel = progress.invalidTarget
-                      ? "—"
-                      : formatCompactMoney(progress.targetAmount);
-                    return (
-                      <ChoiceCard
-                        key={goal.id}
-                        icon={goal.goalType === "purchase" ? "🎯" : "🛡️"}
-                        title={goal.name}
-                        description={`${formatCompactMoney(progress.contributed)} de ${targetLabel} · ${
-                          progress.invalidTarget ? "—" : `${progress.percent}%`
-                        }`}
-                        selected={goalId === goal.id}
-                        disabled={submitting}
-                        onClick={() => {
-                          setGoalId(goal.id);
-                          setErrors((current) => ({ ...current, goal: undefined }));
-                        }}
-                      />
-                    );
-                  })}
-                </div>
+                {isEditing ? (
+                  <div
+                    className="rounded-2xl px-4 py-3"
+                    role="group"
+                    aria-labelledby={goalLabelId}
+                  >
+                    <Text size="body-sm" className="font-medium">
+                      {editingGoal?.name ?? "Meta"}
+                    </Text>
+                    <Text size="caption" tone="muted" className="mt-0.5">
+                      No se puede cambiar la meta de una aportación.
+                    </Text>
+                  </div>
+                ) : (
+                  <div className="space-y-2" role="group" aria-labelledby={goalLabelId}>
+                    {activeGoals.map((goal) => {
+                      const progress = goalProgress(goal);
+                      const targetLabel = progress.invalidTarget
+                        ? "—"
+                        : formatCompactMoney(progress.targetAmount);
+                      return (
+                        <ChoiceCard
+                          key={goal.id}
+                          icon={goal.goalType === "purchase" ? "🎯" : "🛡️"}
+                          title={goal.name}
+                          description={`${formatCompactMoney(progress.contributed)} de ${targetLabel} · ${
+                            progress.invalidTarget ? "—" : `${progress.percent}%`
+                          }`}
+                          selected={goalId === goal.id}
+                          disabled={submitting}
+                          onClick={() => {
+                            setGoalId(goal.id);
+                            setErrors((current) => ({ ...current, goal: undefined }));
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
                 <FieldError id={`${ids}-goal-error`}>{errors.goal}</FieldError>
               </Field>
 

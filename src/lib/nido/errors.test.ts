@@ -81,6 +81,16 @@ describe("nidoErrorFromUnknown", () => {
     assert.match(userMessageFor("goal_not_found"), /meta/i);
     assert.match(userMessageFor("goal_archived"), /archivada/i);
     assert.equal(
+      nidoErrorFromUnknown({ message: "nido.contribution_not_found" }).code,
+      "contribution_not_found",
+    );
+    assert.equal(
+      nidoErrorFromUnknown({ message: "nido.contribution_deleted" }).code,
+      "contribution_deleted",
+    );
+    assert.match(userMessageFor("contribution_not_found"), /aportación/i);
+    assert.match(userMessageFor("contribution_deleted"), /eliminada/i);
+    assert.equal(
       nidoErrorFromUnknown({ message: "nido.forbidden" }).message.includes("auth.uid"),
       false,
     );

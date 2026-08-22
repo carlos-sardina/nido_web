@@ -78,6 +78,7 @@ const contribution: GoalContributionRow = {
   contributedAt: "2026-08-20",
   createdBy: "diana",
   createdAt: "2026-08-20T12:00:00.000Z",
+  deletedAt: null,
   member: { id: "diana", displayName: "Diana Vega" },
 };
 
@@ -135,6 +136,21 @@ describe("activity transformation", () => {
     });
     assert.equal(items.length, 1);
     assert.equal(items[0].id, "expense:e1");
+  });
+
+  it("excludes soft-deleted contributions from normal activity", () => {
+    const items = buildActivityItems({
+      expenses: [],
+      incomes: [],
+      contributions: [
+        contribution,
+        { ...contribution, id: "gc-gone", deletedAt: "2026-08-21T18:00:00.000Z" },
+      ],
+      goals: [goal],
+      members,
+    });
+    assert.equal(items.length, 1);
+    assert.equal(items[0].id, "goal_contribution:gc1");
   });
 
   it("returns an empty list when there is no activity", () => {

@@ -101,6 +101,7 @@ export type GoalContributionRow = {
   contributedAt: string;
   createdBy: string;
   createdAt: string;
+  deletedAt: string | null;
   member: MemberRef | null;
 };
 

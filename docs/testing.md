@@ -4,7 +4,7 @@ Use this against a real Vercel + Supabase + SMTP environment. Automated unit tes
 
 Confirm email stays enabled. Google OAuth stays disabled. Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
 
-Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Phase 9.1.3A connects Metas (list, create, edit, archive). Actividad remains prototype. See [financial.md](./financial.md).
+Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Phase 9.1.3A connects Metas (list, create, edit, archive). Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (edit / soft-delete). Actividad remains prototype. See [financial.md](./financial.md).
 
 The 60-second email cooldown is a **UX protection**. It prevents accidental repeat clicks and shows a countdown. The real protection against abuse remains in **Supabase Auth rate limits** and **Brevo SMTP limits**. The frontend cooldown does not replace or weaken those provider limits.
 
@@ -280,8 +280,30 @@ F. **Meta archivada** — no aparece en el selector; RPC/RLS rechaza.
 G. **Miembro histórico / otro Nido** — no puede aportar.
 H. **Doble tap** — un solo request; botón disabled + loading (`aria-busy`).
 I. **Error de red** — copy en español, sin PostgREST.
-J. **Editar / eliminar aportación** no está en esta fase (`goal_contributions` no tiene `deleted_at`).
+J. **Editar / eliminar aportación** is live in 9.1.3D (`deleted_at` + creator-only UPDATE).
 K. **9.1.3C ingresos** no se inició.
+L. **9.1.4** no se inició.
+
+---
+
+## Editar / eliminar aportación (Phase 9.1.3D)
+
+Requires migration `20260821210000_nido_goal_contribution_edit.sql` on the linked project (plus prior financial, goal, and contribution-create migrations). Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. SQL cases `Z12`–`Z22` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). The manual UI checklist below was **not** executed in a live app session.
+
+A. **Listado en detalle** — aportaciones reales, `contributed_at` desc luego `created_at`. Sin mocks.
+B. **Editar como creador** — Editar visible; mismas validaciones de monto y fecha; la meta no cambia.
+C. **Eliminar como creador** — confirmación **¿Eliminar esta aportación?** / **Esta acción quitará la aportación del progreso y de la actividad.** Cancelar (ghost) + Eliminar aportación (danger).
+D. **Otro miembro** — solo lectura; no hay Editar/Eliminar; RPC/RLS rechaza.
+E. **Progreso** — `SUM(...) WHERE deleted_at IS NULL / target_amount`. Home, Metas, detalle y actividad se actualizan con `dashboard.refresh()`. No hay `current_amount`. No se persiste `status = completed`.
+F. **Aportación eliminada** — no entra en progreso, totales ni actividad; no se puede volver a modificar.
+G. **Meta archivada** — no acepta nuevas aportaciones ni mutaciones de las existentes.
+H. **Miembro histórico / que salió / otro Nido / no autenticado** — no puede editar ni eliminar.
+I. **Doble tap** — un solo request; botón disabled + loading.
+J. **Error de red** — copy en español, sin PostgREST.
+K. **9.1.3C ingresos** no se inició.
+L. **9.1.4** no se inició.
+
+Manual runs actually executed for this checklist: none in this phase.
 
 Manual runs actually executed for this checklist: none in this phase.
 

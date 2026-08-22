@@ -3,7 +3,12 @@ import { buildActivityItems } from "./activity.ts";
 import { buildMonthBudgetView } from "./budgets.ts";
 import { greetingForNow, type MonthRange } from "./dates.ts";
 import { householdSpent, isActiveExpense, visiblePeriodExpenses } from "./expenses.ts";
-import { activeGoalProgress, emergencyMonthsCovered, featuredSavingGoal } from "./goals.ts";
+import {
+  activeGoalProgress,
+  emergencyMonthsCovered,
+  featuredSavingGoal,
+  isActiveContribution,
+} from "./goals.ts";
 import { computeHealth } from "./health.ts";
 import { periodIncomeTotal } from "./incomes.ts";
 import { clampedPercent } from "./money.ts";
@@ -38,7 +43,7 @@ export function buildDashboardViewModel(input: {
     snapshot.incomes.length > 0 ||
     recentExpenses.length > 0 ||
     snapshot.goals.length > 0 ||
-    snapshot.contributions.length > 0 ||
+    snapshot.contributions.filter(isActiveContribution).length > 0 ||
     snapshot.budgets.length > 0;
 
   const budget = buildMonthBudgetView(snapshot.budgets, periodExpenses, range);

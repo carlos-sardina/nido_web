@@ -20,7 +20,7 @@ import { applyProfileDisplayName, identityFromUser } from "@/lib/auth/identity";
 import { P } from "@/lib/palette";
 import type { Flow, Model, Tab } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
-import type { ExpenseRow, GoalRow } from "@/lib/nido/financial";
+import type { ExpenseRow, GoalContributionRow, GoalRow } from "@/lib/nido/financial";
 import { useDashboard } from "@/lib/nido/use-dashboard";
 import type { Household, HouseholdMember, HouseholdMemberView, Profile } from "@/lib/nido/types";
 
@@ -53,7 +53,11 @@ export function MainApp({
   const [editingExpense, setEditingExpense] = useState<ExpenseRow | null>(null);
   const [selectedGoal, setSelectedGoal] = useState<GoalRow | null>(null);
   const [editingGoal, setEditingGoal] = useState<GoalRow | null>(null);
+  const [editingContribution, setEditingContribution] = useState<GoalContributionRow | null>(null);
   const dashboard = useDashboard(household.id, members);
+  const liveSelectedGoal = selectedGoal
+    ? dashboard.model?.goals.find((row) => row.id === selectedGoal.id) ?? selectedGoal
+    : null;
 
   const tabs = [
     { id: "home"      as Tab, icon: Home,     label: "Inicio"    },
@@ -69,6 +73,7 @@ export function MainApp({
     setSelectedExpense(null);
     setEditingGoal(null);
     setSelectedGoal(null);
+    setEditingContribution(null);
     void dashboard.refresh();
   };
 
@@ -76,6 +81,7 @@ export function MainApp({
     setShowSheet(false);
     setEditingExpense(null);
     setEditingGoal(null);
+    setEditingContribution(null);
     setActiveFlow(flow);
   };
 
@@ -90,6 +96,7 @@ export function MainApp({
     setShowSheet(false);
     setSelectedGoal(null);
     setEditingGoal(null);
+    setEditingContribution(null);
     setActiveFlow("goal");
   };
 
@@ -184,18 +191,25 @@ export function MainApp({
           />
         )}
 
-        {selectedGoal && activeFlow !== "goal" && (
+        {liveSelectedGoal && activeFlow !== "goal" && activeFlow !== "contrib" && (
           <GoalDetail
-            goal={selectedGoal}
+            goal={liveSelectedGoal}
             members={members}
             currentUserId={user?.id ?? null}
             onClose={() => setSelectedGoal(null)}
             onEdit={() => {
-              setEditingGoal(selectedGoal);
-              setSelectedGoal(null);
+              setEditingGoal(liveSelectedGoal);
+              setSelectedGoal(liveSelectedGoal);
               setActiveFlow("goal");
             }}
+            onEditContribution={(contribution) => {
+              setEditingContribution(contribution);
+              setActiveFlow("contrib");
+            }}
             onArchived={handleFlowDone}
+            onContributionChanged={() => {
+              void dashboard.refresh();
+            }}
           />
         )}
 
@@ -230,9 +244,17 @@ export function MainApp({
             householdId={household.id}
             members={members}
             goals={dashboard.model?.goals ?? []}
+            contribution={editingContribution}
             loading={!dashboard.model && dashboard.isLoading}
-            onClose={() => setActiveFlow(null)}
-            onDone={handleFlowDone}
+            onClose={() => {
+              setActiveFlow(null);
+              setEditingContribution(null);
+            }}
+            onDone={() => {
+              setActiveFlow(null);
+              setEditingContribution(null);
+              void dashboard.refresh();
+            }}
             onCreateGoal={openGoalCreate}
           />
         )}

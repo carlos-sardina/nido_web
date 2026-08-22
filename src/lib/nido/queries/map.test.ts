@@ -81,11 +81,13 @@ describe("query row mapping", () => {
           contributed_at: "2026-08-04",
           created_by: "diana",
           created_at: "2026-08-04T00:00:00.000Z",
+          deleted_at: null,
         },
       ],
     });
     assert.equal(goal.targetAmount, 80000);
     assert.equal(goal.contributions[0].amount, 4000);
+    assert.equal(goal.contributions[0].deletedAt, null);
   });
 
   it("scopes contribution activity to the active household", () => {
@@ -97,6 +99,7 @@ describe("query row mapping", () => {
       contributed_at: "2026-08-01",
       created_by: "diana",
       created_at: "2026-08-01T00:00:00.000Z",
+      deleted_at: null,
       goals: { id: "g1", name: "Viejo", household_id: "other-nido" },
     };
     assert.equal(contributionHouseholdId(row), "other-nido");

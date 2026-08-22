@@ -211,6 +211,7 @@ export type ContributionQueryRow = {
   contributed_at: string;
   created_by: string;
   created_at: string;
+  deleted_at?: string | null;
   member?: ProfileEmbed | ProfileEmbed[];
   goals?: { id: string; name: string; household_id: string } | { id: string; name: string; household_id: string }[] | null;
 };
@@ -224,6 +225,7 @@ export function mapContributionRow(row: ContributionQueryRow): GoalContributionR
     contributedAt: row.contributed_at,
     createdBy: row.created_by,
     createdAt: row.created_at,
+    deletedAt: row.deleted_at ?? null,
     member: memberRef(row.member),
   };
 }

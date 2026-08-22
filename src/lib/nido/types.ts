@@ -62,5 +62,7 @@ export type NidoErrorCode =
   | "expense_deleted"
   | "goal_not_found"
   | "goal_archived"
+  | "contribution_not_found"
+  | "contribution_deleted"
   | "conflict"
   | "network";

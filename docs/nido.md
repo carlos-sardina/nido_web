@@ -287,13 +287,12 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ---
 
-## What remains after 9.1.3B
+## What remains after 9.1.3D
 
 - 9.1.3C: ingresos
 - Actividad screen on the same data layer
 - 9.1.4: Hogar / Perfil refinement
 - presupuestos / recurrencias
-- contribution edit / soft-delete
 - invitation email delivery
 - owner transfer
 - Google OAuth
@@ -303,6 +302,6 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## Apply the migration
 
-This workspace does not apply SQL to a live project. After pulling this phase, apply `20260821200000_nido_goal_contribution_mutations.sql` with the same process used for the foundation, RLS, lifecycle, expense, and goal migrations.
+This workspace does not apply SQL to a live project. After pulling this phase, apply `20260821210000_nido_goal_contribution_edit.sql` with the same process used for the foundation, RLS, lifecycle, expense, goal, and contribution-create migrations.
 
-Until that migration is applied, `create_goal_contribution` will fail at runtime.
+Until that migration is applied, `update_goal_contribution` and `soft_delete_goal_contribution` will fail at runtime.

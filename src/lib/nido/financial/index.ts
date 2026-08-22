@@ -57,6 +57,7 @@ export {
   parseGoalAmountInput,
 } from "./goal-input.ts";
 export {
+  amountToContributionInput,
   buildCreateContributionPayload,
   contributionAmountMessage,
   contributionDateMessage,
@@ -64,12 +65,15 @@ export {
 } from "./contribution-input.ts";
 export {
   activeGoalProgress,
+  canMutateContribution,
   canMutateGoal,
   contributionsTotal,
   emergencyMonthsCovered,
   featuredSavingGoal,
   formatGoalTargetDate,
   goalProgress,
+  isActiveContribution,
+  visibleGoalContributions,
 } from "./goals.ts";
 export { computeHealth, healthLabel } from "./health.ts";
 export {
@@ -96,6 +100,7 @@ export type {
   DashboardViewModel,
   ExpenseRow,
   ExpenseScope,
+  GoalContributionRow,
   GoalProgress,
   GoalRow,
   GoalStatus,

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  amountToContributionInput,
   buildCreateContributionPayload,
   contributionAmountMessage,
   contributionDateMessage,
@@ -34,6 +35,11 @@ describe("contribution amount parsing", () => {
     assert.equal(parseContributionAmountInput("NaN"), null);
     assert.equal(parseContributionAmountInput("Infinity"), null);
     assert.equal(parseContributionAmountInput("10.123"), null);
+  });
+
+  it("formats an amount for the edit form without coercing invalid values", () => {
+    assert.equal(amountToContributionInput(500), "500");
+    assert.equal(amountToContributionInput(500.5), "500.50");
   });
 
   it("rejects empty, zero, negative, invalid, and oversized amounts", () => {

@@ -373,7 +373,7 @@ Nido-level objectives.
 | `created_at` | `timestamptz` | |
 | `updated_at` | `timestamptz` | |
 
-There is no `current_amount` column. Progress is `SUM(goal_contributions.amount)`.
+There is no `current_amount` column. Progress is `SUM(goal_contributions.amount) WHERE deleted_at IS NULL`.
 
 Do not hard-delete a goal that has contributions. Use `status = archived`.
 
@@ -390,10 +390,11 @@ Member contributions toward a goal. Multiple contributions per member are allowe
 | `contributed_at` | `date` | |
 | `created_by` | `uuid` FK → `profiles.id` | Same person as `member_id` on create. |
 | `created_at` | `timestamptz` | |
+| `deleted_at` | `timestamptz` nullable | Soft-delete. NULL means the contribution is active. |
 
 `member_id` is who the contribution is attributed to. `created_by` is who wrote the row. Phase 9.1.3B sets both to `auth.uid()`.
 
-Leaving a Nido does not delete contribution rows. There is no `deleted_at`; edit/soft-delete is deferred. Over-target sums are allowed. Do not persist `goals.status = completed` from a contribution.
+Leaving a Nido does not delete contribution rows. Do not physically delete contributions; set `deleted_at`. Only the creator with an active membership may update or soft-delete a live contribution on an **active** goal. Over-target sums are allowed. Do not persist `goals.status = completed` from a contribution. Deleted rows do not participate in progress, totals, or activity.
 
 ---
 
@@ -441,7 +442,7 @@ Additional frequencies or budget periods can be added later with `ALTER TYPE ...
 23. Budgets may be Nido-level (`member_id IS NULL`) or personal (`member_id IS NOT NULL`). They are planning targets, not spending restrictions.
 24. Budget spent and goal progress are derived. Do not store `current_spent` or `current_amount`.
 25. Goals belong to the Nido. Types: `saving`, `purchase`. Multiple members may contribute.
-26. Incomes and expenses are soft-deleted with `deleted_at`. Recurring rules are deactivated with `is_active = false`. Categories are archived with `archived_at`.
+26. Incomes, expenses, and goal contributions are soft-deleted with `deleted_at`. Recurring rules are deactivated with `is_active = false`. Categories are archived with `archived_at`.
 27. A Nido should have at least one owner. Transfer / last-owner protection is an application transaction rule.
 28. `created_by` for new financial records should be an active member of that Nido. Enforced by RLS / application, not by a foundation trigger.
 29. Currency is a single implicit household currency in this version.
@@ -590,7 +591,7 @@ Pairwise settlement between A and B can be derived from the same source rows. No
 ### Goal progress
 
 ```
-current_amount = SUM(goal_contributions.amount) WHERE goal_id = goal
+current_amount = SUM(goal_contributions.amount) WHERE goal_id = goal AND deleted_at IS NULL
 ```
 
 ### Budget spent
@@ -781,7 +782,7 @@ The application/service layer must enforce the single-split rule inside the same
 
 | Kind | Mechanism | Normal operation |
 | --- | --- | --- |
-| `incomes`, `expenses` | `deleted_at` | Set `deleted_at`. Do not `DELETE`. |
+| `incomes`, `expenses`, `goal_contributions` | `deleted_at` | Set `deleted_at`. Do not `DELETE`. |
 | Recurring rules | `is_active = false` | Deactivate. Do not `DELETE` (that SET NULLs `recurring_id`). |
 | `categories` | `archived_at` | Archive. Do not `DELETE` while referenced. |
 | `goals` | `status = archived` | Archive. Do not `DELETE` when contributions exist. |
@@ -851,7 +852,7 @@ Integrity triggers still require the **subject** of the row (`member_id`, `payer
 - Recurring generate / edit / skip / confirm against `next_occurrence`
 - Require review when a recurring participant or payer has left, or income_based is invalid; do not auto-redistribute
 - Deactivate a member’s recurring incomes when they leave
-- Soft-delete incomes/expenses; deactivate recurring rules; archive categories/goals
+- Soft-delete incomes/expenses/goal contributions; deactivate recurring rules; archive categories/goals
 - Do not hard-delete households, expenses, or goals in normal operation
 - `created_by` is the acting active member
 - Do not use archived categories on new transactions

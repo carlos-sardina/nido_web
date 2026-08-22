@@ -111,6 +111,7 @@ describe("dashboard view model", () => {
           contributedAt: "2026-08-02",
           createdBy: "diana",
           createdAt: "2026-08-02T12:00:00.000Z",
+          deletedAt: null,
           member: null,
         },
       ],
@@ -369,6 +370,7 @@ describe("dashboard view model", () => {
           contributedAt: "2026-02-01",
           createdBy: "diana",
           createdAt: "2026-02-01T12:00:00.000Z",
+          deletedAt: null,
           member: null,
         },
       ],
@@ -414,6 +416,7 @@ describe("dashboard view model", () => {
           contributedAt: "2026-08-21",
           createdBy: "diana",
           createdAt: "2026-08-21T12:00:00.000Z",
+          deletedAt: null,
           member: { id: "diana", displayName: "Diana Vega" },
         },
       ],
@@ -434,5 +437,52 @@ describe("dashboard view model", () => {
     assert.equal(model.featuredGoal?.percent, 100);
     assert.equal(model.activity.some((item) => item.type === "goal_contribution"), true);
     assert.equal(model.activity[0]?.amount, 150);
+  });
+
+  it("drops a soft-deleted contribution from progress and activity", () => {
+    const live = {
+      id: "gc-live",
+      goalId: "g1",
+      memberId: "diana",
+      amount: 40,
+      contributedAt: "2026-08-21",
+      createdBy: "diana",
+      createdAt: "2026-08-21T12:00:00.000Z",
+      deletedAt: null,
+      member: { id: "diana", displayName: "Diana Vega" },
+    };
+    const deleted = {
+      ...live,
+      id: "gc-gone",
+      amount: 9000,
+      deletedAt: "2026-08-21T18:00:00.000Z",
+    };
+    const goal: GoalRow = {
+      id: "g1",
+      householdId: "h1",
+      name: "Fondo",
+      description: null,
+      goalType: "saving",
+      targetAmount: 100,
+      targetDate: null,
+      status: "active",
+      createdBy: "diana",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      contributions: [live, deleted],
+    };
+
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        goals: [goal],
+        contributions: [live, deleted],
+      }),
+      members,
+      range,
+    });
+
+    assert.equal(model.activeGoals[0].contributed, 40);
+    assert.equal(model.activeGoals[0].percent, 40);
+    assert.equal(model.activity.some((item) => item.id === "goal_contribution:gc-gone"), false);
+    assert.equal(model.activity.some((item) => item.id === "goal_contribution:gc-live"), true);
   });
 });

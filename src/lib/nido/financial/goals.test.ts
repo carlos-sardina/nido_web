@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   activeGoalProgress,
+  canMutateContribution,
   canMutateGoal,
   emergencyMonthsCovered,
   featuredSavingGoal,
   formatGoalTargetDate,
   goalProgress,
+  visibleGoalContributions,
 } from "./goals.ts";
 import type { GoalContributionRow, GoalRow } from "./types.ts";
 
@@ -20,6 +22,7 @@ function contribution(
     contributedAt: "2026-08-01",
     createdBy: "u1",
     createdAt: "2026-08-01T12:00:00.000Z",
+    deletedAt: null,
     member: null,
     ...partial,
   };
@@ -99,6 +102,91 @@ describe("goal progress", () => {
     assert.equal(progress.percent, 100);
     assert.equal(progress.contributed, 150);
     assert.equal(progress.completed, true);
+  });
+
+  it("excludes soft-deleted contributions from progress", () => {
+    const progress = goalProgress(
+      goal({
+        name: "Fondo",
+        targetAmount: 100,
+        contributions: [
+          contribution({ amount: 40 }),
+          contribution({
+            id: "c-gone",
+            amount: 60,
+            deletedAt: "2026-08-21T12:00:00.000Z",
+          }),
+        ],
+      }),
+    );
+    assert.equal(progress.contributed, 40);
+    assert.equal(progress.percent, 40);
+    assert.equal(progress.completed, false);
+  });
+});
+
+describe("contribution authorization helper", () => {
+  it("allows only the creator of a live contribution", () => {
+    const live = contribution({ amount: 50, createdBy: "carlos" });
+    const active = goal({ name: "Fondo", targetAmount: 100 });
+    assert.equal(canMutateContribution(live, "carlos", active), true);
+    assert.equal(canMutateContribution(live, "diana", active), false);
+    assert.equal(canMutateContribution(live, null, active), false);
+  });
+
+  it("rejects a deleted contribution even for the creator", () => {
+    const deleted = contribution({
+      amount: 50,
+      createdBy: "carlos",
+      deletedAt: "2026-08-21T12:00:00.000Z",
+    });
+    const active = goal({ name: "Fondo", targetAmount: 100 });
+    assert.equal(canMutateContribution(deleted, "carlos", active), false);
+  });
+
+  it("rejects an archived goal even for the creator", () => {
+    const live = contribution({ amount: 50, createdBy: "carlos" });
+    const archived = goal({
+      name: "Vieja",
+      targetAmount: 100,
+      status: "archived",
+    });
+    assert.equal(canMutateContribution(live, "carlos", archived), false);
+  });
+});
+
+describe("visible goal contributions", () => {
+  it("sorts by date descending then created_at and drops deleted rows", () => {
+    const visible = visibleGoalContributions([
+      contribution({
+        id: "older",
+        amount: 10,
+        contributedAt: "2026-08-21",
+        createdAt: "2026-08-21T10:00:00.000Z",
+      }),
+      contribution({
+        id: "newer",
+        amount: 20,
+        contributedAt: "2026-08-21",
+        createdAt: "2026-08-21T18:00:00.000Z",
+      }),
+      contribution({
+        id: "earlier-day",
+        amount: 30,
+        contributedAt: "2026-08-10",
+        createdAt: "2026-08-10T20:00:00.000Z",
+      }),
+      contribution({
+        id: "gone",
+        amount: 99,
+        contributedAt: "2026-08-22",
+        deletedAt: "2026-08-22T12:00:00.000Z",
+      }),
+    ]);
+    assert.deepEqual(
+      visible.map((row) => row.id),
+      ["newer", "older", "earlier-day"],
+    );
   });
 });
 

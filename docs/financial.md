@@ -1,17 +1,18 @@
-# Financial data layer (Phase 9.1.3B)
+# Financial data layer (Phase 9.1.3D)
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
-Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar un gasto**. Phase 9.1.2B closes the expense module. Phase 9.1.3A connects **Metas**. Phase 9.1.3B connects **Registrar una aportación**:
+Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar un gasto**. Phase 9.1.2B closes the expense module. Phase 9.1.3A connects **Metas**. Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (list in goal detail, edit, soft-delete):
 
 - contributions reuse `goal_contributions`
 - any active member may contribute to an active goal of the same Nido
-- `create_goal_contribution` RPC; `member_id` and `created_by` are `auth.uid()`
-- progress remains `SUM(goal_contributions.amount) / target_amount` (never stored)
+- only the creator may update or soft-delete a live contribution on an active goal
+- `deleted_at IS NULL` is the only source for an active contribution
+- progress remains `SUM(goal_contributions.amount) WHERE deleted_at IS NULL / target_amount` (never stored)
 - over-target contributions are allowed; visual progress stays capped at 100%
 - `status = completed` is not persisted; “alcanzada” is derived
 
-Ingresos, presupuestos, and recurrencias are still not implemented. Actividad remains prototype UI on the same snapshot.
+Ingresos, presupuestos, and recurrencias are still not implemented. Actividad remains prototype UI on the same snapshot. Phase 9.1.4 was not started.
 
 ---
 
@@ -79,7 +80,7 @@ There is no product rule that rejects future expense dates. The form defaults to
 | Period spent | `SUM(expenses.amount)` for the same filter |
 | Member owed | `SUM(expense_splits.amount)` for that member on non-deleted expenses |
 | Member balance | amount paid − amount owed |
-| Goal progress | `SUM(goal_contributions.amount) / goals.target_amount` (0 if target ≤ 0) |
+| Goal progress | `SUM(goal_contributions.amount) WHERE deleted_at IS NULL / goals.target_amount` (0 if target ≤ 0) |
 | Budget spent | expenses in the budget’s category and date range |
 | Activity | union of expenses, incomes, and goal contributions, newest first |
 
@@ -241,15 +242,33 @@ Reuse `goal_contributions`. There is no `current_amount`, no materialized balanc
 | Goal | `goal_id` of an **active** goal in the active Nido |
 | Contributor | `member_id = created_by = auth.uid()` |
 
-Progress stays `SUM(goal_contributions.amount) / goals.target_amount`, derived in the financial view model.
+Progress stays `SUM(goal_contributions.amount) WHERE deleted_at IS NULL / goals.target_amount`, derived in the financial view model.
 
 Over-target contributions **are allowed**. The RPC does not reject `existing + new > target_amount`. Visual percent stays capped at 100%. Saved amount is the real sum. The goal is **not** updated to `status = completed`. `goalProgress().completed` is derived (`contributed >= target` or stored `completed`).
 
-### Edit / delete (deferred)
+### Edit / delete
 
-`goal_contributions` has no `deleted_at`. Expenses soft-delete; contributions do not. This phase implements **create + read** only.
+Same pattern as Gastos. `goal_contributions.deleted_at` is the soft-delete column. Physical `DELETE` is revoked for `authenticated`.
 
-Existing UPDATE/DELETE policies still allow any active member to mutate a contribution via PostgREST. There is no UI for those operations. Adding creator-only edit/delete with soft-delete would require a new column and is a pending decision. Do not hard-delete contributions in the product UI.
+Authority:
+
+`auth.uid()` → active household membership → `goals.household_id` (looked up from `goal_id`) → `created_by = auth.uid()` → `deleted_at IS NULL` → `goals.status = active`
+
+A client-supplied `household_id` or `goal_id` is never enough to authorize an update. The RPC takes `p_contribution_id` only (plus amount/date). Household and goal status are resolved from the contribution row.
+
+| Actor | SELECT | INSERT | UPDATE / soft-delete |
+| --- | --- | --- | --- |
+| Creator, active member, live contribution, active goal | yes | yes | yes |
+| Other active member of the same Nido | yes | yes (own row) | no |
+| Historical member | yes | no | no |
+| Other household | no | no | no |
+| Unauthenticated | no | no | no |
+
+An archived goal cannot receive new contributions or mutation of existing ones. A deleted contribution cannot be mutated again.
+
+`update_goal_contribution` and `soft_delete_goal_contribution` are `SECURITY INVOKER`. The frontend is not the authorization authority.
+
+Goal detail lists live contributions ordered by `contributed_at` descending, then `created_at`. The creator sees **Editar** / **Eliminar**. Other members see read-only rows. Delete shows confirmation first. After create, edit, or delete: `dashboard.refresh()`.
 
 ### Validations
 
@@ -260,10 +279,13 @@ Client and RPC both reject:
 - amount ≤ 0, NaN, Infinity, malformed, too large
 - invalid calendar date
 - missing goal, archived goal, goal of another Nido
+- missing contribution, already-deleted contribution, not the creator
 
 The form lists only active goals of the current Nido (name, saved amount, target, percent). If none exist: **Todavía no hay metas** + **Crear una meta** (existing GoalFlow).
 
-Double submit: **Guardando…** (`aria-busy`). After success the flow closes like Gastos and Home / Metas / detail / activity refresh from the same snapshot.
+Edit reuses the same amount and date validations. The goal cannot be changed on edit.
+
+Double submit: **Guardando…** (`aria-busy`). After create, edit, or delete, Home / Metas / detail / activity refresh from the same snapshot.
 
 ---
 
@@ -275,7 +297,7 @@ Double submit: **Guardando…** (`aria-busy`). After success the flow closes lik
 | `queries/categories.ts` | `fetchActiveExpenseCategories(householdId)` |
 | `expenses.ts` | `createExpense` / `updateExpense` / `deleteExpense` |
 | `goals.ts` | `createGoal` / `updateGoal` / `archiveGoal` |
-| `contributions.ts` | `createContribution` |
+| `contributions.ts` | `createContribution` / `updateContribution` / `deleteContribution` |
 | `financial/` | dates, money, splits, validation, dashboard view model |
 | `use-dashboard.ts` | shared snapshot; `refresh()` after create/edit/delete/archive |
 
@@ -293,11 +315,11 @@ Onboarding income/expenses are still not persisted. A newly created Nido has def
 
 ## RLS
 
-SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense **UPDATE** (including soft-delete) and goal **UPDATE** (including archive) require the same plus `created_by = auth.uid()` and a live row (`deleted_at IS NULL` / `status <> archived`). Physical DELETE remains denied on incomes/expenses/goals.
+SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense **UPDATE** (including soft-delete) and goal **UPDATE** (including archive) require the same plus `created_by = auth.uid()` and a live row (`deleted_at IS NULL` / `status <> archived`). Contribution **UPDATE** (including soft-delete) requires creator + active member + `deleted_at IS NULL` + parent goal `status = active`. Physical DELETE remains denied on incomes/expenses/goals and is revoked on `goal_contributions` for `authenticated`.
 
-`create_expense`, `update_expense`, `soft_delete_expense`, `create_goal`, `update_goal`, `archive_goal`, and `create_goal_contribution` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
+`create_expense`, `update_expense`, `soft_delete_expense`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, and `soft_delete_goal_contribution` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
 
-SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z11`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
+SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
 
 ---
 
@@ -307,5 +329,6 @@ SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `
 - Only the expense creator may update or soft-delete
 - Only the goal creator may update or archive
 - Any active member may contribute to an active goal of that Nido
+- Only the contribution creator may update or soft-delete a live contribution on an active goal
 - A user without an active Nido never reaches MainApp
 - Historical membership can still SELECT old rows (by design) but the dashboard and forms do not use them

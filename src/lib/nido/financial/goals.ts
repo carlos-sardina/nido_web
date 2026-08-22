@@ -8,6 +8,42 @@ export function canMutateGoal(
   return Boolean(userId) && goal.createdBy === userId && goal.status !== "archived";
 }
 
+export function isActiveContribution(
+  contribution: Pick<GoalContributionRow, "deletedAt">,
+): boolean {
+  return contribution.deletedAt == null;
+}
+
+export function canMutateContribution(
+  contribution: Pick<GoalContributionRow, "createdBy" | "deletedAt">,
+  userId: string | null | undefined,
+  goal?: Pick<GoalRow, "status"> | null,
+): boolean {
+  return (
+    Boolean(userId) &&
+    contribution.createdBy === userId &&
+    contribution.deletedAt == null &&
+    (goal == null || goal.status !== "archived")
+  );
+}
+
+/**
+ * Active contributions of a goal, newest contributed_at first, then newest created_at.
+ * Soft-deleted rows are excluded. deleted_at IS NULL is the only active source.
+ */
+export function visibleGoalContributions(
+  contributions: GoalContributionRow[],
+): GoalContributionRow[] {
+  return contributions
+    .filter(isActiveContribution)
+    .slice()
+    .sort((a, b) => {
+      const byDate = b.contributedAt.localeCompare(a.contributedAt);
+      if (byDate !== 0) return byDate;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+}
+
 export function formatGoalTargetDate(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const [year, month, day] = iso.split("-").map(Number);
@@ -21,7 +57,7 @@ export function formatGoalTargetDate(iso: string | null | undefined): string | n
 }
 
 export function contributionsTotal(contributions: GoalContributionRow[]): number {
-  return sumMoney(contributions.map((row) => row.amount));
+  return sumMoney(contributions.filter(isActiveContribution).map((row) => row.amount));
 }
 
 export function goalProgress(goal: GoalRow): GoalProgress {

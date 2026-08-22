@@ -25,6 +25,8 @@ const USER_MESSAGES: Record<NidoErrorCode, string> = {
   expense_deleted: "Este gasto ya fue eliminado.",
   goal_not_found: "No encontramos esta meta.",
   goal_archived: "Esta meta ya fue archivada.",
+  contribution_not_found: "No encontramos esta aportación.",
+  contribution_deleted: "Esta aportación ya fue eliminada.",
   conflict: "Este gasto cambió. Inténtalo de nuevo.",
   network: "No pudimos completar la operación. Inténtalo de nuevo.",
 };
@@ -80,6 +82,8 @@ const MESSAGE_CODES: Record<string, NidoErrorCode> = {
   "nido.expense_deleted": "expense_deleted",
   "nido.goal_not_found": "goal_not_found",
   "nido.goal_archived": "goal_archived",
+  "nido.contribution_not_found": "contribution_not_found",
+  "nido.contribution_deleted": "contribution_deleted",
   "nido.conflict": "conflict",
 };
 

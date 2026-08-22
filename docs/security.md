@@ -211,14 +211,16 @@ Applies to `expense_splits`, `recurring_expense_splits`, and `goal_contributions
 
 **`expense_splits` writes** (Phase 9.1.2B) require `can_mutate_expense(expense_id)`: active membership, `created_by = auth.uid()`, and `deleted_at IS NULL` on the parent. SELECT stays historical-member.
 
-**`goal_contributions` INSERT** (Phase 9.1.3B) requires active membership in the parent goal’s household, `created_by = auth.uid()`, `member_id = auth.uid()`, and `goal_is_active(goal_id)`. SELECT stays historical-member. UPDATE/DELETE policies are unchanged (any active member) and have no product UI in this phase.
+**`goal_contributions` INSERT** (Phase 9.1.3B) requires active membership in the parent goal’s household, `created_by = auth.uid()`, `member_id = auth.uid()`, and `goal_is_active(goal_id)`. SELECT stays historical-member.
+
+**`goal_contributions` UPDATE** (Phase 9.1.3D) requires the writer to be an **active** member of the parent goal’s household, `created_by = auth.uid()`, `deleted_at IS NULL`, and `goal_is_active(goal_id)`. `WITH CHECK` allows setting `deleted_at` (soft-delete) and keeps `created_by` / `member_id` as `auth.uid()`. Physical DELETE is revoked for `authenticated`; the remaining DELETE policy is creator-only so a restored GRANT cannot let another member hard-delete. Product delete is `soft_delete_goal_contribution`.
 
 | Operation | Policy |
 | --- | --- |
 | SELECT | Historical member of the parent household |
 | INSERT | Parent-household write rule. Split `member_id` must be an active member of that household. **`goal_contributions` INSERT** also requires `member_id = auth.uid()` and an active parent goal |
-| UPDATE | Parent-household write rule |
-| DELETE | Parent-household write rule |
+| UPDATE | Parent-household write rule. **`goal_contributions` UPDATE** is creator + active member + not deleted + parent goal active |
+| DELETE | Parent-household write rule. **`goal_contributions` DELETE** is creator-only; privilege is revoked for `authenticated` |
 
 DELETE on splits is allowed so an edit can replace participants. Aggregate split totals remain an application/service transaction rule. There is no incremental-insert-blocking trigger.
 
@@ -268,9 +270,9 @@ Still application/service work:
 - At-least-one-owner invariant (enforced on leave; not an RLS trigger)
 - Expense + all splits in one transaction, including sum and personal-expense cardinality (`create_expense`, `update_expense`)
 - Recurring generate / edit / skip / confirm
-- Soft-delete via `deleted_at` (`soft_delete_expense` for expenses), deactivate via `is_active`, archive via `archived_at` / goal `status`
+- Soft-delete via `deleted_at` (`soft_delete_expense`, `soft_delete_goal_contribution`), deactivate via `is_active`, archive via `archived_at` / goal `status`
 - Do not use archived categories on new transactions
-- Do not hard-delete households, expenses, or goals in normal operation
+- Do not hard-delete households, expenses, goals, or contributions in normal operation
 - Income-based distribution and “requires review” derivation
 - Rate-limiting household creation
 
@@ -411,6 +413,14 @@ Expected results for the documented actors. `allow` / `deny` are RLS outcomes. S
 | Carlos | A | active | INSERT contribution attributed to Diana (`member_id`) | deny |
 | Carlos | A | left | INSERT contribution | deny |
 | Luis | A | never member | INSERT contribution on A | deny |
+| Carlos | A | active | UPDATE/soft-delete own contribution | allow |
+| Diana | A | active | UPDATE/soft-delete Carlos’s contribution | deny |
+| Luis | A/B | never member | UPDATE/soft-delete contribution on A | deny |
+| Carlos | A | active | UPDATE/soft-delete after `deleted_at` | deny |
+| Carlos | A | active | UPDATE/soft-delete contribution on archived goal | deny |
+| Carlos | B | never member | UPDATE/soft-delete contribution whose goal is another Nido | deny |
+| none | - | none | UPDATE/soft-delete contribution unauthenticated | deny |
+| Carlos | A | left | UPDATE/soft-delete own contribution | deny |
 
 ---
 
@@ -428,15 +438,15 @@ Result: RLS coverage validation passed for 14 tables. The script confirmed RLS i
 
 ### Behavioral matrix against the linked project
 
-`supabase/tests/rls_security_matrix.sql` was executed against the linked hosted project in this phase, including `X01`–`X14`, `Y01`–`Y12`, and `Z01`–`Z11`. All assertions passed. The script rolls back seeded users.
+`supabase/tests/rls_security_matrix.sql` was executed against the linked hosted project in this phase, including `X01`–`X14`, `Y01`–`Y12`, and `Z01`–`Z22`. All assertions passed. The script rolls back seeded users.
 
 ```bash
 npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
 ```
 
-It impersonates Carlos, Diana, and Luis with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, expense mutation cases `X01`–`X14`, goal mutation cases `Y01`–`Y12`, and contribution cases `Z01`–`Z11`.
+It impersonates Carlos, Diana, and Luis with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, expense mutation cases `X01`–`X14`, goal mutation cases `Y01`–`Y12`, and contribution cases `Z01`–`Z22`.
 
-`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. They are runtime SQL, not unit mocks.
+`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. `Z12`–`Z22` (creator update/delete, non-creator deny, other household, deleted row, archived goal, other Nido goal, unauthenticated, historical member, member who left) require migration `20260821210000`. They are runtime SQL, not unit mocks.
 
 The script rolls back seeded users. After the run, `auth.users` and application tables were empty.
 
