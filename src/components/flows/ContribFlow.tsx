@@ -1,106 +1,230 @@
 "use client";
 
-import { useState } from "react";
-import { GOALS } from "@/lib/constants";
-import { $k, pct } from "@/lib/helpers";
-import { P } from "@/lib/palette";
-import { FlowHeader } from "@/components/shared/FlowHeader";
-import { PBtn } from "@/components/shared/PBtn";
+import { useId, useRef, useState, type FormEvent } from "react";
+import { Button } from "@/components/nido/Button";
+import { ChoiceCard } from "@/components/nido/ChoiceCard";
+import { EmptyState } from "@/components/nido/EmptyState";
+import {
+  Field,
+  FieldError,
+  FieldLabel,
+  MoneyField,
+  TextInput,
+} from "@/components/nido/Field";
+import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
+import { Text } from "@/components/nido/Typography";
+import { canSubmitContribution, createContribution } from "@/lib/nido/contributions";
+import {
+  contributionAmountMessage,
+  contributionDateMessage,
+  formatCompactMoney,
+  goalProgress,
+  parseContributionAmountInput,
+  todayIso,
+  type GoalRow,
+} from "@/lib/nido/financial";
+import type { HouseholdMemberView } from "@/lib/nido/types";
 
-export function ContribFlow({ onClose }: { onClose: () => void }) {
-  const [step, setStep]       = useState(1);
-  const [goalIdx, setGoalIdx] = useState(-1);
-  const [amount, setAmount]   = useState("");
-  const [who, setWho]         = useState<"diana"|"carlos"|"both">("both");
+type FieldErrors = {
+  goal?: string;
+  amount?: string;
+  date?: string;
+  form?: string;
+};
 
-  const goal = GOALS[goalIdx];
-  const amt  = parseFloat(amount) || 0;
-  const newCurrent = goal ? goal.current + amt : 0;
+export function ContribFlow({
+  householdId,
+  members,
+  goals,
+  loading = false,
+  onClose,
+  onDone,
+  onCreateGoal,
+}: {
+  householdId: string;
+  members: HouseholdMemberView[];
+  goals: GoalRow[];
+  loading?: boolean;
+  onClose: () => void;
+  onDone: () => void;
+  onCreateGoal: () => void;
+}) {
+  const ids = useId();
+  const submittingRef = useRef(false);
+  const activeGoals = goals.filter((goal) => goal.status === "active");
+  const [goalId, setGoalId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [contributedAt, setContributedAt] = useState(() => todayIso());
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+
+  const amountId = `${ids}-amount`;
+  const dateId = `${ids}-date`;
+  const goalLabelId = `${ids}-goal`;
+  const empty = !loading && activeGoals.length === 0;
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (empty || !canSubmitContribution(submitting) || submittingRef.current) return;
+
+    const nextErrors: FieldErrors = {};
+    if (!goalId) nextErrors.goal = "Elige una meta.";
+
+    const amountMessage = contributionAmountMessage(amount);
+    if (amountMessage) nextErrors.amount = amountMessage;
+
+    const dateMessage = contributionDateMessage(contributedAt);
+    if (dateMessage) nextErrors.date = dateMessage;
+
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
+
+    const parsedAmount = parseContributionAmountInput(amount);
+    if (parsedAmount == null) {
+      setErrors({ amount: "Ingresa un monto válido." });
+      return;
+    }
+
+    submittingRef.current = true;
+    setSubmitting(true);
+    setErrors({});
+
+    const result = await createContribution({
+      householdId,
+      goalId,
+      amount: parsedAmount,
+      contributedAt,
+      activeMemberIds: members.map((member) => member.userId),
+      allowedGoalIds: activeGoals.map((goal) => goal.id),
+    });
+
+    if (result.ok === false) {
+      submittingRef.current = false;
+      setSubmitting(false);
+      setErrors({ form: result.error.message });
+      return;
+    }
+
+    onDone();
+  };
 
   return (
-    <div className="absolute inset-0 z-30 flex flex-col" style={{ backgroundColor: P.bgL }}>
-      <FlowHeader step={step} total={3} onBack={() => step > 1 ? setStep(s => s-1) : onClose()} onClose={onClose} />
-      <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden px-5 pb-8">
+    <div className="absolute inset-0 z-30">
+      <FlowScreen
+        lockViewport
+        className="h-full min-h-0"
+        footer={
+          empty || loading ? undefined : (
+            <ScreenFooter>
+              <Button type="submit" form={`${ids}-form`} loading={submitting}>
+                {submitting ? "Guardando…" : "Guardar aportación"}
+              </Button>
+            </ScreenFooter>
+          )
+        }
+      >
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="shrink-0">
+            <BackLink onClick={onClose} label="Cerrar" />
+            <ScreenIntro
+              className="mb-6"
+              title="Registrar una aportación"
+              description="Elige una meta activa de tu Nido."
+            />
+          </div>
 
-        {step === 1 && (
-          <>
-            <h2 className="text-xl font-bold mb-1 mt-2" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿A qué meta aportarás?</h2>
-            <p className="text-xs mb-5" style={{ color: P.muted }}>Elige la meta que quieres avanzar.</p>
-            <div className="space-y-2 mb-6">
-              {GOALS.map((g, i) => (
-                <button key={g.name} onClick={() => setGoalIdx(i)}
-                  className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all"
-                  style={{ borderColor: goalIdx === i ? P.brnDk : "transparent", backgroundColor: goalIdx === i ? g.bg : P.sub }}>
-                  <span className="text-2xl">{g.emoji}</span>
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold" style={{ color: P.text }}>{g.name}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ backgroundColor: P.sub }}>
-                        <div className="h-full rounded-full" style={{ width: `${pct(g.current, g.target)}%`, backgroundColor: g.color }} />
-                      </div>
-                      <span className="text-[9px]" style={{ color: P.muted }}>{pct(g.current, g.target)}%</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <PBtn label="Continuar" onClick={() => setStep(2)} disabled={goalIdx < 0} />
-          </>
-        )}
+          {loading ? (
+            <Text size="caption" tone="muted" aria-busy="true">
+              Cargando metas…
+            </Text>
+          ) : empty ? (
+            <EmptyState
+              title="Todavía no hay metas"
+              description="Crea una meta primero para poder registrar una aportación."
+              actionLabel="Crear una meta"
+              onAction={onCreateGoal}
+            />
+          ) : (
+            <form
+              id={`${ids}-form`}
+              className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-6 space-y-4"
+              onSubmit={handleSubmit}
+              noValidate
+            >
+              {errors.form ? (
+                <FieldError id={`${ids}-form-error`}>{errors.form}</FieldError>
+              ) : null}
 
-        {step === 2 && goal && (
-          <>
-            <h2 className="text-xl font-bold mb-4 mt-2" style={{ fontFamily: "Fraunces, serif", color: P.text }}>¿Cuánto aportan?</h2>
-            <div className="rounded-3xl p-5 mb-3 shadow-sm text-center" style={{ backgroundColor: P.card }}>
-              <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: P.muted }}>Monto</p>
-              <div className="flex items-center justify-center gap-1">
-                <span className="text-3xl font-bold" style={{ color: P.muted, fontFamily: "Fraunces, serif" }}>$</span>
-                <input className="text-4xl font-bold bg-transparent outline-none text-center w-40"
-                  style={{ fontFamily: "Fraunces, serif", color: P.text }}
-                  type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" />
-              </div>
-            </div>
-            <div className="rounded-2xl px-4 py-3 mb-6 shadow-sm" style={{ backgroundColor: P.card }}>
-              <p className="text-[9px] font-semibold uppercase tracking-widest mb-3" style={{ color: P.muted }}>¿Quién aporta?</p>
-              <div className="flex gap-2">
-                {([{ id: "diana" as const, l: "Diana", c: P.sage }, { id: "carlos" as const, l: "Carlos", c: "#5A9E90" }, { id: "both" as const, l: "Ambos", c: P.brn }]).map(m => (
-                  <button key={m.id} onClick={() => setWho(m.id)}
-                    className="flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border-2 transition-all"
-                    style={{ borderColor: who === m.id ? m.c : "transparent", backgroundColor: who === m.id ? `${m.c}15` : P.sub }}>
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold" style={{ backgroundColor: m.c }}>{m.l[0]}</div>
-                    <span className="text-[10px] font-semibold" style={{ color: P.text }}>{m.l}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <PBtn label="Continuar" onClick={() => setStep(3)} disabled={!amount} />
-          </>
-        )}
-
-        {step === 3 && goal && (
-          <>
-            <h2 className="text-xl font-bold mb-4 mt-2" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Confirmación</h2>
-            <div className="rounded-3xl p-5 mb-3 shadow-sm" style={{ backgroundColor: P.card }}>
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-3xl">{goal.emoji}</span>
-                <div className="flex-1">
-                  <p className="text-sm font-bold" style={{ color: P.text }}>{goal.name}</p>
-                  <p className="text-[10px]" style={{ color: P.muted }}>Aporta {who === "diana" ? "Diana" : who === "carlos" ? "Carlos" : "Diana & Carlos"}</p>
+              <Field>
+                <p id={goalLabelId} className="mb-2 text-label font-semibold text-muted-foreground">
+                  Meta
+                </p>
+                <div className="space-y-2" role="group" aria-labelledby={goalLabelId}>
+                  {activeGoals.map((goal) => {
+                    const progress = goalProgress(goal);
+                    const targetLabel = progress.invalidTarget
+                      ? "—"
+                      : formatCompactMoney(progress.targetAmount);
+                    return (
+                      <ChoiceCard
+                        key={goal.id}
+                        icon={goal.goalType === "purchase" ? "🎯" : "🛡️"}
+                        title={goal.name}
+                        description={`${formatCompactMoney(progress.contributed)} de ${targetLabel} · ${
+                          progress.invalidTarget ? "—" : `${progress.percent}%`
+                        }`}
+                        selected={goalId === goal.id}
+                        disabled={submitting}
+                        onClick={() => {
+                          setGoalId(goal.id);
+                          setErrors((current) => ({ ...current, goal: undefined }));
+                        }}
+                      />
+                    );
+                  })}
                 </div>
-                <p className="text-xl font-bold" style={{ fontFamily: "Fraunces, serif", color: P.brnDk }}>+{$k(amt)}</p>
-              </div>
-              <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: P.sub }}>
-                <div className="h-full rounded-full" style={{ width: `${pct(newCurrent, goal.target)}%`, backgroundColor: goal.color }} />
-              </div>
-              <div className="flex justify-between text-[10px]" style={{ color: P.muted }}>
-                <span>{$k(newCurrent)} de {$k(goal.target)}</span>
-                <span>{pct(newCurrent, goal.target)}%</span>
-              </div>
-            </div>
-            <PBtn label="Guardar aportación" onClick={onClose} />
-          </>
-        )}
-      </div>
+                <FieldError id={`${ids}-goal-error`}>{errors.goal}</FieldError>
+              </Field>
+
+              <Field>
+                <MoneyField
+                  id={amountId}
+                  label="Monto"
+                  value={amount}
+                  onChange={(value) => {
+                    setAmount(value);
+                    setErrors((current) => ({ ...current, amount: undefined }));
+                  }}
+                  placeholder="0.00"
+                  invalid={Boolean(errors.amount)}
+                  disabled={submitting}
+                  describedBy={errors.amount ? `${amountId}-error` : undefined}
+                />
+                <FieldError id={`${amountId}-error`}>{errors.amount}</FieldError>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor={dateId}>Fecha</FieldLabel>
+                <TextInput
+                  id={dateId}
+                  type="date"
+                  value={contributedAt}
+                  onChange={(event) => {
+                    setContributedAt(event.target.value);
+                    setErrors((current) => ({ ...current, date: undefined }));
+                  }}
+                  invalid={Boolean(errors.date)}
+                  disabled={submitting}
+                  aria-describedby={errors.date ? `${dateId}-error` : undefined}
+                />
+                <FieldError id={`${dateId}-error`}>{errors.date}</FieldError>
+              </Field>
+            </form>
+          )}
+        </div>
+      </FlowScreen>
     </div>
   );
 }

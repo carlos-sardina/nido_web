@@ -199,14 +199,13 @@ Live on Home, empty when the Nido has no financial rows:
 
 Still prototype UI (not wired):
 
-- Gastos, Metas, and Actividad screens
-- Crear una meta / Registrar una aportación (visible in `+`, show **Próximamente**)
+- Actividad screen layout (data comes from the live snapshot)
 - household planning widgets (capacity / split model)
 - Profile personal-expense lists
 - email or push delivery
 - real-time subscriptions
 
-Household name, member list, membership role, and `profiles.display_name` come from Supabase after the Nido is finalized.
+Gastos, Metas, Crear una meta, and Registrar una aportación are live. Household name, member list, membership role, and `profiles.display_name` come from Supabase after the Nido is finalized.
 
 ---
 
@@ -218,6 +217,8 @@ The PostgREST client cannot run a multi-statement transaction. These operations 
 | --- | --- | --- |
 | `create_household(p_name)` | `SECURITY INVOKER` | Household + first owner + default expense categories must be atomic. RLS still applies. |
 | `create_expense(...)` | `SECURITY INVOKER` | Expense + splits must be atomic. Split sums and personal cardinality are enforced here. RLS still applies. |
+| `create_goal(...)` / `update_goal` / `archive_goal` | `SECURITY INVOKER` | Goal definition. Only the creator may update or archive. |
+| `create_goal_contribution(...)` | `SECURITY INVOKER` | Any active member may contribute to an active goal of the same Nido. `member_id` and `created_by` are `auth.uid()`. |
 | `lookup_invitation(p_token)` | `SECURITY DEFINER` | Invitation SELECT is owner-only. Invitees and anonymous users need a name/status preview. |
 | `accept_invitation(p_token)` | `SECURITY DEFINER` | No client UPDATE on invitations and no client INSERT of a non-owner membership. |
 | `leave_household()` | `SECURITY DEFINER` | No client UPDATE on `household_members`. |
@@ -245,6 +246,9 @@ Code lives in `src/lib/nido/`.
 | `queries/categories.ts` | `fetchActiveExpenseCategories` |
 | `create-expense.ts` | `createExpenseWithAuth`, `canSubmitExpense` |
 | `expenses.ts` | `createExpense` (Supabase wrapper) |
+| `goals.ts` | `createGoal` / `updateGoal` / `archiveGoal` |
+| `create-contribution.ts` | `createContributionWithAuth`, `canSubmitContribution` |
+| `contributions.ts` | `createContribution` (Supabase wrapper) |
 | `use-dashboard.ts` | Home data hook; uses the active household from `useMyNido` |
 
 Onboarding draft helpers live in `src/lib/onboarding/` (`draft`, `validation`). They do not write to Supabase.
@@ -283,12 +287,13 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ---
 
-## What remains after 9.1.3A
+## What remains after 9.1.3B
 
-- 9.1.3B: registrar aportaciones
+- 9.1.3C: ingresos
 - Actividad screen on the same data layer
 - 9.1.4: Hogar / Perfil refinement
-- ingresos / presupuestos / recurrencias
+- presupuestos / recurrencias
+- contribution edit / soft-delete
 - invitation email delivery
 - owner transfer
 - Google OAuth
@@ -298,6 +303,6 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## Apply the migration
 
-This workspace does not apply SQL to a live project. After pulling this phase, apply `20260821180000_nido_goal_mutations.sql` with the same process used for the foundation, RLS, lifecycle, and expense migrations.
+This workspace does not apply SQL to a live project. After pulling this phase, apply `20260821200000_nido_goal_contribution_mutations.sql` with the same process used for the foundation, RLS, lifecycle, expense, and goal migrations.
 
-Until that migration is applied, `create_goal` / `update_goal` / `archive_goal` will fail at runtime.
+Until that migration is applied, `create_goal_contribution` will fail at runtime.

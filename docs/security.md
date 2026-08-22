@@ -99,6 +99,7 @@ Helpers live in `public` and are granted to `authenticated` and `service_role`. 
 | `household_id_for_expense(expense_id)` | Parent household for an expense |
 | `household_id_for_recurring_expense(id)` | Parent household for a recurring expense |
 | `household_id_for_goal(goal_id)` | Parent household for a goal |
+| `goal_is_active(goal_id)` | Goal exists and `status = active` |
 
 ### Why SECURITY DEFINER
 
@@ -210,10 +211,12 @@ Applies to `expense_splits`, `recurring_expense_splits`, and `goal_contributions
 
 **`expense_splits` writes** (Phase 9.1.2B) require `can_mutate_expense(expense_id)`: active membership, `created_by = auth.uid()`, and `deleted_at IS NULL` on the parent. SELECT stays historical-member.
 
+**`goal_contributions` INSERT** (Phase 9.1.3B) requires active membership in the parent goal’s household, `created_by = auth.uid()`, `member_id = auth.uid()`, and `goal_is_active(goal_id)`. SELECT stays historical-member. UPDATE/DELETE policies are unchanged (any active member) and have no product UI in this phase.
+
 | Operation | Policy |
 | --- | --- |
 | SELECT | Historical member of the parent household |
-| INSERT | Parent-household write rule. Split/contribution `member_id` must be an active member of that household. `goal_contributions.created_by` must be `auth.uid()` |
+| INSERT | Parent-household write rule. Split `member_id` must be an active member of that household. **`goal_contributions` INSERT** also requires `member_id = auth.uid()` and an active parent goal |
 | UPDATE | Parent-household write rule |
 | DELETE | Parent-household write rule |
 
@@ -402,6 +405,12 @@ Expected results for the documented actors. `allow` / `deny` are RLS outcomes. S
 | Carlos | A | left | SELECT historical goal/contribution | allow |
 | Carlos | A | left | INSERT/UPDATE/archive goal | deny |
 | Luis | A | never member | SELECT/INSERT | deny |
+| Carlos | A | active | INSERT contribution on own or another member’s active goal | allow |
+| Diana | A | active | INSERT contribution on Carlos’s goal | allow |
+| Carlos | A | active | INSERT contribution on archived goal | deny |
+| Carlos | A | active | INSERT contribution attributed to Diana (`member_id`) | deny |
+| Carlos | A | left | INSERT contribution | deny |
+| Luis | A | never member | INSERT contribution on A | deny |
 
 ---
 
@@ -419,15 +428,15 @@ Result: RLS coverage validation passed for 14 tables. The script confirmed RLS i
 
 ### Behavioral matrix against the linked project
 
-`supabase/tests/rls_security_matrix.sql` was executed against the linked hosted project in this phase, including `X01`–`X14` and `Y01`–`Y12`. All assertions passed. The script rolls back seeded users.
+`supabase/tests/rls_security_matrix.sql` was executed against the linked hosted project in this phase, including `X01`–`X14`, `Y01`–`Y12`, and `Z01`–`Z11`. All assertions passed. The script rolls back seeded users.
 
 ```bash
 npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
 ```
 
-It impersonates Carlos, Diana, and Luis with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, expense mutation cases `X01`–`X14`, and goal mutation cases `Y01`–`Y12`.
+It impersonates Carlos, Diana, and Luis with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, expense mutation cases `X01`–`X14`, goal mutation cases `Y01`–`Y12`, and contribution cases `Z01`–`Z11`.
 
-`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. They are runtime SQL, not unit mocks.
+`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. They are runtime SQL, not unit mocks.
 
 The script rolls back seeded users. After the run, `auth.users` and application tables were empty.
 

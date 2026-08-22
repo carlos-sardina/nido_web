@@ -386,12 +386,14 @@ Member contributions toward a goal. Multiple contributions per member are allowe
 | `id` | `uuid` PK | |
 | `goal_id` | `uuid` FK → `goals.id` | |
 | `member_id` | `uuid` FK → `profiles.id` | Must be an active member of the goal's Nido at insert time. |
-| `amount` | `numeric(12,2)` | `>= 0`. |
+| `amount` | `numeric(12,2)` | `>= 0` at the table; create RPC requires `> 0`. |
 | `contributed_at` | `date` | |
-| `created_by` | `uuid` FK → `profiles.id` | |
+| `created_by` | `uuid` FK → `profiles.id` | Same person as `member_id` on create. |
 | `created_at` | `timestamptz` | |
 
-Leaving a Nido does not delete contribution rows.
+`member_id` is who the contribution is attributed to. `created_by` is who wrote the row. Phase 9.1.3B sets both to `auth.uid()`.
+
+Leaving a Nido does not delete contribution rows. There is no `deleted_at`; edit/soft-delete is deferred. Over-target sums are allowed. Do not persist `goals.status = completed` from a contribution.
 
 ---
 

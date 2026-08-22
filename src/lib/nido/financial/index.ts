@@ -57,6 +57,12 @@ export {
   parseGoalAmountInput,
 } from "./goal-input.ts";
 export {
+  buildCreateContributionPayload,
+  contributionAmountMessage,
+  contributionDateMessage,
+  parseContributionAmountInput,
+} from "./contribution-input.ts";
+export {
   activeGoalProgress,
   canMutateGoal,
   contributionsTotal,

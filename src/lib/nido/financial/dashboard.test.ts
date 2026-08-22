@@ -392,4 +392,47 @@ describe("dashboard view model", () => {
     assert.equal(model.activeGoals[0].contributed, 0);
     assert.equal(model.empty.goals, false);
   });
+
+  it("caps visual progress at 100% when contributions exceed the target", () => {
+    const goal: GoalRow = {
+      id: "g1",
+      householdId: "h1",
+      name: "Fondo",
+      description: null,
+      goalType: "saving",
+      targetAmount: 100,
+      targetDate: null,
+      status: "active",
+      createdBy: "diana",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      contributions: [
+        {
+          id: "gc1",
+          goalId: "g1",
+          memberId: "diana",
+          amount: 150,
+          contributedAt: "2026-08-21",
+          createdBy: "diana",
+          createdAt: "2026-08-21T12:00:00.000Z",
+          member: { id: "diana", displayName: "Diana Vega" },
+        },
+      ],
+    };
+
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        goals: [goal],
+        contributions: goal.contributions,
+      }),
+      members,
+      range,
+    });
+
+    assert.equal(model.activeGoals[0].contributed, 150);
+    assert.equal(model.activeGoals[0].percent, 100);
+    assert.equal(model.activeGoals[0].completed, true);
+    assert.equal(model.featuredGoal?.percent, 100);
+    assert.equal(model.activity.some((item) => item.type === "goal_contribution"), true);
+    assert.equal(model.activity[0]?.amount, 150);
+  });
 });

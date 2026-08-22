@@ -166,6 +166,11 @@ export function GoalDetail({
                       {progress.invalidTarget ? "—" : `${progress.percent}%`}
                     </Text>
                   </div>
+                  {progress.completed ? (
+                    <Text size="caption" className="mt-2 font-semibold">
+                      Meta alcanzada
+                    </Text>
+                  ) : null}
                 </div>
 
                 <DetailRow

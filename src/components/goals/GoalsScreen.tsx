@@ -177,7 +177,11 @@ function GoalCard({
         className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold"
         style={{ backgroundColor: `${P.sage}22`, color: P.sageDk }}
       >
-        {progress.invalidTarget ? "—" : `${progress.percent}%`} completado
+        {progress.invalidTarget
+          ? "—"
+          : progress.completed
+            ? "Alcanzada"
+            : `${progress.percent}% completado`}
       </span>
     </button>
   );

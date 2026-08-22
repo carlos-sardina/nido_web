@@ -899,6 +899,10 @@ export type Database = {
         }
         Returns: string
       }
+      create_goal_contribution: {
+        Args: { p_amount: number; p_contributed_at: string; p_goal_id: string }
+        Returns: string
+      }
       create_household: {
         Args: { p_name: string }
         Returns: {
@@ -922,6 +926,7 @@ export type Database = {
           name: string
         }[]
       }
+      goal_is_active: { Args: { p_goal_id: string }; Returns: boolean }
       household_has_no_members: {
         Args: { p_household_id: string }
         Returns: boolean

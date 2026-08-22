@@ -206,7 +206,7 @@ Requires migration `20260821000000_nido_categories_and_create_expense.sql` on th
 
 1. Create or open an active Nido. Confirm it has default expense categories (Vivienda, Despensa, …).
 2. Home `+` → bottom sheet with Registrar un gasto, Crear una meta, Registrar una aportación.
-3. **Registrar una aportación** → **Esta función estará disponible próximamente.** No mock rows.
+3. **Registrar una aportación** → form with the Nido’s active goals. If none exist, **Todavía no hay metas** + **Crear una meta**.
 4. **Registrar un gasto** opens the form. Categories are the Nido’s active expense categories, not another household’s.
 5. Empty amount, `0`, negative, and malformed amounts are rejected in Spanish. Invalid input is not coerced to `0`.
 6. Empty / whitespace description is rejected. Unicode is kept.
@@ -261,7 +261,27 @@ F. **Otro miembro** — puede ver; no hay Editar/Archivar; RPC/RLS rechaza la mu
 G. **Refresh** — `useDashboard().refresh()` actualiza Home y Metas. Un solo snapshot.
 H. **Doble tap** — un solo request; botón disabled + loading.
 I. **Error de red** — copy en español, sin PostgREST.
-J. **Registrar una aportación** sigue en Coming Soon. No se inició 9.1.3B.
+J. **Registrar una aportación** is live in 9.1.3B.
+
+Manual runs actually executed for this checklist: none in this phase.
+
+---
+
+## Aportaciones (Phase 9.1.3B)
+
+Requires migration `20260821200000_nido_goal_contribution_mutations.sql` on the linked project (plus prior financial and goal migrations). Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. SQL cases `Z01`–`Z11` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). The manual UI checklist below was **not** executed in a live app session.
+
+A. **Empty state** — Nido sin metas activas: **Todavía no hay metas** + **Crear una meta** reutiliza GoalFlow.
+B. **Crear aportación** — Home `+` → Registrar una aportación. Meta activa, monto > 0, fecha (hoy por default en America/Mexico_City).
+C. **Progreso** — `SUM(goal_contributions.amount) / target_amount`. Home, Metas, detalle y actividad se actualizan con `dashboard.refresh()`. No hay `current_amount`.
+D. **Otro miembro** — puede aportar a una meta que no creó. El progreso suma ambas aportaciones.
+E. **Supera el objetivo** — se acepta; el porcentaje visual se capea a 100%; el monto ahorrado es la suma real; no se persiste `status = completed`.
+F. **Meta archivada** — no aparece en el selector; RPC/RLS rechaza.
+G. **Miembro histórico / otro Nido** — no puede aportar.
+H. **Doble tap** — un solo request; botón disabled + loading (`aria-busy`).
+I. **Error de red** — copy en español, sin PostgREST.
+J. **Editar / eliminar aportación** no está en esta fase (`goal_contributions` no tiene `deleted_at`).
+K. **9.1.3C ingresos** no se inició.
 
 Manual runs actually executed for this checklist: none in this phase.
 

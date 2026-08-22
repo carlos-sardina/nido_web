@@ -8,7 +8,7 @@ import { ActivityScreen } from "@/components/activity/ActivityScreen";
 import { ExpenseDetail } from "@/components/expenses/ExpenseDetail";
 import { ExpensesScreen } from "@/components/expenses/ExpensesScreen";
 import { ActionSheet } from "@/components/flows/ActionSheet";
-import { ComingSoon } from "@/components/flows/ComingSoon";
+import { ContribFlow } from "@/components/flows/ContribFlow";
 import { ExpenseFlow } from "@/components/flows/ExpenseFlow";
 import { GoalFlow } from "@/components/flows/GoalFlow";
 import { ProfilePanel } from "@/components/flows/ProfilePanel";
@@ -226,7 +226,15 @@ export function MainApp({
         )}
 
         {activeFlow === "contrib" && (
-          <ComingSoon onClose={() => setActiveFlow(null)} />
+          <ContribFlow
+            householdId={household.id}
+            members={members}
+            goals={dashboard.model?.goals ?? []}
+            loading={!dashboard.model && dashboard.isLoading}
+            onClose={() => setActiveFlow(null)}
+            onDone={handleFlowDone}
+            onCreateGoal={openGoalCreate}
+          />
         )}
 
         {/* Profile panel */}

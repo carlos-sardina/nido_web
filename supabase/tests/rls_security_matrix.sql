@@ -7,7 +7,7 @@
 -- Required environment:
 --   1. Supabase local (`supabase start`) or a linked Supabase database
 --   2. Migrations applied (foundation, RLS, lifecycle, categories/create_expense,
---      expense mutations, goal mutations)
+--      expense mutations, goal mutations, goal contribution mutations)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -1383,6 +1383,198 @@ BEGIN
 END;
 $$;
 
+-- -----------------------------------------------------------------------------
+-- Goal contributions (Phase 9.1.3B) — while Carlos is still an active member
+-- Any active member may contribute to an active goal of the same Nido.
+-- The goal creator does not matter. Archived goals and other Nidos are denied.
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_goal_a uuid;
+  v_mutate uuid;
+  v_diana_goal uuid;
+  v_goal_b uuid;
+  v_contrib uuid;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+  SELECT id INTO v_goal_a FROM rls_ids WHERE key = 'goal_a';
+  SELECT id INTO v_mutate FROM rls_ids WHERE key = 'mutate_goal_a';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.create_goal_contribution(
+    v_goal_a,
+    300,
+    DATE '2026-08-21'
+  ) INTO v_contrib;
+
+  PERFORM pg_temp.record_result(
+    'Z01', 'Carlos', 'A', 'active', 'create_goal_contribution own goal',
+    'allow',
+    CASE WHEN v_contrib IS NOT NULL THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'Z02', 'Diana', 'A', 'active', 'contribute to goal created by Carlos',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_goal_contribution(
+          %L::uuid, 150, DATE '2026-08-21'
+        )
+      $sql$,
+      v_goal_a
+    ))
+  );
+
+  SELECT id INTO v_diana_goal
+  FROM public.goals
+  WHERE household_id = v_nido_a
+    AND created_by = v_diana
+    AND status = 'active'
+  ORDER BY created_at DESC
+  LIMIT 1;
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'Z03', 'Carlos', 'A', 'active', 'contribute to goal created by Diana',
+    'allow',
+    CASE
+      WHEN v_diana_goal IS NOT NULL
+        AND pg_temp.expect_allow(format(
+          $sql$
+            SELECT public.create_goal_contribution(
+              %L::uuid, 80, DATE '2026-08-21'
+            )
+          $sql$,
+          v_diana_goal
+        )) = 'allow'
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  SELECT public.create_goal(
+    v_nido_b,
+    'Meta B',
+    100,
+    'saving',
+    NULL,
+    NULL
+  ) INTO v_goal_b;
+
+  PERFORM pg_temp.record_result(
+    'Z04', 'Luis', 'A', 'never member', 'create_goal_contribution other Nido',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_goal_contribution(
+          %L::uuid, 10, DATE '2026-08-21'
+        )
+      $sql$,
+      v_goal_a
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'Z05', 'Carlos', 'B', 'never member', 'create_goal_contribution other household goal',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_goal_contribution(
+          %L::uuid, 10, DATE '2026-08-21'
+        )
+      $sql$,
+      v_goal_b
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'Z06', 'Carlos', 'A', 'active', 'create_goal_contribution archived goal',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_goal_contribution(
+          %L::uuid, 10, DATE '2026-08-21'
+        )
+      $sql$,
+      v_mutate
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'Z07', 'Carlos', 'A', 'active', 'INSERT contribution for another member',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.goal_contributions (
+          goal_id, member_id, amount, contributed_at, created_by
+        ) VALUES (
+          %L, %L, 10, DATE '2026-08-21', %L
+        )
+      $sql$,
+      v_goal_a, v_diana, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'Z08', 'Carlos', 'A', 'active', 'contribution exceeding target',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_goal_contribution(
+          %L::uuid, 20000, DATE '2026-08-21'
+        )
+      $sql$,
+      v_goal_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'Z09', 'Carlos', 'A', 'active', 'create_goal_contribution missing goal',
+    'deny',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.create_goal_contribution(
+          '00000000-0000-0000-0000-000000000001'::uuid,
+          10,
+          DATE '2026-08-21'
+        )
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.clear_auth();
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.record_result(
+    'Z11', 'none', '-', 'none', 'create_goal_contribution unauthenticated',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_goal_contribution(
+          %L::uuid, 10, DATE '2026-08-21'
+        )
+      $sql$,
+      v_goal_a
+    ))
+  );
+
+  PERFORM pg_temp.clear_auth();
+END;
+$$;
+
 -- Scenario C — Carlos leaves Nido A
 -- Membership write is service_role / table-owner work, matching the
 -- chosen RLS model (clients cannot UPDATE household_members).
@@ -1619,6 +1811,19 @@ BEGIN
     'deny',
     pg_temp.expect_allow(format(
       'SELECT public.archive_goal(%L::uuid)',
+      v_goal_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'Z10', 'Carlos', 'A', 'left', 'create_goal_contribution after leave',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_goal_contribution(
+          %L::uuid, 10, DATE '2026-08-21'
+        )
+      $sql$,
       v_goal_a
     ))
   );
