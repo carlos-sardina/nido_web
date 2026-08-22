@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { joinBlockReason, joinInvitationCopy } from "./invitation-copy.ts";
+import {
+  invitationPreviewStatusFromAcceptError,
+  joinBlockFromAcceptError,
+  joinBlockReason,
+  joinInvitationCopy,
+} from "./invitation-copy.ts";
 
 describe("joinInvitationCopy", () => {
   it("describes an invalid token", () => {
@@ -93,5 +98,31 @@ describe("joinBlockReason", () => {
       }),
       "already_in_other",
     );
+  });
+
+  it("does not guess this vs other Nido without the invitation household id", () => {
+    assert.equal(
+      joinBlockReason({
+        alreadyInNido: true,
+        activeHouseholdId: "hh-1",
+        invitationHouseholdId: null,
+      }),
+      "none",
+    );
+  });
+});
+
+describe("join accept error mapping", () => {
+  it("maps already_member to this-Nido copy and already_in_nido to another Nido", () => {
+    assert.equal(joinBlockFromAcceptError("already_member"), "already_in_this");
+    assert.equal(joinBlockFromAcceptError("already_in_nido"), "already_in_other");
+    assert.equal(joinBlockFromAcceptError("invitation_expired"), null);
+  });
+
+  it("maps invitation RPC codes to preview status without collapsing them", () => {
+    assert.equal(invitationPreviewStatusFromAcceptError("invitation_invalid"), "invalid");
+    assert.equal(invitationPreviewStatusFromAcceptError("invitation_expired"), "expired");
+    assert.equal(invitationPreviewStatusFromAcceptError("invitation_accepted"), "accepted");
+    assert.equal(invitationPreviewStatusFromAcceptError("already_member"), null);
   });
 });

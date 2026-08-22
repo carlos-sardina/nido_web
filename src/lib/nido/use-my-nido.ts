@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { NidoError } from "./errors";
 import { getMyNidoState } from "./membership";
+import { withTransientRetry } from "./transient-retry";
 import type { MyNidoState } from "./types";
 
 export type MyNidoView =
@@ -33,7 +34,7 @@ export function useMyNido(user: User | null, authLoading: boolean): MyNidoView {
     }
 
     setIsLoading(true);
-    const result = await getMyNidoState();
+    const result = await withTransientRetry(() => getMyNidoState());
     if (result.ok === false) {
       setError(result.error);
       setState(null);

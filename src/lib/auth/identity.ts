@@ -32,6 +32,29 @@ export function initialsFromName(name: string): string {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
+export function emailLocalPart(email: string | null | undefined): string | null {
+  const trimmed = firstNonEmptyString(email);
+  if (!trimmed || !trimmed.includes("@")) return null;
+  const local = trimmed.split("@")[0]?.trim() ?? "";
+  return local || null;
+}
+
+/**
+ * True when `display_name` is missing or still the `handle_new_user` /
+ * `identityFromUser` email local-part fallback. A chosen name that happens
+ * to equal the local-part is treated as fallback so join can ask again.
+ */
+export function isFallbackDisplayName(input: {
+  displayName: string | null | undefined;
+  email: string | null | undefined;
+}): boolean {
+  const name = input.displayName?.trim() ?? "";
+  if (!name) return true;
+  const local = emailLocalPart(input.email);
+  if (!local) return false;
+  return name === local;
+}
+
 export function identityFromUser(user: User | null | undefined): AuthIdentity | null {
   if (!user) return null;
 

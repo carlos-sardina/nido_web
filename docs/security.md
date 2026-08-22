@@ -479,6 +479,8 @@ Result: RLS coverage validation passed for 14 tables. The script confirmed RLS i
 
 `supabase/tests/rls_security_matrix.sql` was re-executed against linked `nido_dev` in the Phase 9.3.1 closure audit (239 assertions, 0 failed), including the previous 207 cases plus invitation product `J01`–`J30` (lookup, accept, cancel/DELETE). The script ends in `ROLLBACK` and does not persist seeded users. Existing **Departamento** and **Nido Smoke 924** rows were unchanged after the run.
 
+Phase 9.3.2 did not add a migration, RPC, or RLS policy. Join writes `profiles.display_name` with the existing `profiles_update_self` policy (`id = auth.uid()`) and still accepts through `accept_invitation`. The matrix was not re-run; coverage remains 14 tables.
+
 ```bash
 npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
 ```

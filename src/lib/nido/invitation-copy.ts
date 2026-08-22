@@ -1,4 +1,4 @@
-import type { InvitationPreview } from "./types";
+import type { InvitationPreview, InvitationStatus, NidoErrorCode } from "./types";
 
 export type JoinBlockReason = "none" | "already_in_other" | "already_in_this";
 
@@ -58,6 +58,25 @@ export function joinBlockReason(input: {
   if (!input.alreadyInNido) return "none";
   const active = input.activeHouseholdId?.trim() ?? "";
   const invited = input.invitationHouseholdId?.trim() ?? "";
-  if (active && invited && active === invited) return "already_in_this";
+  // lookup_invitation does not return household_id. Without both ids the
+  // client cannot distinguish this Nido from another; accept_invitation
+  // remains the authority.
+  if (!active || !invited) return "none";
+  if (active === invited) return "already_in_this";
   return "already_in_other";
+}
+
+export function joinBlockFromAcceptError(code: NidoErrorCode): JoinBlockReason | null {
+  if (code === "already_member") return "already_in_this";
+  if (code === "already_in_nido") return "already_in_other";
+  return null;
+}
+
+export function invitationPreviewStatusFromAcceptError(
+  code: NidoErrorCode,
+): InvitationStatus | null {
+  if (code === "invitation_invalid") return "invalid";
+  if (code === "invitation_expired") return "expired";
+  if (code === "invitation_accepted") return "accepted";
+  return null;
 }

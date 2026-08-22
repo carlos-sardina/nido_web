@@ -167,8 +167,8 @@ Invitations use `household_invitations`. No new table.
 5. A pending invitation can copy the existing token again (`buildInvitationUrl`) or be cancelled.
 6. Cancel is a client `DELETE` of `household_invitations.id` only. RLS restricts it to the active owner. There is no cancel RPC and no `cancelled_at`.
 7. Anyone with the link can look up status and the Nido name.
-8. An authenticated user with no active Nido can accept.
-9. Acceptance inserts a `member` row and sets `accepted_at`.
+8. An authenticated user with no active Nido can accept. If `profiles.display_name` is still the email local-part fallback, they enter a name first; that UPDATE uses the existing self policy.
+9. Acceptance inserts a `member` row and sets `accepted_at`. The public preview never receives `household_id`; already-this vs already-other is decided by `accept_invitation` error codes.
 
 Join-page statuses shown to the invitee:
 
@@ -275,11 +275,13 @@ Code lives in `src/lib/nido/`.
 | `membership.ts` | `getMyActiveHousehold`, `getMyMembership`, `getMyNidoState`, `getHouseholdMembers`, `leaveHousehold`, `transferHouseholdOwnership` |
 | `transfer-ownership.ts` | `transferOwnershipWithAuth`, `canSubmitTransfer` |
 | `leave-household.ts` | `leaveHouseholdWithAuth`, `canSubmitLeave` |
-| `invitations.ts` | `createInvitation`, `listInvitations`, `cancelInvitation`, `lookupInvitation`, `acceptInvitation` |
+| `invitations.ts` | `createInvitation`, `listInvitations`, `cancelInvitation`, `lookupInvitation`, `acceptInvitation`, `completeJoinInvitation` |
 | `invitation-actions.ts` | `listInvitationsWithAuth`, `cancelInvitationWithAuth`, `listStatusFromClassification` |
+| `join-invitation.ts` | `joinDisplayNameDecision`, `completeJoinInvitationWithAuth` — name then a single `accept_invitation` |
 | `profile.ts` | `getMyProfile`, `updateMyDisplayName` |
 | `rules.ts` | Pure classification and token/email helpers |
 | `invitation-copy.ts` | Safe invitation status copy for `/join/<token>` |
+| `transient-retry.ts` | Bounded retry for `useMyNido` transient `network` / session-establishment errors |
 | `financial/` | Date range, money, splits, categories, expense input, goal progress, budget spent, activity, dashboard view model |
 | `queries/dashboard.ts` | `fetchDashboardSnapshot` |
 | `queries/categories.ts` | `fetchActiveExpenseCategories` |
@@ -302,16 +304,24 @@ UI components call this layer. They do not query Supabase tables directly.
 
 ```
 /join/<token>
-  → preview (name + status only)
+  → preview (status + household name only; no household_id)
   → if no session: email/password auth
   → after signup/login (and email confirmation if required): return to /join/<token>
-  → accept
+  → if profiles.display_name is still the email local-part fallback: ask for a name
+  → updateMyDisplayName (existing profiles UPDATE self)
+  → accept_invitation()
   → MainApp / live dashboard
 ```
 
 The invitation token is stored in `sessionStorage` (`nido.pendingInvitationToken`) so it survives email confirmation. It is not an auth token and is never written to `localStorage`.
 
+`lookup_invitation` still does not return `household_id`. The join page does **not** guess `already_in_this` vs `already_in_other` from the public preview. `accept_invitation` is the authority: `nido.already_member` → already this Nido; `nido.already_in_nido` → already another Nido. Those codes keep their own copy. If the user cancels before accept, no membership is created. A chosen name is written before accept so a successful join cannot keep the email local-part. A valid existing `display_name` is not overwritten.
+
+`handle_new_user` may still insert the email local-part as `profiles.display_name`. Join treats that as fallback via `isFallbackDisplayName` and asks for a real name. The trigger is unchanged.
+
 Accepting a valid invitation goes to the dashboard, not auth, Nido selection, or onboarding.
+
+After login, `useMyNido` → `getMyNidoState` retries at most once (2 attempts, short backoff) when the error is `network` or a transient `unauthenticated` while a session user already exists. Domain errors (`already_in_nido`, `forbidden`, invitation codes, validation) are not retried. A successful first load has no delay.
 
 ---
 

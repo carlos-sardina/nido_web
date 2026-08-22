@@ -1,35 +1,51 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthPanel } from "@/components/auth/AuthPanel";
-import { identityFromUser } from "@/lib/auth/identity";
+import { identityFromUser, isFallbackDisplayName } from "@/lib/auth/identity";
 import { clearPendingInvitationToken, savePendingInvitationToken } from "@/lib/auth/pending-flow";
 import { useAuth } from "@/lib/auth/use-auth";
-import { joinBlockReason, joinInvitationCopy } from "@/lib/nido/invitation-copy";
-import { acceptInvitation, lookupInvitation } from "@/lib/nido/invitations";
-import { getMyActiveHousehold, getMyMembership } from "@/lib/nido/membership";
+import {
+  invitationPreviewStatusFromAcceptError,
+  joinBlockFromAcceptError,
+  joinInvitationCopy,
+  type JoinBlockReason,
+} from "@/lib/nido/invitation-copy";
+import { completeJoinInvitation, lookupInvitation } from "@/lib/nido/invitations";
+import { getMyProfile } from "@/lib/nido/profile";
 import { isInvitationTokenFormat } from "@/lib/nido/rules";
 import type { InvitationPreview } from "@/lib/nido/types";
-import { canStartExclusiveAction } from "@/lib/onboarding/validation";
+import { canStartExclusiveAction, validateDisplayName } from "@/lib/onboarding/validation";
 import { Button } from "@/components/nido/Button";
-import { FieldError, HelperText } from "@/components/nido/Field";
+import { Field, FieldError, FieldLabel, HelperText, TextInput } from "@/components/nido/Field";
 import { FlowScreen, ScreenIntro } from "@/components/nido/Screen";
 import { TextLink } from "@/components/nido/TextLink";
 import { NidoHouse } from "@/components/shared/NidoHouse";
 
 export function JoinInvitationScreen({ token }: { token: string }) {
   const router = useRouter();
+  const ids = useId();
   const { user, status, isLoading: authLoading } = useAuth();
   const sessionUser = status === "authenticated" ? user : null;
   const identity = identityFromUser(sessionUser);
   const [preview, setPreview] = useState<InvitationPreview | null>(null);
+  const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
+  const [enteredName, setEnteredName] = useState("");
   const [loading, setLoading] = useState(true);
-  const [alreadyInNido, setAlreadyInNido] = useState(false);
-  const [activeHouseholdId, setActiveHouseholdId] = useState<string | null>(null);
+  const [block, setBlock] = useState<JoinBlockReason>("none");
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  const needsName = Boolean(
+    sessionUser &&
+    isFallbackDisplayName({
+      displayName: profileDisplayName,
+      email: identity?.email ?? sessionUser.email,
+    }),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -37,6 +53,7 @@ export function JoinInvitationScreen({ token }: { token: string }) {
     async function load() {
       setLoading(true);
       setError(null);
+      setBlock("none");
 
       if (!isInvitationTokenFormat(token)) {
         if (!cancelled) {
@@ -57,20 +74,16 @@ export function JoinInvitationScreen({ token }: { token: string }) {
       setPreview(lookedUp.data);
 
       if (sessionUser) {
-        const membership = await getMyMembership();
+        const profile = await getMyProfile();
         if (cancelled) return;
-        const hasActive = membership.ok && membership.data !== null;
-        setAlreadyInNido(Boolean(hasActive));
-        if (hasActive) {
-          const household = await getMyActiveHousehold();
-          if (cancelled) return;
-          setActiveHouseholdId(household.ok ? household.data?.id ?? null : null);
+        if (profile.ok === false) {
+          setError(profile.error.message);
+          setProfileDisplayName(null);
         } else {
-          setActiveHouseholdId(null);
+          setProfileDisplayName(profile.data?.display_name ?? null);
         }
       } else {
-        setAlreadyInNido(false);
-        setActiveHouseholdId(null);
+        setProfileDisplayName(null);
       }
 
       setLoading(false);
@@ -85,28 +98,52 @@ export function JoinInvitationScreen({ token }: { token: string }) {
     };
   }, [token, sessionUser, authLoading]);
 
-  const block = joinBlockReason({
-    alreadyInNido,
-    activeHouseholdId,
-    invitationHouseholdId: null,
-  });
   const copy = joinInvitationCopy({ preview, block });
   const canAccept = Boolean(sessionUser && preview?.status === "valid" && block === "none");
   const joinPath = `/join/${encodeURIComponent(token)}`;
   const waiting = authLoading || loading;
+  const nameReady = !needsName || Boolean(enteredName.trim());
 
   const handleAccept = async () => {
     if (!canStartExclusiveAction(busy) || busyRef.current) return;
+    if (!canAccept) return;
+
+    if (needsName) {
+      const invalid = validateDisplayName(enteredName);
+      if (invalid) {
+        setNameError(invalid);
+        return;
+      }
+    }
+
     busyRef.current = true;
     setBusy(true);
     setError(null);
-    const result = await acceptInvitation(token);
+    setNameError(null);
+
+    const result = await completeJoinInvitation({
+      token,
+      enteredName: needsName ? enteredName : undefined,
+    });
+
     if (result.ok === false) {
-      setError(result.error.message);
+      const nextBlock = joinBlockFromAcceptError(result.error.code);
+      const nextStatus = invitationPreviewStatusFromAcceptError(result.error.code);
+      if (nextBlock) setBlock(nextBlock);
+      if (nextStatus) {
+        setPreview((current) => ({
+          status: nextStatus,
+          householdName: current?.householdName ?? null,
+        }));
+      }
+      if (!nextBlock && !nextStatus) {
+        setError(result.error.message);
+      }
       busyRef.current = false;
       setBusy(false);
       return;
     }
+
     clearPendingInvitationToken();
     router.replace("/");
   };
@@ -125,6 +162,28 @@ export function JoinInvitationScreen({ token }: { token: string }) {
           <HelperText className="mt-4">
             Conectado como <span className="font-semibold text-foreground">{identity.email}</span>
           </HelperText>
+        )}
+        {!waiting && canAccept && needsName && (
+          <Field className="mt-6 w-full text-left">
+            <FieldLabel htmlFor={`${ids}-join-name`}>Tu nombre</FieldLabel>
+            <TextInput
+              id={`${ids}-join-name`}
+              placeholder="Diana"
+              autoComplete="name"
+              value={enteredName}
+              filled={Boolean(enteredName.trim())}
+              invalid={Boolean(nameError)}
+              aria-describedby={nameError ? `${ids}-join-name-error` : undefined}
+              onChange={(event) => {
+                setEnteredName(event.target.value);
+                if (nameError) setNameError(null);
+              }}
+            />
+            <HelperText>Este es el nombre que verán los demás miembros de tu Nido.</HelperText>
+            {nameError && (
+              <FieldError id={`${ids}-join-name-error`}>{nameError}</FieldError>
+            )}
+          </Field>
         )}
         {error && (
           <div className="mt-4 w-full">
@@ -149,7 +208,7 @@ export function JoinInvitationScreen({ token }: { token: string }) {
         {!waiting && canAccept && (
           <Button
             loading={busy}
-            disabled={busy}
+            disabled={busy || !nameReady}
             onClick={() => { void handleAccept(); }}
           >
             {busy ? "Aceptando invitación…" : "Aceptar invitación"}

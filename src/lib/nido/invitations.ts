@@ -3,7 +3,9 @@ import {
   cancelInvitationWithAuth,
   listInvitationsWithAuth,
 } from "./invitation-actions";
+import { completeJoinInvitationWithAuth } from "./join-invitation";
 import { getMyMembership } from "./membership";
+import { getMyProfile, updateMyDisplayName } from "./profile";
 import {
   buildInvitationUrl,
   generateInvitationToken,
@@ -156,5 +158,31 @@ export async function acceptInvitation(
   return nidoOk({
     householdId: data.id,
     householdName: data.name,
+  });
+}
+
+export async function completeJoinInvitation(
+  input: { token: string; enteredName?: string | null },
+  supabase: NidoClient = nidoClient(),
+): Promise<
+  NidoResult<{
+    householdId: string;
+    householdName: string;
+    persistedDisplayName: string | null;
+  }>
+> {
+  const auth = await requireUser(supabase);
+  if (auth.ok === false) return nidoFail(auth.error.code);
+
+  return completeJoinInvitationWithAuth(input, {
+    getUserId: async () => auth.data.user.id,
+    getUserEmail: async () => auth.data.user.email ?? null,
+    getProfileDisplayName: async () => {
+      const profile = await getMyProfile(auth.data.supabase);
+      if (profile.ok === false) return nidoFail(profile.error.code);
+      return nidoOk(profile.data?.display_name ?? null);
+    },
+    updateDisplayName: (name) => updateMyDisplayName(name, auth.data.supabase),
+    acceptInvitation: (token) => acceptInvitation(token, auth.data.supabase),
   });
 }

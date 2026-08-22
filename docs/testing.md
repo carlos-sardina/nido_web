@@ -160,18 +160,20 @@ The 60-second cooldown is a UX protection. Real abuse protection remains in Supa
 ## O. Join invitation
 
 1. Unauthenticated `/join/<token>` → sign in or sign up, then return to the invite.
-2. Accept → live dashboard (empty until financial rows exist).
-3. Malformed / invalid token → **Invitación no válida** without raw database errors.
+2. If `profiles.display_name` is still the email local-part fallback, the join page asks for a name before accept. The entered name is written with `updateMyDisplayName` and then `accept_invitation` runs once.
+3. A user who already has a chosen `display_name` is not asked to type it again.
+4. Accept → live dashboard (empty until financial rows exist). `profiles.display_name` is the entered name, not the email local-part.
+5. Malformed / invalid token → **Invitación no válida** without raw database errors.
 
 ## P. Already-member invitation
 
-1. A member of that Nido who opens the invite sees that they already belong (or **Ya tienes un Nido** if the household id is not in the public preview).
-2. Accept RPC still returns **Ya perteneces a este Nido.**
+1. The public preview does not include `household_id`, so the page does not pre-label “this Nido” vs “another Nido”.
+2. Accept RPC returns `nido.already_member` → **Ya perteneces a este Nido.** No second active membership.
 
 ## Q. Already-in-another-Nido invitation
 
-1. A user with a different active Nido cannot join.
-2. Copy: only one active Nido at a time.
+1. A user with a different active Nido cannot join. Accept RPC returns `nido.already_in_nido`.
+2. Copy: only one active Nido at a time. The original membership is unchanged.
 
 ## R. Logout
 
@@ -510,6 +512,7 @@ Onboarding:
 
 Join:
 - preview
+- name (fallback display name only)
 - error
 - aceptación
 - loading
@@ -534,5 +537,15 @@ Phase 9.3.1 closure audit against the repo + linked `nido_dev` (`pxfdvhavcddqmhu
 - **Departamento** (1 owner) and **Nido Smoke 924** remained. Two pre-existing Smoke 924 invitation rows remained. No `nido-rls-j-%` invitation rows.
 - Manual Hogar two-user smoke (create → list → copy → cancel → accept as second user → accepted in list) is **BLOCKED**. This environment cannot operate the app with two real sessions. Do not treat RPC/matrix success as a UI pass.
 - Verdict: **CASI CERRADA**. Implementation and automated checks are complete; the 10-step UI smoke is the only open 9.3.1 item.
+
+Phase 9.3.2 (join + identity) against the repo on 2026-08-22:
+
+- No new migration, table, column, RPC, or RLS change. `profiles` UPDATE remains `id = auth.uid()`. `lookup_invitation` still returns only status + household name.
+- Unit tests 669 passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 14 tables.
+- RLS matrix was **not** re-run: schema and policies are unchanged from the 9.3.1 run (239 passed, 0 failed).
+- New coverage: `isFallbackDisplayName`, `joinDisplayNameDecision` / `completeJoinInvitationWithAuth` (name before accept; `already_member` vs `already_in_nido`; invitation invalid/expired/accepted), `withTransientRetry` (network → success, persistent network, domain no-retry, max 2 attempts).
+- **Departamento** and **Nido Smoke 924** were not modified. No temporary users or invitations were created.
+- Manual UI smoke (new invitee enters a name, fallback rename, same/other Nido accept errors, post-login retry) is **BLOCKED**. This environment cannot operate the app with real browser sessions. Do not treat unit/build success as a UI pass.
+- Verdict: **CASI CERRADA**. Implementation and automated checks are complete; the 6-case UI smoke is the only open 9.3.2 item.
 
 Do not record production results here unless they were performed.

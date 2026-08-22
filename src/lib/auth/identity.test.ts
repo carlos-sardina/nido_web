@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { User } from "@supabase/supabase-js";
-import { applyProfileDisplayName, identityFromUser, initialsFromName } from "./identity.ts";
+import {
+  applyProfileDisplayName,
+  emailLocalPart,
+  identityFromUser,
+  initialsFromName,
+  isFallbackDisplayName,
+} from "./identity.ts";
 
 function user(overrides: Partial<User> & { user_metadata?: User["user_metadata"] }): User {
   return {
@@ -60,6 +66,58 @@ describe("identityFromUser", () => {
     assert.equal(identity?.displayName, "robin");
     assert.equal(identity?.email, "robin@example.com");
     assert.equal(identity?.avatarUrl, null);
+  });
+});
+
+describe("isFallbackDisplayName", () => {
+  it("treats a missing or blank name as fallback", () => {
+    assert.equal(isFallbackDisplayName({ displayName: null, email: "diana@nido.test" }), true);
+    assert.equal(isFallbackDisplayName({ displayName: "   ", email: "diana@nido.test" }), true);
+  });
+
+  it("treats the email local-part fallback as needing a real name", () => {
+    assert.equal(
+      isFallbackDisplayName({
+        displayName: "nido.smoke.diana.924",
+        email: "nido.smoke.diana.924@nido.test",
+      }),
+      true,
+    );
+    assert.equal(emailLocalPart("nido.smoke.diana.924@nido.test"), "nido.smoke.diana.924");
+  });
+
+  it("does not treat a chosen name as fallback", () => {
+    assert.equal(
+      isFallbackDisplayName({
+        displayName: "Diana",
+        email: "nido.smoke.diana.924@nido.test",
+      }),
+      false,
+    );
+    assert.equal(
+      isFallbackDisplayName({
+        displayName: "Carlos",
+        email: "carlos@example.com",
+      }),
+      false,
+    );
+    assert.equal(
+      isFallbackDisplayName({
+        displayName: "carlos",
+        email: "carlos@example.com",
+      }),
+      true,
+    );
+  });
+
+  it("keeps accented names as valid chosen names", () => {
+    assert.equal(
+      isFallbackDisplayName({
+        displayName: "Sofía",
+        email: "nido.test.user@nido.test",
+      }),
+      false,
+    );
   });
 });
 
