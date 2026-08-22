@@ -165,7 +165,7 @@ export function HouseholdScreen({
               <p className="text-xs font-semibold" style={{ color: P.text }}>
                 {inviteBusy ? "Generando enlace…" : inviteCopied ? "Enlace copiado" : "Invitar por enlace"}
               </p>
-              <p className="text-[10px]" style={{ color: P.muted }}>Comparte un link. No se envía correo todavía.</p>
+              <p className="text-[10px]" style={{ color: P.muted }}>Comparte este enlace con la persona que quieres invitar.</p>
             </div>
           </button>
           {inviteError && (
@@ -198,9 +198,6 @@ export function HouseholdScreen({
                     <p className="text-xs font-semibold" style={{ color: P.text }}>
                       {LIST_STATUS_LABEL[invitation.status]}
                     </p>
-                    {invitation.email && (
-                      <p className="text-[10px] truncate" style={{ color: P.muted }}>{invitation.email}</p>
-                    )}
                     {invitation.status === "pending" && expiryLabel && (
                       <p className="text-[10px]" style={{ color: P.muted }}>Expira el {expiryLabel}</p>
                     )}

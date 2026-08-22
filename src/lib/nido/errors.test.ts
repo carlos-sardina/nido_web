@@ -64,7 +64,6 @@ describe("nidoErrorFromUnknown", () => {
     assert.match(userMessageFor("invitation_accepted"), /ya fue aceptada/i);
     assert.match(userMessageFor("already_in_nido"), /un Nido/i);
     assert.match(userMessageFor("already_member"), /este Nido/i);
-    assert.match(userMessageFor("self_invite"), /ti mismo/i);
     assert.match(userMessageFor("cannot_transfer_to_self"), /ti mismo/i);
     assert.match(userMessageFor("invalid_transfer_target"), /miembro activo/i);
     assert.match(userMessageFor("last_owner"), /transfiere la propiedad/i);

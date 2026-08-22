@@ -83,7 +83,9 @@ A Nido may have one person, two people, or many people. There is no couple assum
 
 The UI must never imply that multiple active Nidos are supported.
 
-Household **names** are not unique. `households.id` is the identity. `profiles.display_name` is not unique. Invitation `token` is unique. Pending invitation email is unique per Nido while `accepted_at` is null. Auth email uniqueness stays with Supabase Auth. The frontend never queries `auth.users` and never exposes an “email exists” check.
+Household **names** are not unique. `households.id` is the identity. `profiles.display_name` is not unique. Invitation `token` is unique. Auth email uniqueness stays with Supabase Auth. The frontend never queries `auth.users` and never exposes an “email exists” check.
+
+Nido does not support email invitations. Invitations are shared with a link, a QR, and Web Share when the browser provides it. `household_invitations.email` exists in the historical schema, including the unique pending-email index, but the UI does not use that mechanism and new invitations always insert `email` as null.
 
 ---
 
@@ -158,11 +160,13 @@ Active owners may create, read, and revoke invitations (existing RLS). Active me
 
 ## Invitation lifecycle
 
+Nido does not support email invitations. Owners share a bearer token through a link (`/join/<token>`), a QR of that same URL, and Web Share when the browser provides it.
+
 Invitations use `household_invitations`. No new table.
 
-1. An active owner calls `createInvitation({ householdId, email? })`.
-2. The service inserts a row with a cryptographically random token and an expiration.
-3. Hogar copies `/join/<token>` and refreshes the invitation list. Email delivery is not implemented.
+1. An active owner calls `createInvitation({ householdId })`.
+2. The service inserts a row with a cryptographically random token and an expiration. `email` is always null.
+3. Hogar copies `/join/<token>` and refreshes the invitation list.
 4. `listInvitations()` reads the owner's rows via RLS. Status is derived with `classifyInvitation` (`valid` → Pendiente, `accepted` → Aceptada, `expired` → Expirada). There is no `status` column.
 5. A pending invitation can copy the existing token again (`buildInvitationUrl`), show a real QR of that same URL, or be cancelled.
 6. Cancel is a client `DELETE` of `household_invitations.id` only. RLS restricts it to the active owner. There is no cancel RPC and no `cancelled_at`.
@@ -202,7 +206,7 @@ Accepted invitations stay accepted even if they would also be expired.
 | Owner membership | `household_members` (`role = owner`, `left_at` null) |
 | Member membership | `household_members` (`role = member`) on accept |
 | Display name | `profiles.display_name` |
-| Invitation | `household_invitations` (token, optional email, expiry, accepted_at) |
+| Invitation | `household_invitations` (token, expiry, accepted_at). `email` is historical and unused by the product. |
 | Leave | `household_members.left_at` |
 | Owner transfer | `household_members.role` swapped atomically (`transfer_household_ownership`) |
 | Default expense and income categories | `categories` (`is_default = true`) via `create_household` |
@@ -235,7 +239,7 @@ Live on Home, empty when the Nido has no financial rows:
 
 Still prototype UI (not wired):
 
-- email or push delivery
+- push / notification delivery
 - real-time subscriptions
 
 Hogar no longer shows the prototype contribution-model block (`D_INC` / `TOT_B`, Persona A / Persona B). There is no persisted household contribution model and no schema was added to replace those mocks.
@@ -284,7 +288,7 @@ Code lives in `src/lib/nido/`.
 | `join-invitation.ts` | `joinDisplayNameDecision`, `completeJoinInvitationWithAuth` — name then a single `accept_invitation` |
 | `profile.ts` | `getMyProfile`, `updateMyDisplayName` |
 | `update-display-name.ts` | `updateMyDisplayNameWithAuth`, `canSubmitDisplayName` |
-| `rules.ts` | Pure classification and token/email helpers |
+| `rules.ts` | Pure classification and token helpers |
 | `invitation-copy.ts` | Safe invitation status copy for `/join/<token>` |
 | `transient-retry.ts` | Bounded retry for `useMyNido` transient `network` / session-establishment errors |
 | `financial/` | Date range, money, splits, categories, expense input, goal progress, budget spent, activity, dashboard view model |
@@ -345,7 +349,6 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## What remains after owner transfer
 
-- invitation email delivery
 - Google OAuth
 - category CRUD (create / rename / archive) beyond the default catalog
 - personal budgets (`member_id` set) in the UI

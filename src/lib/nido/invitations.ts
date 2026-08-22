@@ -9,9 +9,7 @@ import { getMyProfile, updateMyDisplayName } from "./profile";
 import {
   buildInvitationUrl,
   generateInvitationToken,
-  invitationEmailIssue,
   isInvitationTokenFormat,
-  normalizeInviteEmail,
 } from "./rules";
 import { nidoClient, requireUser, type NidoClient } from "./session";
 import {
@@ -37,18 +35,11 @@ function asInvitationStatus(value: string | null | undefined): InvitationStatus 
 }
 
 export async function createInvitation(
-  input: { householdId: string; email?: string | null },
+  input: { householdId: string },
   supabase: NidoClient = nidoClient(),
 ): Promise<NidoResult<CreatedInvitation>> {
   const auth = await requireUser(supabase);
   if (auth.ok === false) return nidoFail(auth.error.code);
-
-  const email = normalizeInviteEmail(input.email);
-  const emailIssue = invitationEmailIssue({
-    email: input.email,
-    currentUserEmail: auth.data.user.email,
-  });
-  if (emailIssue) return nidoFail(emailIssue);
 
   const token = generateInvitationToken();
   const expiresAt = new Date(Date.now() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -56,7 +47,8 @@ export async function createInvitation(
   const { error } = await auth.data.supabase.from("household_invitations").insert({
     household_id: input.householdId,
     invited_by: auth.data.user.id,
-    email,
+    // Historical column. Nido does not create or send email invitations.
+    email: null,
     token,
     expires_at: expiresAt,
   });

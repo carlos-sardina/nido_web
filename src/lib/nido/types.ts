@@ -24,6 +24,7 @@ export type CreatedInvitation = {
 
 export type ListedInvitation = {
   id: string;
+  /** Historical schema column. Nido does not create or send email invitations. */
   email: string | null;
   expiresAt: string;
   acceptedAt: string | null;
@@ -57,8 +58,6 @@ export type NidoErrorCode =
   | "already_in_nido"
   | "already_member"
   | "invalid_name"
-  | "invalid_email"
-  | "self_invite"
   | "invitation_invalid"
   | "invitation_expired"
   | "invitation_accepted"

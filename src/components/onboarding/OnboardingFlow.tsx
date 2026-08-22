@@ -483,7 +483,7 @@ export function OnboardingFlow({
                 <ChoiceCard
                   icon={<Link size={16} style={{ color: P.sageDk }} />}
                   title={submitting ? "Creando tu Nido…" : inviteCopied ? "Enlace copiado" : "Invitar por enlace"}
-                  description="Copia un enlace para compartir. No se envía correo."
+                  description="Comparte este enlace con la persona que quieres invitar."
                   disabled={submitting}
                   onClick={() => { void handleCreateInvite(); }}
                 />

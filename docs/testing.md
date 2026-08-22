@@ -154,8 +154,8 @@ The 60-second cooldown is a UX protection. Real abuse protection remains in Supa
 
 ## N. Duplicate invitation
 
-1. If inviting by email is used, a second pending invite for the same Nido/email maps to **Ya existe una invitación pendiente para ese correo.**
-2. Link/QR invites remain token-unique.
+1. Nido does not support email invitations. There is no email-invite surface in Hogar or onboarding.
+2. Link/QR/Share invites remain token-unique (`/join/<token>`).
 
 ## O. Join invitation
 
@@ -575,5 +575,14 @@ Phase 9.3.5 (Perfil: real identity + mock cleanup) against the repo on 2026-08-2
 - **Departamento** and **Nido Smoke 924** were not modified. No temporary users or invitations were created.
 - Manual Perfil UI smoke (edit name, persist after reload, reject empty/>80, email/Nido/role intact, mocks gone, Leave, Logout) is **BLOCKED**. This environment cannot operate the app with a real browser session. Do not treat unit/build success as a UI pass.
 - Verdict: **CASI CERRADA**. Implementation and automated checks are complete; the 18-case UI smoke is the only open 9.3.5 item.
+
+Phase 9.3.6 (email invitations closed as unsupported) against the repo on 2026-08-22:
+
+- No new migration, table, column, RPC, or RLS change. `household_invitations.email` remains a historical nullable column. New invitations insert `email` as null.
+- Removed dead invitation-email helpers (`normalizeInviteEmail`, `isInviteEmailValid`, `invitationEmailIssue`) and the unused `createInvitation({ email })` input. Hogar/onboarding copy no longer implies email delivery is pending.
+- Unit tests 680 passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 14 tables. RLS matrix was **not** re-run: schema and policies are unchanged from the 9.3.1 run (239 passed, 0 failed).
+- Automated scan: no email-invite UI, no invitation email provider, no email secrets in the client. Hogar and onboarding still create `/join/<token>` via `createInvitation` + `buildInvitationUrl` / `invitationDestination` (Copy, QR, Web Share).
+- **Departamento** and **Nido Smoke 924** were not modified. No temporary users or invitations were created.
+- Manual Hogar/onboarding UI smoke is **BLOCKED**. This environment cannot operate the app with a real browser session. Do not treat unit/build success as a UI pass.
 
 Do not record production results here unless they were performed.

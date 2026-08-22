@@ -23,6 +23,7 @@ describe("invitation destination is a single URL", () => {
     assert.deepEqual(shareInvitationPayload(url), { url });
     assert.equal("token" in shareInvitationPayload(url), false);
     assert.equal("household_id" in shareInvitationPayload(url), false);
+    assert.equal("email" in shareInvitationPayload(url), false);
   });
 
   it("does not encode a token-only or short-code payload", () => {

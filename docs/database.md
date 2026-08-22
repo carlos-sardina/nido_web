@@ -138,14 +138,16 @@ Rejoining the same Nido creates a **new** membership row.
 
 ### 3.4 `household_invitations`
 
-Invite-by-token. Optional email. There is no persisted `status`, `cancelled_at`, or short code. QR is not a database feature.
+Invite-by-token. There is no persisted `status`, `cancelled_at`, or short code. QR is not a database feature.
+
+Nido does not support email invitations. `email` exists in the historical schema, but the product does not create or send invitations by email and the UI does not use that mechanism.
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | `uuid` PK | |
 | `household_id` | `uuid` FK → `households.id` | |
 | `invited_by` | `uuid` FK → `profiles.id` | |
-| `email` | `text` nullable | Null is allowed for link invites. |
+| `email` | `text` nullable | Historical column. New invitations insert null. Not a product email-invite field. |
 | `token` | `text` UNIQUE NOT NULL | |
 | `expires_at` | `timestamptz` NOT NULL | |
 | `accepted_at` | `timestamptz` nullable | |
@@ -500,7 +502,7 @@ Every table uses a `uuid` primary key. `profiles.id` is the auth user id. All ot
 | `household_members_one_active_membership_idx` on `(user_id) WHERE left_at IS NULL` | One active Nido per user. Historical memberships remain allowed. |
 | `household_members_active_household_user_idx` on `(household_id, user_id) WHERE left_at IS NULL` | Fast active-membership lookup (triggers, later RLS). |
 | `household_invitations.token` UNIQUE | Invite tokens are globally unique. |
-| `household_invitations_pending_email_idx` on `(household_id, lower(email)) WHERE email IS NOT NULL AND accepted_at IS NULL` | One pending email invite per Nido. |
+| `household_invitations_pending_email_idx` on `(household_id, lower(email)) WHERE email IS NOT NULL AND accepted_at IS NULL` | Historical unique index. Nido does not create email invitations. |
 | `categories_active_name_type_idx` on `(household_id, lower(name), type) WHERE archived_at IS NULL` | No duplicate active category names of the same type. |
 | `expense_splits (expense_id, member_id)` | No duplicate participant on an expense. |
 | `recurring_expense_splits (recurring_expense_id, member_id)` | No duplicate participant on a recurring expense. |
@@ -835,7 +837,7 @@ Integrity triggers still require the **subject** of the row (`member_id`, `payer
 - One active membership per user
 - Unique participants per expense / recurring expense
 - Unique active category names per household and type
-- Unique pending email invite per household
+- Unique pending `household_invitations.email` per household when the historical column is non-null (the product always inserts null)
 - Unique budget per household / category / member / start date
 - Non-negative money; positive goal targets; percentage range; date order; non-blank names
 - Same-Nido + **active** membership for new financial/planning subjects
@@ -898,17 +900,16 @@ Still deferred:
 4. **Pairwise settlements / payments** between members.
 5. **Refunds or negative amounts.**
 6. **Personal-budget spend attribution** and personal-budget UI.
-7. **Invitation email / QR product** beyond owner list / copy / cancel (DELETE) + `lookup_invitation` / `accept_invitation`.
-8. **Owner-count trigger** — last-owner leave is enforced in `leave_household`, not by a table trigger.
-9. **Audit log** of edits.
-10. **Hard-delete prevention triggers** — physical `DELETE` is revoked on movement tables; application uses `deleted_at` / `is_active` / `archived_at` / goal `status`.
-11. **Using archived categories on new transactions** — allowed at the database CHECK level; mutation RPCs reject them.
-12. **Goal-to-category linkage.**
-13. **Multi-currency.**
-14. **Notifications, activity-feed persistence, and insights.**
-15. **Stored `requires_review` flag** — derived at materialize time instead.
-16. **Separate pause vs archive on recurring rules** — `is_active` covers both for now.
-17. **Category CRUD UI.**
+7. **Owner-count trigger** — last-owner leave is enforced in `leave_household`, not by a table trigger.
+8. **Audit log** of edits.
+9. **Hard-delete prevention triggers** — physical `DELETE` is revoked on movement tables; application uses `deleted_at` / `is_active` / `archived_at` / goal `status`.
+10. **Using archived categories on new transactions** — allowed at the database CHECK level; mutation RPCs reject them.
+11. **Goal-to-category linkage.**
+12. **Multi-currency.**
+13. **Notifications, activity-feed persistence, and insights.**
+14. **Stored `requires_review` flag** — derived at materialize time instead.
+15. **Separate pause vs archive on recurring rules** — `is_active` covers both for now.
+16. **Category CRUD UI.**
 
 ---
 

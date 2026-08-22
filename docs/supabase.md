@@ -252,9 +252,10 @@ This phase does **not**:
 
 - persist onboarding savings, estimated expenses, or the division preference
 - replace live dashboard reads with mock figures
-- send invitation emails
 - use a service-role client
 - enable Google OAuth (explicitly out of this iteration)
+
+Nido does not support email invitations. Owners share `/join/<token>` with a link, a QR, and Web Share when available.
 
 Create, join, leave, invitation accept, and owner transfer are documented in [nido.md](./nido.md). The manual end-to-end checklist is in [testing.md](./testing.md).
 

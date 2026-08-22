@@ -1,8 +1,6 @@
 import type { HouseholdRole, InvitationStatus, MembershipStatus, NidoErrorCode } from "./types";
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MAX_EMAIL_LENGTH = 254;
 
 export const HOUSEHOLD_NAME_MIN = 1;
 export const HOUSEHOLD_NAME_MAX = 80;
@@ -112,43 +110,6 @@ export function normalizeDisplayName(name: string | null | undefined): string | 
   if (visibleLength(trimmed) < DISPLAY_NAME_MIN) return null;
   if (visibleLength(trimmed) > DISPLAY_NAME_MAX) return null;
   return trimmed;
-}
-
-export function normalizeInviteEmail(email: string | null | undefined): string | null {
-  if (email == null) return null;
-  const normalized = email.trim().toLowerCase();
-  return normalized.length > 0 ? normalized : null;
-}
-
-export function isInviteEmailValid(email: string): boolean {
-  const normalized = email.trim().toLowerCase();
-  if (!normalized || normalized.length > MAX_EMAIL_LENGTH) return false;
-  return EMAIL_PATTERN.test(normalized);
-}
-
-/**
- * Client-side invitation email checks. Optional email (link/QR invite) is
- * allowed. The database remains authoritative for duplicates and membership.
- */
-export function invitationEmailIssue(input: {
-  email?: string | null;
-  currentUserEmail?: string | null;
-  activeMemberEmails?: readonly string[] | null;
-}): NidoErrorCode | null {
-  if (input.email == null || !input.email.trim()) return null;
-
-  const email = normalizeInviteEmail(input.email);
-  if (!email || !isInviteEmailValid(email)) return "invalid_email";
-
-  const self = normalizeInviteEmail(input.currentUserEmail ?? "");
-  if (self && email === self) return "self_invite";
-
-  const members = input.activeMemberEmails ?? [];
-  if (members.some((member) => normalizeInviteEmail(member) === email)) {
-    return "already_member";
-  }
-
-  return null;
 }
 
 export function isInvitationTokenFormat(token: string): boolean {
