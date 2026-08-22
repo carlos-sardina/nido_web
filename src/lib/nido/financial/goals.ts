@@ -1,6 +1,25 @@
 import { clampedPercent, goalProgressRatio, moneyOrZero, sumMoney } from "./money.ts";
 import type { GoalContributionRow, GoalProgress, GoalRow } from "./types.ts";
 
+export function canMutateGoal(
+  goal: Pick<GoalRow, "createdBy" | "status">,
+  userId: string | null | undefined,
+): boolean {
+  return Boolean(userId) && goal.createdBy === userId && goal.status !== "archived";
+}
+
+export function formatGoalTargetDate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const [year, month, day] = iso.split("-").map(Number);
+  if (!year || !month || !day) return iso;
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
 export function contributionsTotal(contributions: GoalContributionRow[]): number {
   return sumMoney(contributions.map((row) => row.amount));
 }

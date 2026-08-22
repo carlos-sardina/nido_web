@@ -7,7 +7,7 @@
 -- Required environment:
 --   1. Supabase local (`supabase start`) or a linked Supabase database
 --   2. Migrations applied (foundation, RLS, lifecycle, categories/create_expense,
---      expense mutations)
+--      expense mutations, goal mutations)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -1202,6 +1202,187 @@ BEGIN
 END;
 $$;
 
+-- -----------------------------------------------------------------------------
+-- Goal mutations (Phase 9.1.3A) — while Carlos is still an active member
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_goal_a uuid;
+  v_mutate uuid;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+  SELECT id INTO v_goal_a FROM rls_ids WHERE key = 'goal_a';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.create_goal(
+    v_nido_a,
+    'Fondo editable',
+    5000,
+    'saving',
+    NULL,
+    NULL
+  ) INTO v_mutate;
+
+  PERFORM pg_temp.record_result(
+    'Y01', 'Carlos', 'A', 'active', 'create_goal',
+    'allow',
+    CASE WHEN v_mutate IS NOT NULL THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'Y02', 'Carlos', 'B', 'never member', 'create_goal other household',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_goal(
+          %L::uuid, 'Ajeno', 100, 'saving', NULL, NULL
+        )
+      $sql$,
+      v_nido_b
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'Y03', 'Carlos', 'A', 'active', 'creator can update goal',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.update_goal(
+          %L::uuid, 'Fondo editado', 6000, 'saving', DATE '2027-01-01', 'Reserva'
+        )
+      $sql$,
+      v_mutate
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'Y04', 'Diana', 'A', 'active', 'non-creator cannot update goal',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_goal(
+            %L::uuid, 'Diana no puede', 1, 'saving', NULL, NULL
+          )
+        $sql$,
+        v_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.goals SET name = %L WHERE id = %L',
+        'diana overwrite', v_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.goals SET name = %L WHERE id = %L',
+        'seed overwrite', v_goal_a
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'Y05', 'Diana', 'A', 'active', 'non-creator cannot archive goal',
+    'deny',
+    pg_temp.expect_allow(format(
+      'SELECT public.archive_goal(%L::uuid)',
+      v_mutate
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'Y06', 'Diana', 'A', 'active', 'active member can create own goal',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_goal(
+          %L::uuid, 'Meta de Diana', 800, 'purchase', NULL, NULL
+        )
+      $sql$,
+      v_nido_a
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'Y07', 'Luis', 'A', 'never member', 'other household cannot mutate goal',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_goal(
+            %L::uuid, 'Luis no puede', 1, 'saving', NULL, NULL
+          )
+        $sql$,
+        v_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.archive_goal(%L::uuid)',
+        v_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_goal(
+            %L::uuid, 'Luis en A', 100, 'saving', NULL, NULL
+          )
+        $sql$,
+        v_nido_a
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'Y08', 'Carlos', 'A', 'active', 'creator can archive goal',
+    'allow',
+    pg_temp.expect_allow(format(
+      'SELECT public.archive_goal(%L::uuid)',
+      v_mutate
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'Y09', 'Carlos', 'A', 'active', 'archived goal cannot be mutated',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_goal(
+            %L::uuid, 'Ya archivada', 1, 'saving', NULL, NULL
+          )
+        $sql$,
+        v_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.archive_goal(%L::uuid)',
+        v_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.goals SET name = %L WHERE id = %L',
+        'after archive', v_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  INSERT INTO rls_ids (key, id) VALUES ('mutate_goal_a', v_mutate);
+END;
+$$;
+
 -- Scenario C — Carlos leaves Nido A
 -- Membership write is service_role / table-owner work, matching the
 -- chosen RLS model (clients cannot UPDATE household_members).
@@ -1404,6 +1585,41 @@ BEGIN
     pg_temp.expect_allow(format(
       'UPDATE public.goals SET name = %L WHERE id = %L',
       'after leave', v_goal_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'Y10', 'Carlos', 'A', 'left', 'create_goal after leave',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_goal(
+          %L::uuid, 'Ya no miembro', 100, 'saving', NULL, NULL
+        )
+      $sql$,
+      v_nido_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'Y11', 'Carlos', 'A', 'left', 'update_goal after leave',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.update_goal(
+          %L::uuid, 'Ya salio', 1, 'saving', NULL, NULL
+        )
+      $sql$,
+      v_goal_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'Y12', 'Carlos', 'A', 'left', 'archive_goal after leave',
+    'deny',
+    pg_temp.expect_allow(format(
+      'SELECT public.archive_goal(%L::uuid)',
+      v_goal_a
     ))
   );
 

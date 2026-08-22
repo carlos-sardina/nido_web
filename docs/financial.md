@@ -1,16 +1,16 @@
-# Financial data layer (Phase 9.1.2B)
+# Financial data layer (Phase 9.1.3A)
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
-Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar un gasto**. Phase 9.1.2B closes the expense module:
+Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar un gasto**. Phase 9.1.2B closes the expense module. Phase 9.1.3A connects **Metas**:
 
-- Gastos reads the same dashboard snapshot
-- expense detail
-- creator edit / soft-delete
-- `update_expense` / `soft_delete_expense` RPCs
-- creator-only UPDATE RLS
+- Metas reads the same dashboard snapshot
+- goal create / creator edit / archive
+- `create_goal` / `update_goal` / `archive_goal` RPCs
+- creator-only UPDATE RLS on `goals`
+- progress is `SUM(goal_contributions.amount) / target_amount` (never stored)
 
-Metas, aportaciones, ingresos, presupuestos, and recurrencias are still not implemented.
+Aportaciones (register a contribution), ingresos, presupuestos, and recurrencias are still not implemented. Actividad remains prototype.
 
 ---
 
@@ -191,6 +191,26 @@ The Gastos tab (`budget` in navigation) lists `model.periodExpenses` from `useDa
 
 ---
 
+## Metas
+
+The Metas tab lists `model.activeGoals` / `model.goals` from the same `useDashboard()` snapshot. Progress is derived from embedded `goal_contributions`. There is no `current_amount`.
+
+Empty Nido: **Sin metas todavía** + **Crear una meta** (GoalFlow).
+
+Create / edit fields that exist on `goals`:
+
+- name (required)
+- target_amount (required, > 0)
+- target_date (optional)
+- description (optional)
+- goal_type (`saving` | `purchase`)
+
+Archive sets `status = archived`. Contributions remain. Home and Metas hide archived rows.
+
+Only the creator with an active membership may edit or archive. Other members may SELECT. Historical members may SELECT but not mutate.
+
+---
+
 ## Queries and mutations
 
 | Module | Role |
@@ -198,10 +218,11 @@ The Gastos tab (`budget` in navigation) lists `model.periodExpenses` from `useDa
 | `queries/dashboard.ts` | `fetchDashboardSnapshot(householdId)` |
 | `queries/categories.ts` | `fetchActiveExpenseCategories(householdId)` |
 | `expenses.ts` | `createExpense` / `updateExpense` / `deleteExpense` |
+| `goals.ts` | `createGoal` / `updateGoal` / `archiveGoal` |
 | `financial/` | dates, money, splits, validation, dashboard view model |
-| `use-dashboard.ts` | shared snapshot; `refresh()` after create/edit/delete |
+| `use-dashboard.ts` | shared snapshot; `refresh()` after create/edit/delete/archive |
 
-Visual components do not query Supabase tables directly. Home and Gastos do not keep a parallel financial store.
+Visual components do not query Supabase tables directly. Home, Gastos, and Metas do not keep a parallel financial store.
 
 ---
 
@@ -215,17 +236,18 @@ Onboarding income/expenses are still not persisted. A newly created Nido has def
 
 ## RLS
 
-SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense **UPDATE** (including soft-delete) requires the same plus `created_by = auth.uid()` and `deleted_at IS NULL` on the existing row. Physical DELETE remains denied on incomes/expenses/goals.
+SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense **UPDATE** (including soft-delete) and goal **UPDATE** (including archive) require the same plus `created_by = auth.uid()` and a live row (`deleted_at IS NULL` / `status <> archived`). Physical DELETE remains denied on incomes/expenses/goals.
 
-`create_expense`, `update_expense`, and `soft_delete_expense` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`.
+`create_expense`, `update_expense`, `soft_delete_expense`, `create_goal`, `update_goal`, and `archive_goal` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Goal contribution writes are not part of this phase.
 
-SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
+SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y12`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
 
 ---
 
 ## Ownership
 
-- Dashboard and gasto mutations: active household from `useMyNido` only
+- Dashboard, gasto, and meta mutations: active household from `useMyNido` only
 - Only the expense creator may update or soft-delete
+- Only the goal creator may update or archive
 - A user without an active Nido never reaches MainApp
 - Historical membership can still SELECT old rows (by design) but the dashboard and forms do not use them

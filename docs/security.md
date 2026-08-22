@@ -187,11 +187,13 @@ Applies to `incomes`, `recurring_incomes`, `recurring_expenses`, `budgets`, and 
 
 **`expenses` UPDATE is tighter** (Phase 9.1.2B): the writer must be an **active** member, `created_by = auth.uid()`, and the row must not already be soft-deleted. Other members may SELECT. See the expenses table below.
 
+**`goals` UPDATE is tighter** (Phase 9.1.3A): the writer must be an **active** member, `created_by = auth.uid()`, and the row must not already be archived. Other members may SELECT. Archive uses `status = archived`. Physical DELETE remains denied.
+
 | Operation | Policy |
 | --- | --- |
 | SELECT | Historical member of `household_id` |
 | INSERT | Active member, `created_by = auth.uid()`, subject (`member_id` / `payer_id`) is an active member of the same household when present, and `category_id` belongs to that household when present |
-| UPDATE | Active member of the row’s household. Category must remain in that household |
+| UPDATE | Active member of the row’s household. Category must remain in that household. **`goals` UPDATE** also requires `created_by = auth.uid()` and `status <> archived` |
 | DELETE | None. Soft-delete / deactivate / archive instead |
 
 UPDATE does not require the **subject** (`member_id` / `payer_id`) to still be active. Remaining members can correct or soft-delete rows that belong to people who have left. Integrity triggers still reject key changes that attach a new departed member.
@@ -391,11 +393,14 @@ Expected results for the documented actors. `allow` / `deny` are RLS outcomes. S
 
 | Actor | Household | Membership | Operation | Expected |
 | --- | --- | --- | --- | --- |
-| Carlos | A | active | SELECT/INSERT/UPDATE goal | allow |
-| Carlos | A | active | INSERT contribution (`created_by = auth.uid()`) | allow |
+| Carlos | A | active | SELECT/INSERT goal | allow |
+| Carlos | A | active | UPDATE/archive own goal | allow |
 | Carlos | A | active | INSERT goal with fake `created_by` | deny |
+| Diana | A | active | SELECT Carlos’s goal | allow |
+| Diana | A | active | UPDATE/archive Carlos’s goal | deny |
+| Diana | A | active | INSERT own goal | allow |
 | Carlos | A | left | SELECT historical goal/contribution | allow |
-| Carlos | A | left | INSERT/UPDATE goal | deny |
+| Carlos | A | left | INSERT/UPDATE/archive goal | deny |
 | Luis | A | never member | SELECT/INSERT | deny |
 
 ---
@@ -414,15 +419,15 @@ Result: RLS coverage validation passed for 14 tables. The script confirmed RLS i
 
 ### Behavioral matrix against the linked project
 
-`supabase/tests/rls_security_matrix.sql` was executed against the linked hosted project in this phase, including `X01`–`X14`. All assertions passed. The script rolls back seeded users.
+`supabase/tests/rls_security_matrix.sql` was executed against the linked hosted project in this phase, including `X01`–`X14` and `Y01`–`Y12`. All assertions passed. The script rolls back seeded users.
 
 ```bash
 npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
 ```
 
-It impersonates Carlos, Diana, and Luis with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, and expense mutation cases `X01`–`X14`.
+It impersonates Carlos, Diana, and Luis with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, expense mutation cases `X01`–`X14`, and goal mutation cases `Y01`–`Y12`.
 
-`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. They are runtime SQL, not unit mocks.
+`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. They are runtime SQL, not unit mocks.
 
 The script rolls back seeded users. After the run, `auth.users` and application tables were empty.
 

@@ -218,6 +218,7 @@ export type DashboardViewModel = {
   budget: MonthBudgetView;
   featuredGoal: FeaturedGoalView | null;
   activeGoals: GoalProgress[];
+  goals: GoalRow[];
   activity: ActivityItem[];
   periodExpenses: ExpenseRow[];
   empty: {

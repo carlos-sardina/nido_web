@@ -1,76 +1,184 @@
-import { Clock } from "lucide-react";
-import { GOALS } from "@/lib/constants";
-import { $k, pct } from "@/lib/helpers";
+"use client";
+
+import { Button } from "@/components/nido/Button";
+import { EmptyState } from "@/components/nido/EmptyState";
+import { Heading, Text } from "@/components/nido/Typography";
+import {
+  formatCompactMoney,
+  formatGoalTargetDate,
+  formatWholeMoney,
+  sumMoney,
+  type GoalProgress,
+  type GoalRow,
+} from "@/lib/nido/financial";
+import type { DashboardQuery } from "@/lib/nido/use-dashboard";
 import { P } from "@/lib/palette";
 
-export function GoalsScreen() {
-  const totalSaved = GOALS.reduce((s, g) => s + g.current, 0);
+export function GoalsScreen({
+  dashboard,
+  onOpenGoal,
+  onCreateGoal,
+}: {
+  dashboard: DashboardQuery;
+  onOpenGoal: (goal: GoalRow) => void;
+  onCreateGoal: () => void;
+}) {
+  const { isLoading, error, model, refresh } = dashboard;
+  const goals = model?.goals ?? [];
+  const active = model?.activeGoals ?? [];
+  const empty = Boolean(model && active.length === 0);
+  const totalSaved = sumMoney(active.map((goal) => goal.contributed));
+
   return (
     <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:hidden">
-      <div className="px-6 pt-3 pb-1 flex items-center justify-between">
-        <div>
-          <h2 className="text-[22px] font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Metas</h2>
-          <p className="text-xs" style={{ color: P.muted }}>4 activas · {$k(totalSaved)} ahorrados</p>
-        </div>
+      <div className="px-6 pt-3 pb-1">
+        <Heading as="h2" size="h2">
+          Metas
+        </Heading>
+        <Text size="caption" tone="muted" className="mt-1">
+          {empty
+            ? "Aún no hay metas activas"
+            : active.length === 1
+              ? "1 activa"
+              : `${active.length} activas`}
+        </Text>
       </div>
-      <div className="mx-6 my-3 rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
-        <p className="text-[10px] mb-1" style={{ color: P.muted }}>Total en metas</p>
-        <p className="text-[26px] font-bold mb-3" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{$k(totalSaved)}</p>
-        <div className="flex gap-0.5 h-2.5 rounded-full overflow-hidden">
-          {GOALS.map(g => <div key={g.name} style={{ flex: g.current, backgroundColor: g.color }} />)}
+
+      {isLoading && !model ? (
+        <div className="px-6 pt-4" aria-busy="true" aria-live="polite">
+          <Text size="caption" tone="muted">
+            Cargando metas…
+          </Text>
         </div>
-        <div className="flex flex-wrap gap-3 mt-3">
-          {GOALS.map(g => (
-            <div key={g.name} className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: g.color }} />
-              <span className="text-[9px]" style={{ color: P.muted }}>{g.emoji} {g.name.split(" ")[0]}</span>
+      ) : error && !model ? (
+        <div className="px-6 pt-4">
+          <div className="rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
+            <Text size="body-sm" tone="danger" className="mb-4">
+              {error.message}
+            </Text>
+            <Button onClick={() => void refresh()} loading={isLoading}>
+              Reintentar
+            </Button>
+          </div>
+        </div>
+      ) : empty ? (
+        <div className="px-6 pt-4">
+          <EmptyState
+            title="Sin metas todavía"
+            description="Crea una meta para empezar a construirla juntos."
+            actionLabel="Crear una meta"
+            onAction={onCreateGoal}
+          />
+        </div>
+      ) : (
+        <div className="px-6 pt-3 pb-6 space-y-3">
+          {error ? (
+            <div className="rounded-2xl px-4 py-3" style={{ backgroundColor: P.dangerBg }}>
+              <Text size="caption" tone="danger">
+                {error.message}
+              </Text>
+              <button
+                type="button"
+                onClick={() => void refresh()}
+                disabled={isLoading}
+                className="mt-1 text-caption font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                style={{ color: P.danger }}
+              >
+                Reintentar
+              </button>
             </div>
-          ))}
+          ) : null}
+
+          <div className="rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
+            <Text size="caption" tone="muted">
+              Total en metas
+            </Text>
+            <p className="mt-1 text-[22px] font-bold font-sans" style={{ color: P.text }}>
+              {formatWholeMoney(totalSaved)}
+            </p>
+          </div>
+
+          {active.map((progress) => {
+            const goal = goals.find((row) => row.id === progress.id);
+            if (!goal) return null;
+            return (
+              <GoalCard
+                key={progress.id}
+                progress={progress}
+                onOpen={() => onOpenGoal(goal)}
+              />
+            );
+          })}
         </div>
-      </div>
-      <div className="px-6 space-y-3 pb-6">
-        {GOALS.map(g => {
-          const progress = pct(g.current, g.target);
-          return (
-            <div key={g.name} className="rounded-[1.5rem] overflow-hidden shadow-sm" style={{ backgroundColor: g.bg }}>
-              <div className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <span className="text-3xl">{g.emoji}</span>
-                    <h4 className="text-sm font-bold mt-1" style={{ color: P.text }}>{g.name}</h4>
-                    <p className="text-[9px] mt-0.5" style={{ color: P.muted }}>{g.members}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[9px]" style={{ color: P.muted }}>Meta</p>
-                    <p className="text-sm font-bold" style={{ color: P.text }}>{$k(g.target)}</p>
-                  </div>
-                </div>
-                <div className="flex items-baseline gap-2 mb-3">
-                  <span className="text-xl font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{$k(g.current)}</span>
-                  <span className="text-[10px]" style={{ color: P.muted }}>ahorrados</span>
-                </div>
-                <div className="h-1.5 rounded-full overflow-hidden mb-3" style={{ backgroundColor: "rgba(0,0,0,0.06)" }}>
-                  <div className="h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: g.color }} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: g.color }} />
-                    <span className="text-[10px]" style={{ color: P.muted }}>{$k(g.monthly)}/mes</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock size={9} style={{ color: P.muted }} />
-                    <span className="text-[10px]" style={{ color: P.muted }}>{g.date}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="px-5 pb-4">
-                <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold"
-                  style={{ backgroundColor: g.color + "22", color: g.color }}>{progress}% completado</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      )}
     </div>
+  );
+}
+
+function GoalCard({
+  progress,
+  onOpen,
+}: {
+  progress: GoalProgress;
+  onOpen: () => void;
+}) {
+  const targetLabel = formatGoalTargetDate(progress.targetDate);
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full rounded-[1.5rem] p-5 shadow-sm text-left transition-transform active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      style={{ backgroundColor: P.card }}
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="min-w-0">
+          <p className="text-sm font-bold truncate" style={{ color: P.text }}>
+            {progress.name}
+          </p>
+          <Text size="caption" tone="muted" className="mt-0.5">
+            {progress.goalType === "purchase" ? "Compra" : "Ahorro"}
+            {targetLabel ? ` · ${targetLabel}` : null}
+          </Text>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <Text size="caption" tone="muted">
+            Meta
+          </Text>
+          <p className="text-sm font-bold font-sans" style={{ color: P.text }}>
+            {progress.invalidTarget ? "—" : formatCompactMoney(progress.targetAmount)}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-baseline gap-2 mb-3">
+        <span className="text-xl font-bold font-sans" style={{ color: P.text }}>
+          {formatCompactMoney(progress.contributed)}
+        </span>
+        <span className="text-[10px]" style={{ color: P.muted }}>
+          ahorrados
+        </span>
+      </div>
+
+      <div
+        className="h-1.5 rounded-full overflow-hidden mb-3"
+        style={{ backgroundColor: P.sub }}
+      >
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: `${progress.percent}%`,
+            backgroundColor: P.sage,
+          }}
+        />
+      </div>
+
+      <span
+        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold"
+        style={{ backgroundColor: `${P.sage}22`, color: P.sageDk }}
+      >
+        {progress.invalidTarget ? "—" : `${progress.percent}%`} completado
+      </span>
+    </button>
   );
 }

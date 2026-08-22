@@ -10,7 +10,9 @@ import { ExpensesScreen } from "@/components/expenses/ExpensesScreen";
 import { ActionSheet } from "@/components/flows/ActionSheet";
 import { ComingSoon } from "@/components/flows/ComingSoon";
 import { ExpenseFlow } from "@/components/flows/ExpenseFlow";
+import { GoalFlow } from "@/components/flows/GoalFlow";
 import { ProfilePanel } from "@/components/flows/ProfilePanel";
+import { GoalDetail } from "@/components/goals/GoalDetail";
 import { GoalsScreen } from "@/components/goals/GoalsScreen";
 import { HomeScreen } from "@/components/home/HomeScreen";
 import { HouseholdScreen } from "@/components/household/HouseholdScreen";
@@ -18,7 +20,7 @@ import { applyProfileDisplayName, identityFromUser } from "@/lib/auth/identity";
 import { P } from "@/lib/palette";
 import type { Flow, Model, Tab } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
-import type { ExpenseRow } from "@/lib/nido/financial";
+import type { ExpenseRow, GoalRow } from "@/lib/nido/financial";
 import { useDashboard } from "@/lib/nido/use-dashboard";
 import type { Household, HouseholdMember, HouseholdMemberView, Profile } from "@/lib/nido/types";
 
@@ -49,6 +51,8 @@ export function MainApp({
   const [profileOpen, setProfileOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<ExpenseRow | null>(null);
   const [editingExpense, setEditingExpense] = useState<ExpenseRow | null>(null);
+  const [selectedGoal, setSelectedGoal] = useState<GoalRow | null>(null);
+  const [editingGoal, setEditingGoal] = useState<GoalRow | null>(null);
   const dashboard = useDashboard(household.id, members);
 
   const tabs = [
@@ -63,12 +67,15 @@ export function MainApp({
     setActiveFlow(null);
     setEditingExpense(null);
     setSelectedExpense(null);
+    setEditingGoal(null);
+    setSelectedGoal(null);
     void dashboard.refresh();
   };
 
   const openFlow = (flow: Flow) => {
     setShowSheet(false);
     setEditingExpense(null);
+    setEditingGoal(null);
     setActiveFlow(flow);
   };
 
@@ -77,6 +84,13 @@ export function MainApp({
     setSelectedExpense(null);
     setEditingExpense(null);
     setActiveFlow("expense");
+  };
+
+  const openGoalCreate = () => {
+    setShowSheet(false);
+    setSelectedGoal(null);
+    setEditingGoal(null);
+    setActiveFlow("goal");
   };
 
   return (
@@ -100,7 +114,13 @@ export function MainApp({
               onRegisterExpense={openExpenseCreate}
             />
           )}
-          {tab === "goals"     && <GoalsScreen />}
+          {tab === "goals"     && (
+            <GoalsScreen
+              dashboard={dashboard}
+              onOpenGoal={setSelectedGoal}
+              onCreateGoal={openGoalCreate}
+            />
+          )}
           {tab === "household" && (
             <HouseholdScreen
               household={household}
@@ -164,6 +184,21 @@ export function MainApp({
           />
         )}
 
+        {selectedGoal && activeFlow !== "goal" && (
+          <GoalDetail
+            goal={selectedGoal}
+            members={members}
+            currentUserId={user?.id ?? null}
+            onClose={() => setSelectedGoal(null)}
+            onEdit={() => {
+              setEditingGoal(selectedGoal);
+              setSelectedGoal(null);
+              setActiveFlow("goal");
+            }}
+            onArchived={handleFlowDone}
+          />
+        )}
+
         {activeFlow === "expense" && (
           <ExpenseFlow
             householdId={household.id}
@@ -177,7 +212,20 @@ export function MainApp({
           />
         )}
 
-        {(activeFlow === "goal" || activeFlow === "contrib") && (
+        {activeFlow === "goal" && (
+          <GoalFlow
+            householdId={household.id}
+            members={members}
+            goal={editingGoal}
+            onClose={() => {
+              setActiveFlow(null);
+              setEditingGoal(null);
+            }}
+            onDone={handleFlowDone}
+          />
+        )}
+
+        {activeFlow === "contrib" && (
           <ComingSoon onClose={() => setActiveFlow(null)} />
         )}
 

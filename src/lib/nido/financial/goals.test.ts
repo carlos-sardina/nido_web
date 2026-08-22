@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   activeGoalProgress,
+  canMutateGoal,
   emergencyMonthsCovered,
   featuredSavingGoal,
+  formatGoalTargetDate,
   goalProgress,
 } from "./goals.ts";
 import type { GoalContributionRow, GoalRow } from "./types.ts";
@@ -96,6 +98,35 @@ describe("goal progress", () => {
     );
     assert.equal(progress.percent, 100);
     assert.equal(progress.contributed, 150);
+    assert.equal(progress.completed, true);
+  });
+});
+
+describe("goal authorization helper", () => {
+  it("allows only the creator of an active goal", () => {
+    const live = goal({ name: "Fondo", targetAmount: 100, createdBy: "carlos" });
+    assert.equal(canMutateGoal(live, "carlos"), true);
+    assert.equal(canMutateGoal(live, "diana"), false);
+    assert.equal(canMutateGoal(live, null), false);
+  });
+
+  it("rejects an archived goal even for the creator", () => {
+    const archived = goal({
+      name: "Vieja",
+      targetAmount: 100,
+      createdBy: "carlos",
+      status: "archived",
+    });
+    assert.equal(canMutateGoal(archived, "carlos"), false);
+  });
+});
+
+describe("goal target date label", () => {
+  it("formats a calendar date without using a stored current_amount", () => {
+    assert.equal(formatGoalTargetDate(null), null);
+    const label = formatGoalTargetDate("2027-03-01");
+    assert.ok(label);
+    assert.match(label ?? "", /2027/);
   });
 });
 

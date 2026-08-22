@@ -4,7 +4,7 @@ Use this against a real Vercel + Supabase + SMTP environment. Automated unit tes
 
 Confirm email stays enabled. Google OAuth stays disabled. Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
 
-Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Metas / Actividad screens remain prototype. See [financial.md](./financial.md).
+Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Phase 9.1.3A connects Metas (list, create, edit, archive). Actividad remains prototype. See [financial.md](./financial.md).
 
 The 60-second email cooldown is a **UX protection**. It prevents accidental repeat clicks and shows a countdown. The real protection against abuse remains in **Supabase Auth rate limits** and **Brevo SMTP limits**. The frontend cooldown does not replace or weaken those provider limits.
 
@@ -206,7 +206,7 @@ Requires migration `20260821000000_nido_categories_and_create_expense.sql` on th
 
 1. Create or open an active Nido. Confirm it has default expense categories (Vivienda, Despensa, …).
 2. Home `+` → bottom sheet with Registrar un gasto, Crear una meta, Registrar una aportación.
-3. **Crear una meta** / **Registrar una aportación** → **Esta función estará disponible próximamente.** No mock rows.
+3. **Registrar una aportación** → **Esta función estará disponible próximamente.** No mock rows.
 4. **Registrar un gasto** opens the form. Categories are the Nido’s active expense categories, not another household’s.
 5. Empty amount, `0`, negative, and malformed amounts are rejected in Spanish. Invalid input is not coerced to `0`.
 6. Empty / whitespace description is rejected. Unicode is kept.
@@ -248,6 +248,25 @@ Manual runs actually executed for this checklist: none in this phase.
 
 ---
 
+## Metas (Phase 9.1.3A)
+
+Requires migration `20260821180000_nido_goal_mutations.sql` on the linked project (plus prior financial migrations). Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. SQL cases `Y01`–`Y12` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). The manual UI checklist below was **not** executed in a live app session.
+
+A. **Empty state** — Nido sin metas: **Sin metas todavía** + **Crear una meta**. Home **¿Tienen algo en mente?** no muestra números prototipo.
+B. **Crear meta** — Home `+` → Crear una meta. Nombre obligatorio, monto > 0, fecha y descripción opcionales, tipo ahorro/compra. Aparece en Metas y Home.
+C. **Progreso** — `SUM(goal_contributions.amount) / target_amount`. Sin contribuciones: 0%. Al 100% se muestra 100%. Si las aportaciones exceden, el porcentaje se capea a 100% y el monto ahorrado sigue siendo la suma real. No hay `current_amount`.
+D. **Editar como creador** — detalle → Editar; mismas validaciones.
+E. **Archivar como creador** — **¿Archivar esta meta?** / **Dejará de aparecer en Metas y en el inicio. Las aportaciones se conservan.** Cancelar (ghost) + Archivar meta (danger).
+F. **Otro miembro** — puede ver; no hay Editar/Archivar; RPC/RLS rechaza la mutación.
+G. **Refresh** — `useDashboard().refresh()` actualiza Home y Metas. Un solo snapshot.
+H. **Doble tap** — un solo request; botón disabled + loading.
+I. **Error de red** — copy en español, sin PostgREST.
+J. **Registrar una aportación** sigue en Coming Soon. No se inició 9.1.3B.
+
+Manual runs actually executed for this checklist: none in this phase.
+
+---
+
 ## Unconfirmed login
 
 If Supabase reports email-not-confirmed on login:
@@ -266,7 +285,7 @@ If Supabase reports email-not-confirmed on login:
 - No sensitive auth data in `sessionStorage` (draft is onboarding fields only; pending invite is a join token, not an access token; email cooldown stores only action, normalized email, and a timestamp)
 - `?next=` rejects absolute URLs (`safeNextPath`)
 - Recovery marker still distinguishes recovery from login
-- RLS for expense UPDATE/splits is now creator-only (`20260821120000`); SQL matrix `X01`–`X14` needs a real database. Unit mocks are not RLS proofs.
+- RLS for expense UPDATE/splits is now creator-only (`20260821120000`); goal UPDATE/archive is creator-only (`20260821180000`). SQL matrix `X01`–`X14` and `Y01`–`Y12` needs a real database. Unit mocks are not RLS proofs.
 - No account enumeration on signup, resend, or recovery
 - No “email exists” lookup, RPC, or client query to `auth.users`
 - Signup does not inspect `identities` / user id to branch the UI

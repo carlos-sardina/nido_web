@@ -283,11 +283,12 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ---
 
-## What remains after 9.1.2A
+## What remains after 9.1.3A
 
-- 9.1.3: Gastos, Metas, and Actividad screens on the same data layer
+- 9.1.3B: registrar aportaciones
+- Actividad screen on the same data layer
 - 9.1.4: Hogar / Perfil refinement
-- Crear meta / registrar aportación / ingresos / presupuestos / recurrencias
+- ingresos / presupuestos / recurrencias
 - invitation email delivery
 - owner transfer
 - Google OAuth
@@ -297,6 +298,6 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## Apply the migration
 
-This workspace does not apply SQL to a live project. After pulling this phase, apply `20260821000000_nido_categories_and_create_expense.sql` with the same process used for the foundation, RLS, and lifecycle migrations.
+This workspace does not apply SQL to a live project. After pulling this phase, apply `20260821180000_nido_goal_mutations.sql` with the same process used for the foundation, RLS, lifecycle, and expense migrations.
 
-Until that migration is applied, default categories will be missing on new Nidos and `create_expense` will fail at runtime.
+Until that migration is applied, `create_goal` / `update_goal` / `archive_goal` will fail at runtime.

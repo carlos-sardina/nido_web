@@ -845,6 +845,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      archive_goal: { Args: { p_goal_id: string }; Returns: string }
       assert_active_household_member: {
         Args: { p_household_id: string; p_user_id: string }
         Returns: undefined
@@ -869,19 +870,9 @@ export type Database = {
         }
         Returns: undefined
       }
+      can_mutate_expense: { Args: { p_expense_id: string }; Returns: boolean }
       category_belongs_to_household: {
         Args: { p_category_id: string; p_household_id: string }
-        Returns: boolean
-      }
-      default_expense_category_catalog: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          icon: string
-          name: string
-        }[]
-      }
-      can_mutate_expense: {
-        Args: { p_expense_id: string }
         Returns: boolean
       }
       create_expense: {
@@ -894,6 +885,17 @@ export type Database = {
           p_payer_id: string
           p_scope: Database["public"]["Enums"]["expense_scope"]
           p_splits: Json
+        }
+        Returns: string
+      }
+      create_goal: {
+        Args: {
+          p_description: string
+          p_goal_type: Database["public"]["Enums"]["goal_type"]
+          p_household_id: string
+          p_name: string
+          p_target_amount: number
+          p_target_date: string
         }
         Returns: string
       }
@@ -912,6 +914,13 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      default_expense_category_catalog: {
+        Args: never
+        Returns: {
+          icon: string
+          name: string
+        }[]
       }
       household_has_no_members: {
         Args: { p_household_id: string }
@@ -952,10 +961,7 @@ export type Database = {
         }[]
       }
       shares_household_with: { Args: { p_user_id: string }; Returns: boolean }
-      soft_delete_expense: {
-        Args: { p_expense_id: string }
-        Returns: string
-      }
+      soft_delete_expense: { Args: { p_expense_id: string }; Returns: string }
       update_expense: {
         Args: {
           p_amount: number
@@ -965,6 +971,17 @@ export type Database = {
           p_occurred_at: string
           p_scope: Database["public"]["Enums"]["expense_scope"]
           p_splits: Json
+        }
+        Returns: string
+      }
+      update_goal: {
+        Args: {
+          p_description: string
+          p_goal_id: string
+          p_goal_type: Database["public"]["Enums"]["goal_type"]
+          p_name: string
+          p_target_amount: number
+          p_target_date: string
         }
         Returns: string
       }

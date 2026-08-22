@@ -43,10 +43,26 @@ export {
   parseExpenseAmountInput,
 } from "./expense-input.ts";
 export {
+  amountToGoalInput,
+  buildCreateGoalPayload,
+  GOAL_DESCRIPTION_MAX,
+  GOAL_NAME_MAX,
+  goalAmountMessage,
+  goalDateMessage,
+  goalDescriptionMessage,
+  goalNameMessage,
+  isGoalType,
+  normalizeGoalDescription,
+  normalizeGoalName,
+  parseGoalAmountInput,
+} from "./goal-input.ts";
+export {
   activeGoalProgress,
+  canMutateGoal,
   contributionsTotal,
   emergencyMonthsCovered,
   featuredSavingGoal,
+  formatGoalTargetDate,
   goalProgress,
 } from "./goals.ts";
 export { computeHealth, healthLabel } from "./health.ts";
@@ -76,6 +92,8 @@ export type {
   ExpenseScope,
   GoalProgress,
   GoalRow,
+  GoalStatus,
+  GoalType,
   HealthView,
   IncomeRow,
 } from "./types.ts";

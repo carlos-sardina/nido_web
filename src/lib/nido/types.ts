@@ -60,5 +60,7 @@ export type NidoErrorCode =
   | "invalid_date"
   | "expense_not_found"
   | "expense_deleted"
+  | "goal_not_found"
+  | "goal_archived"
   | "conflict"
   | "network";

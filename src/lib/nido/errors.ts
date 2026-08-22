@@ -23,6 +23,8 @@ const USER_MESSAGES: Record<NidoErrorCode, string> = {
   invalid_date: "La fecha no es válida.",
   expense_not_found: "No encontramos este gasto.",
   expense_deleted: "Este gasto ya fue eliminado.",
+  goal_not_found: "No encontramos esta meta.",
+  goal_archived: "Esta meta ya fue archivada.",
   conflict: "Este gasto cambió. Inténtalo de nuevo.",
   network: "No pudimos completar la operación. Inténtalo de nuevo.",
 };
@@ -76,6 +78,8 @@ const MESSAGE_CODES: Record<string, NidoErrorCode> = {
   "nido.invalid_date": "invalid_date",
   "nido.expense_not_found": "expense_not_found",
   "nido.expense_deleted": "expense_deleted",
+  "nido.goal_not_found": "goal_not_found",
+  "nido.goal_archived": "goal_archived",
   "nido.conflict": "conflict",
 };
 

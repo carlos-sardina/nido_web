@@ -52,6 +52,7 @@ describe("dashboard view model", () => {
     assert.equal(model.empty.activity, true);
     assert.equal(model.empty.budget, true);
     assert.equal(model.featuredGoal, null);
+    assert.deepEqual(model.goals, []);
     assert.deepEqual(model.activity, []);
     assert.equal(model.greeting, "Buenos días");
   });
@@ -160,6 +161,8 @@ describe("dashboard view model", () => {
     assert.equal(model.empty.goals, false);
     assert.equal(model.featuredGoal?.contributed, 120000);
     assert.equal(model.featuredGoal?.percent, 60);
+    assert.equal(model.goals.length, 1);
+    assert.equal(model.goals[0].contributions[0].amount, 120000);
     assert.equal(model.budget.totalBudget, 800);
     assert.equal(model.budget.totalSpent, 700);
     assert.equal(model.activity.length, 3);
@@ -343,5 +346,50 @@ describe("dashboard view model", () => {
     assert.equal(model.periodSpent, 0);
     assert.equal(model.hasAnyFinancialData, false);
     assert.deepEqual(model.activity, []);
+  });
+
+  it("excludes archived goals from the Metas list and keeps derived progress", () => {
+    const archived: GoalRow = {
+      id: "g-old",
+      householdId: "h1",
+      name: "Vieja",
+      description: null,
+      goalType: "saving",
+      targetAmount: 100,
+      targetDate: null,
+      status: "archived",
+      createdBy: "diana",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      contributions: [
+        {
+          id: "gc-old",
+          goalId: "g-old",
+          memberId: "diana",
+          amount: 40,
+          contributedAt: "2026-02-01",
+          createdBy: "diana",
+          createdAt: "2026-02-01T12:00:00.000Z",
+          member: null,
+        },
+      ],
+    };
+    const live: GoalRow = {
+      ...archived,
+      id: "g-new",
+      name: "Nueva",
+      status: "active",
+      contributions: [],
+    };
+
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({ goals: [archived, live] }),
+      members,
+      range,
+    });
+
+    assert.deepEqual(model.goals.map((row) => row.id), ["g-new"]);
+    assert.equal(model.activeGoals.length, 1);
+    assert.equal(model.activeGoals[0].contributed, 0);
+    assert.equal(model.empty.goals, false);
   });
 });

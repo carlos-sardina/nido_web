@@ -51,6 +51,7 @@ Repository migrations on that project, in order:
 3. `20260818000000_nido_household_lifecycle.sql`
 4. `20260821000000_nido_categories_and_create_expense.sql`
 5. `20260821120000_nido_expense_mutations.sql` (apply on nido_dev; do not edit earlier files)
+6. `20260821180000_nido_goal_mutations.sql` (apply on nido_dev; do not edit earlier files)
 
 Do not put the database password, service-role key, or anon key in this document.
 
