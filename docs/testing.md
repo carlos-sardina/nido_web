@@ -516,4 +516,12 @@ Join:
 
 ## Manual runs actually executed
 
-None in this phase. Do not record production results here unless they were performed.
+Phase 9.2.4 against local app + linked `nido_dev` (`pxfdvhavcddqmhuljxlf`) on 2026-08-22:
+
+- Migration `20260822400000_nido_expense_payer_identity.sql` applied. Remote INSERT/UPDATE of `expenses` now requires `payer_id = auth.uid()`.
+- RLS matrix: 207 assertions, 0 failed, script ended in `ROLLBACK`.
+- Unit tests 627 passed. `tsc` pass. `npm run build` pass. `validate_rls_coverage.mjs` 14 tables.
+- Smoke UI used test accounts `nido.smoke.carlos.924@nido.test` and `nido.smoke.diana.924@nido.test` on a new household **Nido Smoke 924**. The preexisting **Departamento** household was left intact (1 member, 0 financial rows).
+- Walkthrough results: A, B, C, E, H, J observed against the live app/DB. D, F, G, I did not complete a full two-user proof in this run.
+
+Do not record production results here unless they were performed.

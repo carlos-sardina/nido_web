@@ -59,6 +59,7 @@ Repository migrations on that project, in order:
 11. `20260822000000_nido_owner_transfer.sql` (apply on nido_dev; do not edit earlier files)
 12. `20260822120000_nido_recurrence_mutations.sql` (apply on nido_dev; do not edit earlier files)
 13. `20260822300000_nido_onboarding_financial.sql` (apply on nido_dev; do not edit earlier files)
+14. `20260822400000_nido_expense_payer_identity.sql` (apply on nido_dev; do not edit earlier files)
 
 Do not put the database password, service-role key, or anon key in this document.
 

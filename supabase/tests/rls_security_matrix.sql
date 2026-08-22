@@ -1112,6 +1112,7 @@ DECLARE
   v_before integer;
   v_after integer;
   v_mutate uuid;
+  v_payer_lock uuid;
   v_split_count integer;
   v_deleted_at timestamptz;
 BEGIN
@@ -1368,6 +1369,179 @@ BEGIN
       AND pg_temp.expect_allow(format(
         'UPDATE public.expenses SET description = %L WHERE id = %L',
         'after delete', v_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'X15', 'Carlos', 'A', 'active', 'PostgREST INSERT own payer_id',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expenses (
+          household_id, category_id, amount, occurred_at, payer_id,
+          scope, distribution_method, created_by
+        ) VALUES (
+          %L, %L, 11, DATE '2026-08-21', %L, 'personal', 'fixed', %L
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_carlos, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'X16', 'Carlos', 'A', 'active', 'PostgREST INSERT other member payer_id',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expenses (
+          household_id, category_id, amount, occurred_at, payer_id,
+          scope, distribution_method, created_by
+        ) VALUES (
+          %L, %L, 11, DATE '2026-08-21', %L, 'personal', 'fixed', %L
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_diana, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'X17', 'Carlos', 'A', 'active', 'PostgREST INSERT other household payer_id',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expenses (
+          household_id, category_id, amount, occurred_at, payer_id,
+          scope, distribution_method, created_by
+        ) VALUES (
+          %L, %L, 11, DATE '2026-08-21', %L, 'personal', 'fixed', %L
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_luis, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'X19', 'Carlos', 'A', 'active', 'PostgREST INSERT manipulated uuid',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          INSERT INTO public.expenses (
+            household_id, category_id, amount, occurred_at, payer_id,
+            scope, distribution_method, created_by
+          ) VALUES (
+            %L, %L, 11, DATE '2026-08-21', %L, 'personal', 'fixed', %L
+          )
+        $sql$,
+        v_nido_a, v_cat_expense_a, v_carlos, v_diana
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          INSERT INTO public.expenses (
+            household_id, category_id, amount, occurred_at, payer_id,
+            scope, distribution_method, created_by
+          ) VALUES (
+            %L, %L, 11, DATE '2026-08-21',
+            'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+            'personal', 'fixed', %L
+          )
+        $sql$,
+        v_nido_a, v_cat_expense_a, v_carlos
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_expense(
+            %L::uuid, %L::uuid, 11, 'Payer ajeno', DATE '2026-08-21', %L::uuid, 'personal',
+            jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 11, 'percentage', 100))
+          )
+        $sql$,
+        v_nido_a, v_cat_expense_a, v_diana, v_carlos
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'X20', 'Carlos', 'A', 'active', 'PostgREST INSERT shared own payer_id',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expenses (
+          household_id, category_id, amount, occurred_at, payer_id,
+          scope, distribution_method, created_by
+        ) VALUES (
+          %L, %L, 22, DATE '2026-08-21', %L, 'shared', 'equal', %L
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_carlos, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'X21', 'Carlos', 'A', 'active', 'create_expense RPC own payer_id',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_expense(
+          %L::uuid, %L::uuid, 18, 'RPC propio', DATE '2026-08-21', %L::uuid, 'personal',
+          jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 18, 'percentage', 100))
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_carlos, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.create_expense(
+    v_nido_a,
+    v_cat_expense_a,
+    19,
+    'Payer lock',
+    DATE '2026-08-21',
+    v_carlos,
+    'personal',
+    jsonb_build_array(jsonb_build_object('member_id', v_carlos, 'amount', 19, 'percentage', 100))
+  ) INTO v_payer_lock;
+
+  PERFORM pg_temp.record_result(
+    'X23', 'Carlos', 'A', 'active', 'PostgREST UPDATE cannot reattribute payer_id',
+    'deny',
+    pg_temp.expect_allow(format(
+      'UPDATE public.expenses SET payer_id = %L WHERE id = %L',
+      v_diana, v_payer_lock
+    ))
+  );
+
+  PERFORM pg_temp.clear_auth();
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.record_result(
+    'X18', 'none', '-', 'none', 'unauthenticated cannot insert expense',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          INSERT INTO public.expenses (
+            household_id, category_id, amount, occurred_at, payer_id,
+            scope, distribution_method, created_by
+          ) VALUES (
+            %L, %L, 11, DATE '2026-08-21', %L, 'personal', 'fixed', %L
+          )
+        $sql$,
+        v_nido_a, v_cat_expense_a, v_carlos, v_carlos
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_expense(
+            %L::uuid, %L::uuid, 11, 'Anon', DATE '2026-08-21', %L::uuid, 'personal',
+            jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 11, 'percentage', 100))
+          )
+        $sql$,
+        v_nido_a, v_cat_expense_a, v_carlos, v_carlos
       )) = 'deny'
       THEN 'deny'
       ELSE 'allow'
@@ -3285,6 +3459,22 @@ BEGIN
         )
       $sql$,
       v_nido_a, v_cat_expense_a, v_carlos, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'X22', 'Carlos', 'A', 'left', 'historical cannot insert with remaining payer',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expenses (
+          household_id, category_id, amount, occurred_at, payer_id,
+          scope, distribution_method, created_by
+        ) VALUES (
+          %L, %L, 10, DATE '2026-08-02', %L, 'personal', 'fixed', %L
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_diana, v_carlos
     ))
   );
 
