@@ -474,7 +474,7 @@ Result: RLS coverage validation passed for 14 tables. The script confirmed RLS i
 
 ### Behavioral matrix against the linked project
 
-`supabase/tests/rls_security_matrix.sql` was executed against the linked hosted project in this phase, including `X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`, owner-transfer cases `T01`–`T13` and `T20`–`T30`, and onboarding persist `OB01`–`OB11`. All assertions passed. The script rolls back seeded users.
+`supabase/tests/rls_security_matrix.sql` was re-executed against linked `nido_dev` in Phase 9.2.3 (198 assertions, 0 failed), including `X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`, `I01`–`I13`, `K01`–`K16`, `RE01`–`RE16`, owner-transfer `T01`–`T13` and `T20`–`T30`, and onboarding persist `OB01`–`OB11`. The script rolls back seeded users.
 
 ```bash
 npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql

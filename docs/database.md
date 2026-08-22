@@ -888,30 +888,27 @@ The one-active-Nido unique index remains the database backstop.
 
 ## 18. Decisions intentionally deferred
 
-These remain out of scope for the current schema and RLS migrations:
+These remain out of scope. Historical bullets that listed auth, frontend integration, owner-transfer RPCs, the income catalog, or contribution soft-delete as “not implemented” are obsolete as of Phase 9.2.3. Those exist in code and on `nido_dev`.
 
-1. **Authentication.** Browser and server Supabase clients exist; see [docs/supabase.md](./supabase.md). Authentication UI and session wiring are not implemented yet.
-2. **API routes and frontend integration.**
-3. **Invitation acceptance, leave, and owner transfer** as RPCs. RLS still denies arbitrary client writes to `household_members`.
-4. **Occurrence queue** — `next_occurrence` is sufficient.
-5. **Advanced recurrence** — extra frequencies, timezones, month-end rules, skipped-date history.
-6. **Split-sum table triggers** — `create_expense` enforces the sum in one transaction. A row-level trigger that would block incremental inserts is still deferred.
-7. **Pairwise settlements / payments** between members (reimbursements as first-class rows).
-8. **Refunds or negative amounts** — money is non-negative; reversals can be modeled later.
-9. **Personal-budget spend attribution** — payer vs participant.
-10. **Automatic owner membership** on household insert.
-11. **Invitation acceptance workflow details**, including expiry checks and the one-active-Nido conflict when the invitee already belongs elsewhere. RLS does not allow the invitee to UPDATE the invitation row.
-12. **Owner-count trigger** — at least one owner is an application rule.
-13. **Default income category catalog.** Seeded by `create_household` (Phase 9.1.3C) from `default_income_category_catalog()`: Sueldo, Freelance, Extra, Otros. Existing households are backfilled by `20260821220000_nido_income_mutations.sql`.
-14. **Audit log** of edits.
-15. **Hard-delete prevention triggers** — application must use `deleted_at` / `is_active` / `archived_at` / goal `status`.
-16. **`created_by` must be an active member** — enforced by RLS on INSERT (`created_by = auth.uid()` plus active membership). Application should still set the column to the acting user.
-17. **Using archived categories on new transactions** — allowed at the database CHECK level; `create_expense` rejects them.
-18. **Goal contribution soft delete** and goal-to-category linkage.
-19. **Multi-currency.**
-20. **Notifications, activity feed persistence, and insights.**
-21. **Stored `requires_review` flag** — derived at generation time instead.
-22. **Separate pause vs archive on recurring rules** — `is_active` covers both for now.
+Still deferred:
+
+1. **Occurrence queue** — `next_occurrence` is sufficient.
+2. **Advanced recurrence** — extra frequencies, skip, notifications, timezones beyond `America/Mexico_City`.
+3. **Split-sum table triggers** — `create_expense` enforces the sum in one transaction. A row-level trigger that would block incremental inserts is still deferred.
+4. **Pairwise settlements / payments** between members.
+5. **Refunds or negative amounts.**
+6. **Personal-budget spend attribution** and personal-budget UI.
+7. **Invitation email / QR product** beyond the current owner insert + `accept_invitation` RPC.
+8. **Owner-count trigger** — last-owner leave is enforced in `leave_household`, not by a table trigger.
+9. **Audit log** of edits.
+10. **Hard-delete prevention triggers** — physical `DELETE` is revoked on movement tables; application uses `deleted_at` / `is_active` / `archived_at` / goal `status`.
+11. **Using archived categories on new transactions** — allowed at the database CHECK level; mutation RPCs reject them.
+12. **Goal-to-category linkage.**
+13. **Multi-currency.**
+14. **Notifications, activity-feed persistence, and insights.**
+15. **Stored `requires_review` flag** — derived at materialize time instead.
+16. **Separate pause vs archive on recurring rules** — `is_active` covers both for now.
+17. **Category CRUD UI.**
 
 ---
 

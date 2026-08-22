@@ -1,6 +1,8 @@
-# Financial data layer (Phase 9.2.1)
+# Financial data layer (Phase 9.2.3)
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
+
+Phase 9.2.3 is the QA close of this integration. It does not add tables, columns, or product surfaces. The source of truth is the current code, the applied migrations on `nido_dev`, the RLS matrix, and the unit tests — not earlier “pending” notes in this file.
 
 Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar un gasto**. Phase 9.1.2B closes the expense module. Phase 9.1.3A connects **Metas**. Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (list in goal detail, edit, soft-delete). Phase 9.1.3C connects **Ingresos**. Phase 9.1.4 connects **Presupuestos**:
 

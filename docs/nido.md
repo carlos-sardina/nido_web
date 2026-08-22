@@ -4,7 +4,7 @@ This document describes household (Nido) creation, membership, leaving, invitati
 
 The schema in [database.md](./database.md) remains the source of truth. RLS in [security.md](./security.md) is unchanged: clients still cannot UPDATE `household_members`. Owner transfer is a new SECURITY DEFINER RPC. It does not change tables or weaken policies.
 
-Phase 9.1.1 connects the Home dashboard to live Supabase reads. Phase 9.1.2A adds household default expense categories and **Registrar un gasto**. Phase 9.2.2 persists the onboarding monthly income with the new Nido. Auth, recovery, and RLS policies are unchanged. See [financial.md](./financial.md). Auth and onboarding visuals use the tokens in [design-system.md](./design-system.md).
+Phase 9.1.1 connects the Home dashboard to live Supabase reads. Phase 9.1.2A adds household default expense categories and **Registrar un gasto**. Phase 9.2.2 persists the onboarding monthly income with the new Nido. Phase 9.2.3 re-audited that stack on `nido_dev` and did not add product surfaces. Auth, recovery, and RLS policies are unchanged. See [financial.md](./financial.md). Auth and onboarding visuals use the tokens in [design-system.md](./design-system.md).
 
 ---
 

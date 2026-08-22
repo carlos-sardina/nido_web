@@ -429,6 +429,29 @@ Manual runs actually executed for this checklist:
 
 ---
 
+## Cierre de integración (Phase 9.2.3)
+
+Re-audit of the live repo + linked `nido_dev` on 2026-08-21. No new tables or columns were added.
+
+Technical validations executed in this phase:
+
+| Check | Result |
+| --- | --- |
+| `node --experimental-strip-types --test "src/**/*.test.ts"` | 627 passed, 0 failed |
+| `npx tsc --noEmit` | pass |
+| `npm run build` | pass |
+| `node supabase/tests/validate_rls_coverage.mjs` | 14 tables |
+| `npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql` | 198 assertions, 0 failed, `ROLLBACK` |
+| Remote migrations | all 13 local files present on `nido_dev` |
+
+The matrix did not leave `rls-matrix` / `@nido.test` users. Existing `nido_dev` data after rollback was one household with one member and no financial rows — that is not matrix leftover.
+
+Manual UI smoke (two real users, mobile, double-tap in the running app) was **not** executed in this audit. Checklists A–J in the 9.2.3 brief remain the product walkthrough.
+
+Household split-model numbers and Profile “gastos fijos / extra” still render prototype constants (`D_INC`, `DIANA_ITEMS`). They are documented leftovers, not dashboard sources. Home, Gastos, Ingresos, Metas, Presupuestos, and Actividad use `useDashboard()` → `fetchDashboardSnapshot()` → `buildDashboardViewModel()`.
+
+---
+
 ## Unconfirmed login
 
 If Supabase reports email-not-confirmed on login:
