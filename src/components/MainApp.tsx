@@ -30,7 +30,7 @@ import { RecurringIncomeDetail } from "@/components/recurring/RecurringIncomeDet
 import { RecurringIncomesScreen } from "@/components/recurring/RecurringIncomesScreen";
 import { applyProfileDisplayName, identityFromUser } from "@/lib/auth/identity";
 import { P } from "@/lib/palette";
-import type { Flow, Model, Tab } from "@/lib/types";
+import type { Flow, Tab } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
 import type {
   BudgetItemView,
@@ -65,7 +65,6 @@ export function MainApp({
 }) {
   const identity = applyProfileDisplayName(identityFromUser(user), profile?.display_name);
   const [tab, setTab]           = useState<Tab>("home");
-  const [model, setModel]       = useState<Model>("capacity");
   const [showSheet, setShowSheet] = useState(false);
   const [activeFlow, setActiveFlow] = useState<Flow>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -219,8 +218,6 @@ export function MainApp({
               household={household}
               membership={membership}
               members={members}
-              model={model}
-              setModel={setModel}
               onOwnershipTransferred={onNidoChanged}
             />
           )}

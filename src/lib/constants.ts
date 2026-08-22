@@ -1,10 +1,6 @@
 import { P } from "./palette";
 
 // ── DATA ─────────────────────────────────────────────────────────────────────
-export const D_INC = 69000, D_PER = 20675, D_CAP = D_INC - D_PER;
-export const C_INC = 30000, C_PER = 5000,  C_CAP = C_INC - C_PER;
-export const T_INC = D_INC + C_INC, T_CAP = D_CAP + C_CAP;
-
 export const DIANA_ITEMS = [
   { name: "Pago auto",      amount: 12000, icon: "🚗" },
   { name: "Seguro médico",  amount: 1702,  icon: "🏥" },
@@ -29,7 +25,6 @@ export const CATS = [
   { name: "Gas",          icon: "🔥", budget: 200,   spent: 167,   color: "#C9785D" },
   { name: "Luz",          icon: "💡", budget: 200,   spent: 0,     color: "#D8B86A" },
 ];
-export const TOT_B = CATS.reduce((s, c) => s + c.budget, 0);
 export const TOT_S = CATS.reduce((s, c) => s + c.spent, 0);
 
 export const GOALS = [

@@ -233,10 +233,11 @@ Live on Home, empty when the Nido has no financial rows:
 
 Still prototype UI (not wired):
 
-- household planning widgets (capacity / split model)
 - Profile personal-expense lists
 - email or push delivery
 - real-time subscriptions
+
+Hogar no longer shows the prototype contribution-model block (`D_INC` / `TOT_B`, Persona A / Persona B). There is no persisted household contribution model and no schema was added to replace those mocks.
 
 Gastos, Metas, Crear una meta, and Registrar una aportación are live. Household name, member list, membership role, and `profiles.display_name` come from Supabase after the Nido is finalized.
 
@@ -340,7 +341,7 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## What remains after owner transfer
 
-- household planning widgets and Profile personal-expense lists
+- Profile personal-expense lists
 - invitation email delivery
 - Google OAuth
 - category CRUD (create / rename / archive) beyond the default catalog

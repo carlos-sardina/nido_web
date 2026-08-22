@@ -18,10 +18,7 @@ import { Button } from "@/components/nido/Button";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
 import { TextLink } from "@/components/nido/TextLink";
 import { Text } from "@/components/nido/Typography";
-import { C_CAP, C_INC, D_CAP, D_INC, T_CAP, T_INC, TOT_B } from "@/lib/constants";
-import { $k } from "@/lib/helpers";
 import { P } from "@/lib/palette";
-import type { Model } from "@/lib/types";
 
 const LIST_STATUS_LABEL: Record<ListedInvitation["status"], string> = {
   pending: "Pendiente",
@@ -33,15 +30,11 @@ export function HouseholdScreen({
   household,
   membership,
   members,
-  model,
-  setModel,
   onOwnershipTransferred,
 }: {
   household: Household;
   membership: HouseholdMember;
   members: HouseholdMemberView[];
-  model: Model;
-  setModel: (m: Model) => void;
   onOwnershipTransferred: () => void;
 }) {
   const [inviteBusy, setInviteBusy] = useState(false);
@@ -65,9 +58,6 @@ export function HouseholdScreen({
   const candidates = transferableMembers(members, membership.user_id);
   const selectedTarget = candidates.find((member) => member.userId === selectedTargetId) ?? null;
   const memberLabel = members.length === 1 ? "1 miembro" : `${members.length} miembros`;
-  const shares = model === "equal" ? { d: 50, c: 50 }
-    : model === "proportional" ? { d: Math.round(D_INC/T_INC*100), c: Math.round(C_INC/T_INC*100) }
-    : { d: Math.round(D_CAP/T_CAP*100), c: Math.round(C_CAP/T_CAP*100) };
 
   const loadInvitations = useCallback(async () => {
     if (membership.role !== "owner") return;
@@ -383,56 +373,6 @@ export function HouseholdScreen({
           )}
         </div>
       )}
-      <div className="mx-6 mb-3 bg-white rounded-[1.5rem] p-5 shadow-sm">
-        <h3 className="text-xs font-semibold mb-3" style={{ color: P.text }}>Modelo de aportación</h3>
-        <p className="text-[10px] mb-3" style={{ color: P.muted }}>Los montos siguen siendo de demostración.</p>
-        <div className="space-y-2 mb-5">
-          {([
-            { id: "equal" as Model,       label: "Por partes iguales",     sub: "50 / 50" },
-            { id: "proportional" as Model,label: "Proporcional al ingreso", sub: `${Math.round(D_INC/T_INC*100)}% / ${Math.round(C_INC/T_INC*100)}%` },
-            { id: "capacity" as Model,    label: "Capacidad de aportación",sub: "Recomendado", rec: true },
-          ] as const).map(opt => (
-            <button key={opt.id} onClick={() => setModel(opt.id)}
-              className="w-full flex items-center justify-between p-3 rounded-2xl border-2 text-left transition-all"
-              style={{ borderColor: model === opt.id ? P.brnDk : "transparent", backgroundColor: model === opt.id ? P.sagePl : P.sub }}>
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center"
-                  style={{ borderColor: model === opt.id ? P.brnDk : P.brn }}>
-                  {model === opt.id && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: P.brnDk }} />}
-                </div>
-                <div>
-                  <p className="text-xs font-semibold" style={{ color: P.text }}>{opt.label}</p>
-                  <p className="text-[9px]" style={{ color: P.muted }}>{opt.sub}</p>
-                </div>
-              </div>
-              {"rec" in opt && opt.rec && (
-                <span className="text-[9px] font-bold rounded-full px-2 py-0.5" style={{ backgroundColor: P.brnDk, color: "#fff" }}>✦ IDEAL</span>
-              )}
-            </button>
-          ))}
-        </div>
-        <h3 className="text-[9px] font-semibold uppercase tracking-wider mb-3" style={{ color: P.muted }}>Aportación mensual · {$k(TOT_B)}/mes</h3>
-        {[{ name: "Persona A", share: shares.d, color: P.sage }, { name: "Persona B", share: shares.c, color: "#5A9E90" }].map(m => (
-          <div key={m.name} className="mb-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-medium" style={{ color: P.text }}>{m.name}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold" style={{ color: P.text }}>{$k(Math.round(m.share/100*TOT_B))}</span>
-                <span className="text-[9px] w-7 text-right" style={{ color: P.muted }}>{m.share}%</span>
-              </div>
-            </div>
-            <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: P.sub }}>
-              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${m.share}%`, backgroundColor: m.color }} />
-            </div>
-          </div>
-        ))}
-        {model === "capacity" && (
-          <div className="mt-3 rounded-2xl p-3 border" style={{ backgroundColor: "#E8F4EF", borderColor: `${P.sageLt}60` }}>
-            <p className="text-[10px] font-semibold mb-1" style={{ color: P.sageDk }}>¿Por qué es más justo?</p>
-            <p className="text-[10px] leading-relaxed" style={{ color: P.text }}>Calcula cuánto puede aportar cada persona <em>después</em> de cubrir sus compromisos personales fijos.</p>
-          </div>
-        )}
-      </div>
       {qrInvitation && canShowInvitationQr(qrInvitation.status) && (
         <InviteQrModal
           inviteUrl={invitationDestination(invitationOrigin(), qrInvitation.token)}

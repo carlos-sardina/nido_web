@@ -452,7 +452,7 @@ The matrix did not leave `rls-matrix` / `@nido.test` users. Existing `nido_dev` 
 
 Manual UI smoke (two real users, mobile, double-tap in the running app) was **not** executed in this audit. Checklists A–J in the 9.2.3 brief remain the product walkthrough.
 
-Household split-model numbers and Profile “gastos fijos / extra” still render prototype constants (`D_INC`, `DIANA_ITEMS`). They are documented leftovers, not dashboard sources. Home, Gastos, Ingresos, Metas, Presupuestos, and Actividad use `useDashboard()` → `fetchDashboardSnapshot()` → `buildDashboardViewModel()`.
+Hogar no longer renders the prototype split-model constants (`D_INC`, `TOT_B`). Profile “gastos fijos / extra” still uses `DIANA_ITEMS` (Phase 9.3.5). Those leftovers are not dashboard sources. Home, Gastos, Ingresos, Metas, Presupuestos, and Actividad use `useDashboard()` → `fetchDashboardSnapshot()` → `buildDashboardViewModel()`.
 
 ---
 
@@ -556,5 +556,14 @@ Phase 9.3.3 (real QR + Web Share) against the repo on 2026-08-22:
 - Physical scan of the QR and the 6-case Hogar/share UI smoke are **BLOCKED**. This environment cannot operate the app with a real browser session or a second device. Do not treat unit/build success as a UI or scan pass.
 - **Departamento** and **Nido Smoke 924** were not modified. No temporary users or invitations were created.
 - Verdict: recorded in the 9.3.3 execution report.
+
+Phase 9.3.4 (Hogar prototype financial mock cleanup) against the repo on 2026-08-22:
+
+- No new migration, table, column, RPC, or RLS change. The contribution-model block was removed from Hogar. No replacement schema or “modelo de aportación” persist was added.
+- Unit tests 676 passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 14 tables. RLS matrix was **not** re-run: schema and policies are unchanged from the 9.3.1 run (239 passed, 0 failed).
+- Removed from Hogar: “Modelo de aportación”, Persona A / Persona B, and prototype constants `D_INC`, `C_INC`, `D_CAP`, `C_CAP`, `T_INC`, `T_CAP`, `TOT_B`. MainApp leftover `model` / `setModel` state for that block was also removed. Onboarding still uses the local `Model` type.
+- **Departamento** and **Nido Smoke 924** were not modified. No temporary users or invitations were created.
+- Manual Hogar UI smoke (10 cases: mocks gone, members/invitations/QR/ownership/name unchanged, no new financial widget) is **BLOCKED**. This environment cannot operate the app with a real browser session. Do not treat unit/build success as a UI pass.
+- Verdict: **CASI CERRADA**. Implementation and automated checks are complete; the 10-step UI smoke is the only open 9.3.4 item.
 
 Do not record production results here unless they were performed.
