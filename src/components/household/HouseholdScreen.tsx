@@ -4,7 +4,14 @@ import { useState } from "react";
 import { Link } from "lucide-react";
 import { initialsFromName } from "@/lib/auth/identity";
 import { createInvitation } from "@/lib/nido/invitations";
+import { transferHouseholdOwnership } from "@/lib/nido/membership";
+import { transferableMembers } from "@/lib/nido/rules";
+import { canSubmitTransfer } from "@/lib/nido/transfer-ownership";
 import type { Household, HouseholdMember, HouseholdMemberView } from "@/lib/nido/types";
+import { Button } from "@/components/nido/Button";
+import { ChoiceCard } from "@/components/nido/ChoiceCard";
+import { TextLink } from "@/components/nido/TextLink";
+import { Text } from "@/components/nido/Typography";
 import { C_CAP, C_INC, D_CAP, D_INC, T_CAP, T_INC, TOT_B } from "@/lib/constants";
 import { $k } from "@/lib/helpers";
 import { P } from "@/lib/palette";
@@ -16,18 +23,27 @@ export function HouseholdScreen({
   members,
   model,
   setModel,
+  onOwnershipTransferred,
 }: {
   household: Household;
   membership: HouseholdMember;
   members: HouseholdMemberView[];
   model: Model;
   setModel: (m: Model) => void;
+  onOwnershipTransferred: () => void;
 }) {
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [transferStep, setTransferStep] = useState<"idle" | "pick" | "confirm">("idle");
+  const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
+  const [transferring, setTransferring] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [transferSuccess, setTransferSuccess] = useState<string | null>(null);
   const isOwner = membership.role === "owner";
+  const candidates = transferableMembers(members, membership.user_id);
+  const selectedTarget = candidates.find((member) => member.userId === selectedTargetId) ?? null;
   const memberLabel = members.length === 1 ? "1 miembro" : `${members.length} miembros`;
   const shares = model === "equal" ? { d: 50, c: 50 }
     : model === "proportional" ? { d: Math.round(D_INC/T_INC*100), c: Math.round(C_INC/T_INC*100) }
@@ -95,6 +111,102 @@ export function HouseholdScreen({
           )}
           {inviteError && (
             <p className="text-[11px] mt-2" style={{ color: P.danger }}>{inviteError}</p>
+          )}
+        </div>
+      )}
+      {isOwner && candidates.length > 0 && (
+        <div className="mx-6 mb-3 rounded-[1.5rem] p-4 space-y-3" style={{ backgroundColor: P.card }}>
+          {transferStep === "idle" && (
+            <>
+              <Text size="label">Propiedad del Nido</Text>
+              <Text size="caption" tone="muted" className="leading-relaxed">
+                Solo el propietario puede invitar y transferir la propiedad.
+              </Text>
+              {transferSuccess && (
+                <Text size="caption" tone="brand" role="status">{transferSuccess}</Text>
+              )}
+              <TextLink
+                onClick={() => {
+                  setTransferError(null);
+                  setTransferSuccess(null);
+                  setSelectedTargetId(null);
+                  setTransferStep("pick");
+                }}
+              >
+                Transferir propiedad
+              </TextLink>
+            </>
+          )}
+          {transferStep === "pick" && (
+            <>
+              <Text size="label">¿A quién le transfieres la propiedad?</Text>
+              <div className="space-y-2">
+                {candidates.map((member) => (
+                  <ChoiceCard
+                    key={member.userId}
+                    title={member.displayName}
+                    description="Miembro activo"
+                    selected={selectedTargetId === member.userId}
+                    onClick={() => {
+                      setSelectedTargetId(member.userId);
+                      setTransferError(null);
+                      setTransferStep("confirm");
+                    }}
+                  />
+                ))}
+              </div>
+              <TextLink
+                tone="muted"
+                onClick={() => {
+                  setTransferStep("idle");
+                  setSelectedTargetId(null);
+                }}
+              >
+                Cancelar
+              </TextLink>
+            </>
+          )}
+          {transferStep === "confirm" && selectedTarget && (
+            <>
+              <Text size="label">Confirmar transferencia</Text>
+              <Text size="caption" tone="muted" className="leading-relaxed">
+                {selectedTarget.displayName} pasará a ser propietario. Tú seguirás en el Nido como miembro.
+              </Text>
+              {transferError && (
+                <Text size="caption" tone="danger" role="alert">{transferError}</Text>
+              )}
+              <Button
+                loading={transferring}
+                disabled={!canSubmitTransfer(transferring)}
+                onClick={async () => {
+                  if (!canSubmitTransfer(transferring)) return;
+                  setTransferring(true);
+                  setTransferError(null);
+                  const result = await transferHouseholdOwnership(selectedTarget.userId);
+                  setTransferring(false);
+                  if (result.ok === false) {
+                    setTransferError(result.error.message);
+                    return;
+                  }
+                  setTransferSuccess(`Listo. ${selectedTarget.displayName} es el propietario.`);
+                  setTransferStep("idle");
+                  setSelectedTargetId(null);
+                  onOwnershipTransferred();
+                }}
+              >
+                {transferring ? "Transfiriendo…" : "Confirmar transferencia"}
+              </Button>
+              <TextLink
+                tone="muted"
+                disabled={transferring}
+                onClick={() => {
+                  if (transferring) return;
+                  setTransferStep("pick");
+                }}
+              >
+                Elegir a otra persona
+              </TextLink>
+            </>
           )}
         </div>
       )}

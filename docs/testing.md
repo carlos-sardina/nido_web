@@ -343,7 +343,21 @@ H. **Presupuesto eliminado** — no entra en Home / Presupuestos / salud; no se 
 I. **Miembro histórico / que salió / otro Nido / no autenticado** — no puede crear, editar ni eliminar.
 J. **Doble tap** — un solo request; botón disabled + loading (`aria-busy`).
 K. **Error de red** — copy en español, sin PostgREST.
-L. **Recurrencias y owner transfer** no se iniciaron. Actividad no registra eventos de presupuesto.
+L. **Recurrencias** no se iniciaron. Actividad no registra eventos de presupuesto.
+
+## Owner transfer y ciclo de vida (Phase 9.2)
+
+Requires migration `20260822000000_nido_owner_transfer.sql` on the linked project. SQL cases `T01`–`T13` and `T20`–`T30` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. The manual UI checklist below was **not** executed in a live app session.
+
+A. **Hogar** — cada miembro muestra **Propietario** o **Miembro**.
+B. **Transferir** — visible solo para el owner, y solo si hay otro miembro activo. Confirmación. No aparece uno mismo en la lista.
+C. **Éxito / error** — copy clara; el antiguo owner pasa a Miembro; el nuevo puede invitar.
+D. **Miembro / histórico / otro Nido / no autenticado** — no pueden transferir (RPC).
+E. **Salir como owner** — Perfil explica que primero debe transferir. No hay un segundo CTA de transferencia.
+F. **Salir como único miembro** — no puede salir ni transferir.
+G. **Salir después de transferir** — el historial se conserva; el Nido sigue teniendo owner.
+H. **Doble tap** — un solo request.
+I. **Error de red** — copy en español, sin PostgREST.
 
 Manual runs actually executed for this checklist: none in this phase.
 

@@ -28,6 +28,14 @@ describe("nidoErrorFromUnknown", () => {
       nidoErrorFromUnknown({ message: "nido.last_owner" }).code,
       "last_owner",
     );
+    assert.equal(
+      nidoErrorFromUnknown({ message: "nido.cannot_transfer_to_self" }).code,
+      "cannot_transfer_to_self",
+    );
+    assert.equal(
+      nidoErrorFromUnknown({ message: "nido.invalid_transfer_target" }).code,
+      "invalid_transfer_target",
+    );
   });
 
   it("maps a duplicate pending invitation without exposing Postgres", () => {
@@ -57,6 +65,9 @@ describe("nidoErrorFromUnknown", () => {
     assert.match(userMessageFor("already_in_nido"), /un Nido/i);
     assert.match(userMessageFor("already_member"), /este Nido/i);
     assert.match(userMessageFor("self_invite"), /ti mismo/i);
+    assert.match(userMessageFor("cannot_transfer_to_self"), /ti mismo/i);
+    assert.match(userMessageFor("invalid_transfer_target"), /miembro activo/i);
+    assert.match(userMessageFor("last_owner"), /transfiere la propiedad/i);
     assert.match(userMessageFor("invalid_amount"), /monto válido/i);
     assert.match(userMessageFor("invalid_category"), /categoría/i);
     assert.match(userMessageFor("invalid_split"), /división/i);

@@ -21,7 +21,7 @@ Authorization uses Supabase Auth with email and password. Google OAuth is not en
 - `profiles.id` is the same UUID as `auth.users.id`.
 - Policies apply to the `authenticated` role.
 - `anon` has no table privileges.
-- `service_role` has full table privileges and bypasses RLS. The application does not use a service-role client. Invitation accept and leave use narrowly scoped RPCs (`accept_invitation`, `leave_household`). Owner transfer is not implemented.
+- `service_role` has full table privileges and bypasses RLS. The application does not use a service-role client. Invitation accept, leave, and owner transfer use narrowly scoped RPCs (`accept_invitation`, `leave_household`, `transfer_household_ownership`).
 
 Unauthenticated requests see no application rows.
 
@@ -156,7 +156,7 @@ RLS does not guarantee that a household always has an owner. Creating a househol
 
 Clients cannot change `user_id`, `household_id`, `role`, `joined_at`, or `left_at` on existing rows.
 
-Leave and invitation accept are application RPCs (`leave_household`, `accept_invitation`). They set `left_at` or insert a member row; they do not delete membership. Role change and owner transfer are not implemented. There is no service-role client.
+Leave and invitation accept are application RPCs (`leave_household`, `accept_invitation`). Owner transfer is `transfer_household_ownership`. They set `left_at` or `role`; they do not delete membership. There is no service-role client. There is still no client UPDATE policy on `household_members`.
 
 The first-owner INSERT is the only client write. A historical creator cannot re-insert themselves as owner after members already exist.
 
@@ -242,8 +242,8 @@ Same-household integrity triggers from the foundation schema remain authoritativ
 | Delete household | Active owner | RLS DELETE (not a supported product path) |
 | Accept invitation | `accept_invitation` RPC | No client UPDATE policy |
 | Leave | `leave_household` RPC | No client UPDATE/DELETE on `household_members` |
-| Change role / transfer owner | Not implemented | No client UPDATE on `household_members` |
-| Guarantee at least one owner | `leave_household` rejects the last owner | Not an RLS invariant |
+| Transfer owner | `transfer_household_ownership` RPC | No client UPDATE on `household_members`. Caller becomes `member`; target becomes `owner` |
+| Guarantee at least one owner | `leave_household` rejects the last owner; transfer requires an active member target | Not an RLS invariant |
 
 Active non-owner members can update household name and household financial/planning data. They cannot manage memberships or invitations.
 
@@ -270,8 +270,8 @@ Still application/service work:
 
 - Household create + first owner row in one transaction (`create_household`)
 - Leave / invite accept (`leave_household`, `accept_invitation`)
-- Owner transfer (not implemented)
-- At-least-one-owner invariant (enforced on leave; not an RLS trigger)
+- Owner transfer (`transfer_household_ownership`; atomic demote + promote)
+- At-least-one-owner invariant (enforced on leave and transfer; not an RLS trigger)
 - Expense + all splits in one transaction, including sum and personal-expense cardinality (`create_expense`, `update_expense`)
 - Recurring generate / edit / skip / confirm
 - Soft-delete via `deleted_at` (`soft_delete_expense`, `soft_delete_goal_contribution`), deactivate via `is_active`, archive via `archived_at` / goal `status`
@@ -317,6 +317,13 @@ Expected results for the documented actors. `allow` / `deny` are RLS outcomes. S
 | Carlos | A | active owner | SELECT/INSERT invitation | allow |
 | Carlos | A | left | SELECT household | allow |
 | Carlos | A | left | UPDATE/INSERT membership | deny |
+| Carlos | A | active owner | transfer to Diana | allow |
+| Diana | A | active member | transfer to Carlos | deny |
+| Luis | A | never member | transfer into A | deny |
+| none | - | none | transfer | deny |
+| Carlos | A | active owner | transfer to self / historical / other Nido | deny |
+| Carlos | A | last owner | leave without transfer | deny |
+| Carlos | A | member after transfer | leave | allow |
 | Luis | A | never member | SELECT household | deny |
 | Luis | A | never member | INSERT anything into A | deny |
 | Carlos | B | never member | SELECT household B | deny |
@@ -443,15 +450,15 @@ Result: RLS coverage validation passed for 14 tables. The script confirmed RLS i
 
 ### Behavioral matrix against the linked project
 
-`supabase/tests/rls_security_matrix.sql` was executed against the linked hosted project in this phase, including `X01`–`X14`, `Y01`–`Y12`, and `Z01`–`Z22`. All assertions passed. The script rolls back seeded users.
+`supabase/tests/rls_security_matrix.sql` was executed against the linked hosted project in this phase, including `X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`, and owner-transfer cases `T01`–`T13` and `T20`–`T30`. All assertions passed. The script rolls back seeded users.
 
 ```bash
 npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
 ```
 
-It impersonates Carlos, Diana, and Luis with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, expense mutation cases `X01`–`X14`, goal mutation cases `Y01`–`Y12`, and contribution cases `Z01`–`Z22`.
+It impersonates Carlos, Diana, Luis, and Eva with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, expense mutation cases `X01`–`X14`, goal mutation cases `Y01`–`Y12`, contribution cases `Z01`–`Z22`, and owner-transfer / leave cases `T01`–`T13` and `T20`–`T30`.
 
-`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. `Z12`–`Z22` (creator update/delete, non-creator deny, other household, deleted row, archived goal, other Nido goal, unauthenticated, historical member, member who left) require migration `20260821210000`. `I01`–`I13` require `20260821220000`. `K01`–`K16` (budget create/update/soft-delete, non-creator deny, other household, historical member, deleted row, spent derivation; 1:1 with the requested B01–B16 list) require `20260821230000`. Prefix **K** is used because **B01–B09** already cover Luis / never-member and **P01–P07** already cover child-table SELECT. They are runtime SQL, not unit mocks.
+`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. `Z12`–`Z22` (creator update/delete, non-creator deny, other household, deleted row, archived goal, other Nido goal, unauthenticated, historical member, member who left) require migration `20260821210000`. `I01`–`I13` require `20260821220000`. `K01`–`K16` (budget create/update/soft-delete, non-creator deny, other household, historical member, deleted row, spent derivation; 1:1 with the requested B01–B16 list) require `20260821230000`. Prefix **K** is used because **B01–B09** already cover Luis / never-member and **P01–P07** already cover child-table SELECT. `T01`–`T13` and `T20`–`T30` (owner transfer, last-owner leave, historical / other-Nido / unauthenticated deny, atomic role swap, privilege change after transfer) require `20260822000000`. They are runtime SQL, not unit mocks.
 
 The script rolls back seeded users. After the run, `auth.users` and application tables were empty.
 

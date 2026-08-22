@@ -2,7 +2,7 @@
 
 This document describes household (Nido) creation, membership, leaving, invitations, and the pre-dashboard flow. Phase 8.10.2 hardens the signup confirmation copy so an ambiguous `signUp()` success is not treated as proof that an email was sent.
 
-The schema in [database.md](./database.md) remains the source of truth. RLS in [security.md](./security.md) is unchanged. Application services and four Postgres functions live in this phase. It does not change tables or weaken policies.
+The schema in [database.md](./database.md) remains the source of truth. RLS in [security.md](./security.md) is unchanged: clients still cannot UPDATE `household_members`. Owner transfer is a new SECURITY DEFINER RPC. It does not change tables or weaken policies.
 
 Phase 9.1.1 connects the Home dashboard to live Supabase reads. Phase 9.1.2A adds household default expense categories and **Registrar un gasto**. Auth, recovery, onboarding, and RLS policies are unchanged. See [financial.md](./financial.md). Auth and onboarding visuals use the tokens in [design-system.md](./design-system.md).
 
@@ -113,20 +113,44 @@ Rejoining the same Nido creates a **new** `household_members` row. The previous 
 - The household is not deleted.
 - Historical financial rows stay attached to the original `household_id` and `profiles.id`.
 
-The last active owner cannot leave. Owner transfer is not implemented. The RPC returns `nido.last_owner`.
+The last active owner cannot leave. They must transfer ownership first. The RPC returns `nido.last_owner`.
 
 After leaving, the user returns to Nido selection and may create or join another Nido.
 
 ---
 
+## Owner transfer
+
+Ownership is `household_members.role = owner` with `left_at IS NULL`. There is no `households.owner_id`. `households.created_by` is the original creator and does **not** change on transfer.
+
+`transferHouseholdOwnership(newOwnerId)` calls `public.transfer_household_ownership(p_new_owner_id)`.
+
+| Actor | Transfer | Leave |
+| --- | --- | --- |
+| Current owner | Yes, to another **active member** of the same Nido | No, while they are the last owner |
+| Active non-owner | No (`nido.forbidden`) | Yes (sets `left_at`) |
+| Historical member | No (`nido.not_a_member`) | No (`nido.not_a_member`) |
+| Other Nido / unknown target | No (`nido.invalid_transfer_target`) | — |
+| Self | No (`nido.cannot_transfer_to_self`) | — |
+| Unauthenticated | No (`nido.unauthenticated`) | No |
+| Last active member | No eligible target | No (they are the last owner) |
+
+Transfer is **replacement**, not co-ownership: the caller becomes `member` and the target becomes `owner` in one transaction. The former owner stays in the Nido until they leave. After that they can leave; the Nido still has an owner.
+
+The RPC takes only `p_new_owner_id`. It does not take `household_id`, `owner_id`, or `user_id`. `auth.uid()` is the actor. Clients still cannot `UPDATE` `household_members`.
+
+Financial rows are unchanged: `expenses`, `expense_splits`, `incomes`, `budgets`, `goals`, and `goal_contributions` keep their `household_id` and `profiles.id` FKs. Creator-only mutation rules stay. History is not rewritten.
+
+The Hogar tab shows who is owner. **Transferir propiedad** is owner-only, asks for confirmation, lists other active members (not self), and shows success or error. Profile **Salir del Nido** tells a last owner to transfer first; it does not add a second transfer CTA.
+
+---
+
 ## Owner and member semantics
 
-| Role | How it is assigned in this phase |
+| Role | How it is assigned |
 | --- | --- |
-| `owner` | First member of a newly created Nido |
-| `member` | Invitation acceptance |
-
-Role changes and owner transfer are out of scope.
+| `owner` | First member of a newly created Nido, or the target of `transfer_household_ownership` |
+| `member` | Invitation acceptance, or the previous owner after a transfer |
 
 Active owners may create, read, and revoke invitations (existing RLS). Active members may read household identity and leave, subject to the last-owner rule.
 
@@ -177,6 +201,7 @@ Accepted invitations stay accepted even if they would also be expired.
 | Display name | `profiles.display_name` |
 | Invitation | `household_invitations` (token, optional email, expiry, accepted_at) |
 | Leave | `household_members.left_at` |
+| Owner transfer | `household_members.role` swapped atomically (`transfer_household_ownership`) |
 | Default expense categories | `categories` (`is_default = true`) via `create_household` |
 | Confirmed expense | `expenses` + `expense_splits` via `create_expense` |
 
@@ -221,9 +246,10 @@ The PostgREST client cannot run a multi-statement transaction. These operations 
 | `create_budget(...)` / `update_budget` / `soft_delete_budget` | `SECURITY INVOKER` | Nido-level monthly budget. Only the creator may update or soft-delete. Spent is not stored. |
 | `lookup_invitation(p_token)` | `SECURITY DEFINER` | Invitation SELECT is owner-only. Invitees and anonymous users need a name/status preview. |
 | `accept_invitation(p_token)` | `SECURITY DEFINER` | No client UPDATE on invitations and no client INSERT of a non-owner membership. |
-| `leave_household()` | `SECURITY DEFINER` | No client UPDATE on `household_members`. |
+| `leave_household()` | `SECURITY DEFINER` | No client UPDATE on `household_members`. Last owner cannot leave. |
+| `transfer_household_ownership(p_new_owner_id)` | `SECURITY DEFINER` | No client UPDATE on `household_members`. Two role writes must be atomic. INVOKER would require an UPDATE policy that could leave a Nido without an owner. |
 
-`create_household` and `create_expense` live in `supabase/migrations/20260818000000_nido_household_lifecycle.sql` and `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`. `SECURITY DEFINER` functions set `search_path = public`, require `auth.uid()`, and never take a user-supplied `user_id`. They do not bypass the one-active-Nido unique index.
+`create_household` and `create_expense` live in `supabase/migrations/20260818000000_nido_household_lifecycle.sql` and `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`. Owner transfer lives in `supabase/migrations/20260822000000_nido_owner_transfer.sql`. `SECURITY DEFINER` functions set `search_path = public`, require `auth.uid()`, and never take a user-supplied actor `user_id`. They do not bypass the one-active-Nido unique index.
 
 There is no service-role client.
 
@@ -236,7 +262,9 @@ Code lives in `src/lib/nido/`.
 | Module | Functions |
 | --- | --- |
 | `household.ts` | `createHousehold` |
-| `membership.ts` | `getMyActiveHousehold`, `getMyMembership`, `getMyNidoState`, `getHouseholdMembers`, `leaveHousehold` |
+| `membership.ts` | `getMyActiveHousehold`, `getMyMembership`, `getMyNidoState`, `getHouseholdMembers`, `leaveHousehold`, `transferHouseholdOwnership` |
+| `transfer-ownership.ts` | `transferOwnershipWithAuth`, `canSubmitTransfer` |
+| `leave-household.ts` | `leaveHouseholdWithAuth`, `canSubmitLeave` |
 | `invitations.ts` | `createInvitation`, `lookupInvitation`, `acceptInvitation` |
 | `profile.ts` | `getMyProfile`, `updateMyDisplayName` |
 | `rules.ts` | Pure classification and token/email helpers |
@@ -289,12 +317,11 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ---
 
-## What remains after 9.1.4
+## What remains after owner transfer
 
 - household planning widgets and Profile personal-expense lists
 - recurrencias
 - invitation email delivery
-- owner transfer
 - Google OAuth
 - category CRUD (create / rename / archive) beyond the default catalog
 - personal budgets (`member_id` set) in the UI
@@ -303,4 +330,4 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## Apply the migration
 
-This phase applied `20260821230000_nido_budget_mutations.sql` to linked `nido_dev` (`pxfdvhavcddqmhuljxlf`). Types were regenerated with `npx supabase gen types typescript --linked`.
+This phase applied `20260822000000_nido_owner_transfer.sql` to linked `nido_dev` (`pxfdvhavcddqmhuljxlf`). Types were regenerated with `npx supabase gen types typescript --linked`.

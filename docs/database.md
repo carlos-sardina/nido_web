@@ -112,7 +112,7 @@ A Nido.
 
 Creating a household does **not** automatically insert the owner membership. Application logic must insert `household_members` for `created_by` with `role = owner` in the same transaction.
 
-A Nido should have at least one owner. Owner transfer and the “at least one owner” invariant are application/service transaction rules. There is no owner-count trigger.
+A Nido should have at least one owner. `leave_household` rejects the last active owner. `transfer_household_ownership` atomically demotes the caller and promotes an active member of the same Nido. There is no owner-count trigger. `households.created_by` is not the current owner.
 
 ### 3.3 `household_members`
 
@@ -129,6 +129,8 @@ Membership history.
 | `created_at` | `timestamptz` | |
 
 Leave is an update (`left_at = now()`), not a delete. A user may have many historical memberships and at most one active membership.
+
+Owner transfer is an update of `role` on two active rows in one transaction. It does not insert, delete, or set `left_at`.
 
 Leaving does **not** delete incomes, expenses, expense splits, budgets, goals, or goal contributions. Those rows keep `member_id` / `payer_id` pointing at `profiles.id` and `household_id` pointing at the original Nido.
 
@@ -446,7 +448,7 @@ Additional frequencies or budget periods can be added later with `ALTER TYPE ...
 24. Budget spent and goal progress are derived. Do not store `current_spent` or `current_amount`.
 25. Goals belong to the Nido. Types: `saving`, `purchase`. Multiple members may contribute.
 26. Incomes, expenses, and goal contributions are soft-deleted with `deleted_at`. Recurring rules are deactivated with `is_active = false`. Categories are archived with `archived_at`.
-27. A Nido should have at least one owner. Transfer / last-owner protection is an application transaction rule.
+27. A Nido should have at least one owner. Transfer / last-owner protection is `transfer_household_ownership` + `leave_household`, not a table trigger.
 28. `created_by` for new financial records should be an active member of that Nido. Enforced by RLS / application, not by a foundation trigger.
 29. Currency is a single implicit household currency in this version.
 
@@ -842,7 +844,7 @@ Integrity triggers still require the **subject** of the row (`member_id`, `payer
 ### Application / service must enforce (in a transaction)
 
 - Household create + owner `household_members` row together
-- At least one owner; owner transfer
+- At least one owner; owner transfer (`transfer_household_ownership`)
 - Invitation accept: expiry, one-active-Nido conflict, membership insert
 - Expense + all splits in one transaction; sum(amount) = expense amount
 - Percentage / income_based stored percentages sum to 100
@@ -875,7 +877,7 @@ Summary:
 - **Write** requires active membership (`left_at IS NULL`).
 - `created_by` on INSERT must equal `auth.uid()`.
 - Child tables inherit household scope through parent-lookup helpers. `household_id` is not denormalized onto `expense_splits`, `recurring_expense_splits`, or `goal_contributions`.
-- Membership leave/join/accept/transfer and invitation acceptance remain application/service operations (`service_role`). Clients cannot arbitrarily update `household_members`.
+- Membership leave, invitation accept, and owner transfer are RPCs under the authenticated session (`leave_household`, `accept_invitation`, `transfer_household_ownership`). Clients cannot arbitrarily update `household_members`.
 
 The one-active-Nido unique index remains the database backstop.
 
@@ -887,7 +889,7 @@ These remain out of scope for the current schema and RLS migrations:
 
 1. **Authentication.** Browser and server Supabase clients exist; see [docs/supabase.md](./supabase.md). Authentication UI and session wiring are not implemented yet.
 2. **API routes and frontend integration.**
-3. **Invitation acceptance, leave, join, and owner transfer** as service-layer operations. RLS denies arbitrary client writes to `household_members`.
+3. **Invitation acceptance, leave, and owner transfer** as RPCs. RLS still denies arbitrary client writes to `household_members`.
 4. **Occurrence queue** — `next_occurrence` is sufficient.
 5. **Advanced recurrence** — extra frequencies, timezones, month-end rules, skipped-date history.
 6. **Split-sum table triggers** — `create_expense` enforces the sum in one transaction. A row-level trigger that would block incremental inserts is still deferred.
@@ -915,6 +917,7 @@ These remain out of scope for the current schema and RLS migrations:
 - Schema: `supabase/migrations/20260816000000_nido_foundation_schema.sql`
 - RLS: `supabase/migrations/20260817000000_nido_rls.sql`
 - Household lifecycle RPCs: `supabase/migrations/20260818000000_nido_household_lifecycle.sql`
+- Owner transfer RPC: `supabase/migrations/20260822000000_nido_owner_transfer.sql`
 - Categories catalog + `create_expense`: `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`
 - Income catalog + `create_income` / `update_income` / `soft_delete_income`: `supabase/migrations/20260821220000_nido_income_mutations.sql`
 - Security model: [docs/security.md](./security.md)

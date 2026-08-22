@@ -20,6 +20,7 @@ export type Database = {
           category_id: string
           created_at: string
           created_by: string
+          deleted_at: string | null
           end_date: string
           household_id: string
           id: string
@@ -27,7 +28,6 @@ export type Database = {
           period: Database["public"]["Enums"]["budget_period"]
           start_date: string
           updated_at: string
-          deleted_at: string | null
         }
         Insert: {
           amount: number
@@ -1006,6 +1006,10 @@ export type Database = {
         Returns: string
       }
       soft_delete_income: { Args: { p_income_id: string }; Returns: string }
+      transfer_household_ownership: {
+        Args: { p_new_owner_id: string }
+        Returns: undefined
+      }
       update_budget: {
         Args: {
           p_amount: number

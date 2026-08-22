@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import type { AuthIdentity } from "@/lib/auth/identity";
+import { canSubmitLeave } from "@/lib/nido/leave-household";
 import { leaveHousehold } from "@/lib/nido/membership";
 import type { HouseholdRole } from "@/lib/nido/types";
 import { DIANA_EXTRAS, DIANA_ITEMS } from "@/lib/constants";
@@ -11,6 +12,8 @@ export function ProfilePanel({
   identity,
   householdName,
   role,
+  isLastOwner,
+  hasOtherActiveMembers,
   onClose,
   onLogout,
   onLeft,
@@ -19,6 +22,8 @@ export function ProfilePanel({
   identity: AuthIdentity | null;
   householdName: string;
   role: HouseholdRole;
+  isLastOwner: boolean;
+  hasOtherActiveMembers: boolean;
   onClose: () => void;
   onLogout: () => void;
   onLeft: () => void;
@@ -99,29 +104,45 @@ export function ProfilePanel({
           {!confirmLeave ? (
             <button
               onClick={() => { setLeaveError(null); setConfirmLeave(true); }}
-              className="w-full py-3.5 rounded-2xl text-sm font-semibold border transition-all active:scale-[0.98]"
+              className="w-full py-3.5 rounded-2xl text-sm font-semibold border transition-all active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               style={{ color: P.text, borderColor: P.border, backgroundColor: P.card }}
             >
               Salir del Nido
             </button>
+          ) : isLastOwner ? (
+            <div className="rounded-2xl p-4 border" style={{ borderColor: P.border, backgroundColor: P.card }}>
+              <p className="text-xs mb-3 leading-relaxed" style={{ color: P.muted }}>
+                {hasOtherActiveMembers
+                  ? "No puedes salir siendo el propietario. Transfiere la propiedad a otro miembro desde Hogar y después podrás salir."
+                  : "No puedes salir siendo el único miembro del Nido. Invita a alguien y transfiere la propiedad antes de salir."}
+              </p>
+              <button
+                onClick={() => setConfirmLeave(false)}
+                className="w-full py-3 rounded-2xl text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                style={{ borderColor: P.border, color: P.muted }}
+              >
+                Entendido
+              </button>
+            </div>
           ) : (
             <div className="rounded-2xl p-4 border" style={{ borderColor: P.border, backgroundColor: P.card }}>
               <p className="text-xs mb-3 leading-relaxed" style={{ color: P.muted }}>
-                Salir no borra el historial. Si eres el único propietario, no podrás salir todavía.
+                Salir no borra el historial. Seguirás viendo lo que registraste en este Nido.
               </p>
               {leaveError && (
-                <p className="text-[11px] mb-3" style={{ color: P.danger }}>{leaveError}</p>
+                <p className="text-[11px] mb-3" role="alert" style={{ color: P.danger }}>{leaveError}</p>
               )}
               <div className="flex gap-2">
                 <button
                   onClick={() => setConfirmLeave(false)}
-                  className="flex-1 py-3 rounded-2xl text-xs font-semibold border"
+                  className="flex-1 py-3 rounded-2xl text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   style={{ borderColor: P.border, color: P.muted }}
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={async () => {
+                    if (!canSubmitLeave(leaving)) return;
                     setLeaving(true);
                     setLeaveError(null);
                     const result = await leaveHousehold();
@@ -132,8 +153,8 @@ export function ProfilePanel({
                     }
                     onLeft();
                   }}
-                  disabled={leaving}
-                  className="flex-1 py-3 rounded-2xl text-xs font-semibold"
+                  disabled={!canSubmitLeave(leaving)}
+                  className="flex-1 py-3 rounded-2xl text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   style={{ backgroundColor: P.dangerBg, color: P.danger, opacity: leaving ? 0.7 : 1 }}
                 >
                   {leaving ? "Saliendo…" : "Confirmar"}

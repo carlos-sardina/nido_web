@@ -52,6 +52,8 @@ export type NidoErrorCode =
   | "invite_pending"
   | "not_a_member"
   | "last_owner"
+  | "cannot_transfer_to_self"
+  | "invalid_transfer_target"
   | "forbidden"
   | "invalid_amount"
   | "invalid_description"

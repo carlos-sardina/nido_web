@@ -55,6 +55,8 @@ Repository migrations on that project, in order:
 7. `20260821200000_nido_goal_contribution_mutations.sql` (apply on nido_dev; do not edit earlier files)
 8. `20260821210000_nido_goal_contribution_edit.sql` (apply on nido_dev; do not edit earlier files)
 9. `20260821220000_nido_income_mutations.sql` (apply on nido_dev; do not edit earlier files)
+10. `20260821230000_nido_budget_mutations.sql` (apply on nido_dev; do not edit earlier files)
+11. `20260822000000_nido_owner_transfer.sql` (apply on nido_dev; do not edit earlier files)
 
 Do not put the database password, service-role key, or anon key in this document.
 
@@ -248,11 +250,10 @@ This phase does **not**:
 - persist onboarding income, savings, expenses, or contribution model
 - replace mock financial dashboard data
 - send invitation emails
-- transfer ownership
 - use a service-role client
 - enable Google OAuth (explicitly out of this iteration)
 
-Create, join, leave, and invitation accept are documented in [nido.md](./nido.md). The manual end-to-end checklist is in [testing.md](./testing.md).
+Create, join, leave, invitation accept, and owner transfer are documented in [nido.md](./nido.md). The manual end-to-end checklist is in [testing.md](./testing.md).
 
 ---
 
@@ -352,7 +353,7 @@ Architectural principle:
 - **Server:** anon/publishable key + authenticated user's session + RLS
 - **Service role:** not introduced
 
-Do not use service-role access for normal application operations. Invitation accept and leave use narrowly scoped RPCs under the authenticated session, as documented in [nido.md](./nido.md) and [security.md](./security.md). Owner transfer is not implemented.
+Do not use service-role access for normal application operations. Invitation accept, leave, and owner transfer use narrowly scoped RPCs under the authenticated session, as documented in [nido.md](./nido.md) and [security.md](./security.md).
 
 When server-side identity is required, obtain it from the authenticated Supabase session (`getUser()`). Do not trust a client-provided user id.
 

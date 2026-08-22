@@ -9,7 +9,7 @@
 --   2. Migrations applied (foundation, RLS, lifecycle, categories/create_expense,
 --      expense mutations, goal mutations, goal contribution mutations,
 --      goal contribution edit / soft-delete, income mutations,
---      budget mutations)
+--      budget mutations, owner transfer)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -187,6 +187,19 @@ BEGIN
 EXCEPTION
   WHEN OTHERS THEN
     RETURN 'deny';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.expect_exception(p_sql text)
+RETURNS text
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  EXECUTE p_sql;
+  RETURN 'allow';
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN SQLERRM;
 END;
 $$;
 
@@ -837,6 +850,164 @@ BEGIN
       $sql$,
       v_nido_a, v_carlos
     ))
+  );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Owner transfer deny cases (Carlos still owner of A; no role change)
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_eva uuid := '44444444-4444-4444-4444-444444444444';
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_carlos_role public.household_role;
+  v_diana_role public.household_role;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+
+  PERFORM pg_temp.clear_auth();
+  PERFORM pg_temp.create_auth_user(v_eva, 'eva-rls@example.test', 'Eva');
+  INSERT INTO public.household_members (
+    household_id, user_id, role, joined_at, left_at
+  ) VALUES (
+    v_nido_a, v_eva, 'member',
+    timestamptz '2026-01-01 00:00:00+00',
+    timestamptz '2026-07-01 00:00:00+00'
+  );
+  INSERT INTO rls_ids (key, id) VALUES ('eva', v_eva);
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'T01', 'Diana', 'A', 'active member', 'non-owner cannot transfer',
+    'nido.forbidden',
+    pg_temp.expect_exception(format(
+      'SELECT public.transfer_household_ownership(%L::uuid)', v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'T02', 'Luis', 'B', 'other nido', 'other nido cannot transfer into A',
+    'nido.invalid_transfer_target',
+    pg_temp.expect_exception(format(
+      'SELECT public.transfer_household_ownership(%L::uuid)', v_diana
+    ))
+  );
+
+  PERFORM pg_temp.clear_auth();
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.record_result(
+    'T03', 'none', '-', 'none', 'unauthenticated cannot transfer',
+    'nido.unauthenticated',
+    pg_temp.expect_exception(format(
+      'SELECT public.transfer_household_ownership(%L::uuid)', v_diana
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'T04', 'Carlos', 'A', 'active owner', 'cannot transfer to self',
+    'nido.cannot_transfer_to_self',
+    pg_temp.expect_exception(format(
+      'SELECT public.transfer_household_ownership(%L::uuid)', v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'T05', 'Carlos', 'A', 'active owner', 'cannot transfer to other nido',
+    'nido.invalid_transfer_target',
+    pg_temp.expect_exception(format(
+      'SELECT public.transfer_household_ownership(%L::uuid)', v_luis
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'T06', 'Carlos', 'A', 'active owner', 'cannot transfer to null target',
+    'nido.invalid_transfer_target',
+    pg_temp.expect_exception('SELECT public.transfer_household_ownership(NULL)')
+  );
+
+  PERFORM pg_temp.record_result(
+    'T07', 'Carlos', 'A', 'active owner', 'cannot client-UPDATE own role',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        UPDATE public.household_members
+        SET role = 'member'
+        WHERE household_id = %L AND user_id = %L AND left_at IS NULL
+      $sql$,
+      v_nido_a, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'T08', 'Carlos', 'A', 'active owner', 'cannot client-UPDATE other member role',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        UPDATE public.household_members
+        SET role = 'owner'
+        WHERE household_id = %L AND user_id = %L AND left_at IS NULL
+      $sql$,
+      v_nido_a, v_diana
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'T09', 'Carlos', 'A', 'active owner', 'last owner cannot leave without transfer',
+    'nido.last_owner',
+    pg_temp.expect_exception('SELECT public.leave_household()')
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'T10', 'Luis', 'B', 'last member', 'last active member cannot leave',
+    'nido.last_owner',
+    pg_temp.expect_exception('SELECT public.leave_household()')
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'T11', 'Carlos', 'A', 'active owner', 'cannot transfer to historical member',
+    'nido.invalid_transfer_target',
+    pg_temp.expect_exception(format(
+      'SELECT public.transfer_household_ownership(%L::uuid)', v_eva
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_eva);
+  PERFORM pg_temp.record_result(
+    'T12', 'Eva', 'A', 'historical', 'historical member cannot transfer',
+    'nido.not_a_member',
+    pg_temp.expect_exception(format(
+      'SELECT public.transfer_household_ownership(%L::uuid)', v_diana
+    ))
+  );
+
+  SELECT role INTO v_carlos_role
+  FROM public.household_members
+  WHERE household_id = v_nido_a AND user_id = v_carlos AND left_at IS NULL;
+  SELECT role INTO v_diana_role
+  FROM public.household_members
+  WHERE household_id = v_nido_a AND user_id = v_diana AND left_at IS NULL;
+
+  PERFORM pg_temp.record_result(
+    'T13', 'Carlos', 'A', 'active owner', 'failed transfer is atomic (roles unchanged)',
+    'allow',
+    CASE
+      WHEN v_carlos_role = 'owner' AND v_diana_role = 'member'
+      THEN 'allow' ELSE 'deny'
+    END
   );
 END;
 $$;
@@ -2463,26 +2634,141 @@ BEGIN
 END;
 $$;
 
--- Scenario C — Carlos leaves Nido A
--- Membership write is service_role / table-owner work, matching the
--- chosen RLS model (clients cannot UPDATE household_members).
+-- Scenario C — Carlos transfers ownership to Diana, then leaves Nido A.
+-- Transfer + leave use the product RPCs under auth.uid(). Direct client
+-- UPDATE on household_members remains denied (T07/T08).
 -- -----------------------------------------------------------------------------
 
 DO $$
 DECLARE
   v_carlos uuid;
+  v_diana uuid;
   v_nido_a uuid;
+  v_invite_a uuid;
+  v_expense_a uuid;
+  v_created_by uuid;
+  v_carlos_role public.household_role;
+  v_diana_role public.household_role;
+  v_carlos_left timestamptz;
+  v_owner_count integer;
 BEGIN
   SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
   SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_invite_a FROM rls_ids WHERE key = 'invite_a';
+  SELECT id INTO v_expense_a FROM rls_ids WHERE key = 'expense_a';
 
-  PERFORM pg_temp.clear_auth();
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'T20', 'Carlos', 'A', 'active owner', 'owner can transfer to active member',
+    'allow',
+    pg_temp.expect_allow(format(
+      'SELECT public.transfer_household_ownership(%L::uuid)', v_diana
+    ))
+  );
 
-  UPDATE public.household_members
-  SET left_at = timestamptz '2026-08-01 00:00:00+00'
-  WHERE household_id = v_nido_a
-    AND user_id = v_carlos
-    AND left_at IS NULL;
+  SELECT role INTO v_carlos_role
+  FROM public.household_members
+  WHERE household_id = v_nido_a AND user_id = v_carlos AND left_at IS NULL;
+  SELECT role INTO v_diana_role
+  FROM public.household_members
+  WHERE household_id = v_nido_a AND user_id = v_diana AND left_at IS NULL;
+  SELECT created_by INTO v_created_by
+  FROM public.households
+  WHERE id = v_nido_a;
+
+  PERFORM pg_temp.record_result(
+    'T21', 'Carlos', 'A', 'member after transfer', 'atomic owner transition',
+    'allow',
+    CASE
+      WHEN v_carlos_role = 'member'
+       AND v_diana_role = 'owner'
+       AND v_created_by = v_carlos
+      THEN 'allow' ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'T22', 'Carlos', 'A', 'member after transfer', 'former owner loses invitation SELECT',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.household_invitations WHERE id = %L', v_invite_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'T24', 'Carlos', 'A', 'member after transfer', 'former owner cannot transfer',
+    'nido.forbidden',
+    pg_temp.expect_exception(format(
+      'SELECT public.transfer_household_ownership(%L::uuid)', v_diana
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'T27', 'Carlos', 'A', 'member after transfer', 'expense history unchanged',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expenses WHERE id = %L AND created_by = %L AND deleted_at IS NULL',
+      v_expense_a, v_carlos
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'T23', 'Diana', 'A', 'owner after transfer', 'new owner can SELECT invitation',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.household_invitations WHERE id = %L', v_invite_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'T25', 'Diana', 'A', 'owner after transfer', 'new owner cannot transfer to self',
+    'nido.cannot_transfer_to_self',
+    pg_temp.expect_exception(format(
+      'SELECT public.transfer_household_ownership(%L::uuid)', v_diana
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'T28', 'Diana', 'A', 'owner after transfer', 'new owner cannot update Carlos expense',
+    'deny',
+    pg_temp.expect_allow(format(
+      'UPDATE public.expenses SET description = %L WHERE id = %L',
+      'owner overwrite', v_expense_a
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'T26', 'Carlos', 'A', 'member after transfer', 'former owner can leave',
+    'allow',
+    pg_temp.expect_allow('SELECT public.leave_household()')
+  );
+
+  SELECT left_at INTO v_carlos_left
+  FROM public.household_members
+  WHERE household_id = v_nido_a AND user_id = v_carlos;
+  SELECT count(*) INTO v_owner_count
+  FROM public.household_members
+  WHERE household_id = v_nido_a AND role = 'owner' AND left_at IS NULL;
+
+  PERFORM pg_temp.record_result(
+    'T29', 'Diana', 'A', 'owner', 'nido still has an owner after leave',
+    'allow',
+    CASE
+      WHEN v_carlos_left IS NOT NULL AND v_owner_count = 1
+      THEN 'allow' ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'T30', 'Carlos', 'A', 'left', 'historical member cannot transfer',
+    'nido.not_a_member',
+    pg_temp.expect_exception(format(
+      'SELECT public.transfer_household_ownership(%L::uuid)', v_diana
+    ))
+  );
 END;
 $$;
 

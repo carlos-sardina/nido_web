@@ -57,6 +57,45 @@ export function canLeaveHousehold(input: {
   return null;
 }
 
+export function canTransferOwnership(input: {
+  actorUserId: string | null;
+  actorRole: HouseholdRole | null;
+  isActiveMember: boolean;
+  targetUserId: string | null;
+  targetIsActiveSameHousehold: boolean;
+  targetRole: HouseholdRole | null;
+}): NidoErrorCode | null {
+  if (!input.actorUserId || !input.isActiveMember || !input.actorRole) {
+    return "not_a_member";
+  }
+  if (input.actorRole !== "owner") return "forbidden";
+  const targetId = input.targetUserId?.trim() ?? "";
+  if (!targetId) return "invalid_transfer_target";
+  if (targetId === input.actorUserId) return "cannot_transfer_to_self";
+  if (!input.targetIsActiveSameHousehold) return "invalid_transfer_target";
+  if (input.targetRole !== "member") return "invalid_transfer_target";
+  return null;
+}
+
+export function transferableMembers<T extends { userId: string; role: HouseholdRole }>(
+  members: ReadonlyArray<T>,
+  actorUserId: string,
+): T[] {
+  return members.filter((member) => member.userId !== actorUserId && member.role === "member");
+}
+
+export function applyOwnershipTransfer<T extends { userId: string; role: HouseholdRole }>(
+  members: ReadonlyArray<T>,
+  actorUserId: string,
+  newOwnerId: string,
+): T[] {
+  return members.map((member) => {
+    if (member.userId === actorUserId) return { ...member, role: "member" as const };
+    if (member.userId === newOwnerId) return { ...member, role: "owner" as const };
+    return member;
+  });
+}
+
 function visibleLength(value: string): number {
   return Array.from(value).length;
 }

@@ -184,6 +184,7 @@ export function MainApp({
               members={members}
               model={model}
               setModel={setModel}
+              onOwnershipTransferred={onNidoChanged}
             />
           )}
           {tab === "activity"  && (
@@ -380,6 +381,8 @@ export function MainApp({
             identity={identity}
             householdName={household.name}
             role={membership.role}
+            isLastOwner={membership.role === "owner" && members.filter((row) => row.role === "owner").length <= 1}
+            hasOtherActiveMembers={members.some((row) => row.userId !== membership.user_id)}
             signingOut={signingOut}
             onClose={() => setProfileOpen(false)}
             onLogout={onLogout}

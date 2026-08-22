@@ -1,6 +1,8 @@
 import { nidoErrorFromUnknown, nidoFail, nidoOk, type NidoResult } from "./errors";
+import { leaveHouseholdWithAuth } from "./leave-household";
 import { classifyMemberships } from "./rules";
 import { nidoClient, requireUser, type NidoClient } from "./session";
+import { transferOwnershipWithAuth } from "./transfer-ownership";
 import type {
   Household,
   HouseholdMember,
@@ -156,7 +158,68 @@ export async function leaveHousehold(
   const auth = await requireUser(supabase);
   if (auth.ok === false) return nidoFail(auth.error.code);
 
-  const { error } = await auth.data.supabase.rpc("leave_household");
-  if (error) return nidoFail(nidoErrorFromUnknown(error).code);
-  return nidoOk(null);
+  const membership = await getMyMembership(auth.data.supabase);
+  if (membership.ok === false) return nidoFail(membership.error.code);
+
+  const members = membership.data
+    ? await getHouseholdMembers(membership.data.household_id, auth.data.supabase)
+    : null;
+  if (members && members.ok === false) return nidoFail(members.error.code);
+
+  return leaveHouseholdWithAuth(
+    {
+      isActiveMember: membership.data != null,
+      role: membership.data?.role ?? null,
+      activeOwnerCount: members?.ok === true
+        ? members.data.filter((row) => row.role === "owner").length
+        : 0,
+    },
+    {
+      getUserId: async () => auth.data.user.id,
+      rpc: async (fn) => {
+        const result = await auth.data.supabase.rpc(fn);
+        return { data: result.data, error: result.error };
+      },
+    },
+  );
+}
+
+export async function transferHouseholdOwnership(
+  newOwnerId: string,
+  supabase: NidoClient = nidoClient(),
+): Promise<NidoResult<null>> {
+  const auth = await requireUser(supabase);
+  if (auth.ok === false) return nidoFail(auth.error.code);
+
+  const membership = await getMyMembership(auth.data.supabase);
+  if (membership.ok === false) return nidoFail(membership.error.code);
+  if (!membership.data) return nidoFail("not_a_member");
+
+  const members = await getHouseholdMembers(
+    membership.data.household_id,
+    auth.data.supabase,
+  );
+  if (members.ok === false) return nidoFail(members.error.code);
+
+  const target = members.data.find((row) => row.userId === newOwnerId) ?? null;
+
+  return transferOwnershipWithAuth(
+    {
+      newOwnerId,
+      actorRole: membership.data.role,
+      isActiveMember: membership.data.left_at == null,
+      targetIsActiveSameHousehold: target != null,
+      targetRole: target?.role ?? null,
+    },
+    {
+      getUserId: async () => auth.data.user.id,
+      rpc: async (fn, args) => {
+        const result = await auth.data.supabase.rpc(
+          fn,
+          args as { p_new_owner_id: string },
+        );
+        return { data: result.data, error: result.error };
+      },
+    },
+  );
 }
