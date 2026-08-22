@@ -69,7 +69,7 @@ export function HouseholdScreen({
   };
 
   return (
-    <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:hidden">
+    <div className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20">
       <div className="px-6 pt-3 pb-1">
         <h2 className="text-[22px] font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{household.name}</h2>
         <p className="text-xs" style={{ color: P.muted }}>{memberLabel}</p>

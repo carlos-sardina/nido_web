@@ -42,7 +42,7 @@ export function BudgetScreen({
 
   return (
     <div className="absolute inset-0 z-30" style={{ backgroundColor: P.bgL }}>
-      <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:hidden">
+      <div className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden">
         <div className="px-6 pt-3 pb-1">
           <BackLink onClick={onClose} label="Cerrar" />
           <Heading as="h2" size="h2">

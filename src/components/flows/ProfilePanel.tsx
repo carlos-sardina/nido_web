@@ -45,7 +45,7 @@ export function ProfilePanel({
         <div className="w-9" />
       </div>
 
-      <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden pb-6">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-6">
         {/* User identity */}
         <div className="flex flex-col items-center py-6 px-6">
           <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-bold mb-3 shadow-md overflow-hidden" style={{ backgroundColor: P.sage }}>

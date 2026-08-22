@@ -30,7 +30,7 @@ export function GoalsScreen({
   const totalSaved = sumMoney(active.map((goal) => goal.contributed));
 
   return (
-    <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:hidden">
+    <div className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20">
       <div className="px-6 pt-3 pb-1">
         <Heading as="h2" size="h2">
           Metas

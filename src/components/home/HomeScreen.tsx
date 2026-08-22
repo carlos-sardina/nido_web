@@ -65,7 +65,7 @@ export function HomeScreen({
   const { isLoading, error, model, refresh } = dashboard;
 
   return (
-    <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:hidden pb-4">
+    <div className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20">
       <div className="px-6 pt-3 pb-1 flex items-center justify-between">
         <div>
           <p className="text-xs font-medium" style={{ color: P.muted }}>
