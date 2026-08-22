@@ -477,7 +477,7 @@ Result: RLS coverage validation passed for 14 tables. The script confirmed RLS i
 
 ### Behavioral matrix against the linked project
 
-`supabase/tests/rls_security_matrix.sql` was re-executed against linked `nido_dev` in Phase 9.3.1 (239 assertions, 0 failed), including the previous 207 cases plus invitation product `J01`–`J30` (lookup, accept, cancel/DELETE). The script ends in `ROLLBACK` and does not persist seeded users.
+`supabase/tests/rls_security_matrix.sql` was re-executed against linked `nido_dev` in the Phase 9.3.1 closure audit (239 assertions, 0 failed), including the previous 207 cases plus invitation product `J01`–`J30` (lookup, accept, cancel/DELETE). The script ends in `ROLLBACK` and does not persist seeded users. Existing **Departamento** and **Nido Smoke 924** rows were unchanged after the run.
 
 ```bash
 npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
@@ -487,7 +487,7 @@ It impersonates Carlos, Diana, Luis, and Eva with `auth.uid()` via JWT claims, t
 
 `X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. `Z12`–`Z22` (creator update/delete, non-creator deny, other household, deleted row, archived goal, other Nido goal, unauthenticated, historical member, member who left) require migration `20260821210000`. `I01`–`I13` require `20260821220000`. `K01`–`K16` (budget create/update/soft-delete, non-creator deny, other household, historical member, deleted row, spent derivation; 1:1 with the requested B01–B16 list) require `20260821230000`. Prefix **K** is used because **B01–B09** already cover Luis / never-member and **P01–P07** already cover child-table SELECT. `T01`–`T13` and `T20`–`T30` (owner transfer, last-owner leave, historical / other-Nido / unauthenticated deny, atomic role swap, privilege change after transfer) require `20260822000000`. `OB01`–`OB11` (onboarding persist: unauthenticated, no membership, invalid amount, double execution, already-active member, historical member, other Nido) require `20260822300000`. They are runtime SQL, not unit mocks.
 
-The script rolls back seeded users. After the run, `auth.users` and application tables were empty.
+The script rolls back its own seeded users. It does not empty the linked database: existing **Departamento** and **Nido Smoke 924** rows remain after `ROLLBACK`.
 
 Two harness-only adjustments were required so the script can run on hosted Supabase. They do not change policies:
 

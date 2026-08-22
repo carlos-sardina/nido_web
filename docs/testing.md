@@ -526,12 +526,13 @@ Phase 9.2.4 against local app + linked `nido_dev` (`pxfdvhavcddqmhuljxlf`) on 20
 - Smoke UI used test accounts `nido.smoke.carlos.924@nido.test` and `nido.smoke.diana.924@nido.test` on a new household **Nido Smoke 924**. The preexisting **Departamento** household was left intact (1 member, 0 financial rows).
 - Walkthrough results: A, B, C, E, H, J observed against the live app/DB. D, F, G, I did not complete a full two-user proof in this run.
 
-Phase 9.3.1 against the repo + linked `nido_dev` (`pxfdvhavcddqmhuljxlf`) on 2026-08-22:
+Phase 9.3.1 closure audit against the repo + linked `nido_dev` (`pxfdvhavcddqmhuljxlf`) on 2026-08-22:
 
-- No new migration, table, column, or RPC.
-- Unit tests 642 passed. `tsc` pass. `npm run build` pass. `validate_rls_coverage.mjs` 14 tables.
-- RLS matrix: 239 assertions, 0 failed, script ended in `ROLLBACK`. Invitation product cases `J01`–`J30` cover lookup, accept, and owner DELETE cancel.
-- **Departamento** and **Nido Smoke 924** remained. No `nido-rls-j-%` invitation rows persisted.
-- Manual Hogar smoke (create → list → copy → cancel → accept as second user → accepted in list) was **not** executed in this run.
+- No new migration, table, column, or RPC. Local and remote still have the same 14 migrations. `household_invitations` still has no persisted `status`, `cancelled_at`, `code`, or `owner_id`.
+- Unit tests 642 passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 14 tables.
+- RLS matrix re-run: 239 assertions, 0 failed, script ended in `ROLLBACK`. Invitation product cases `J01`–`J30` (plus `J17b` / `J28b`) cover lookup, accept, and owner DELETE cancel. Seeded matrix users and tokens did not persist.
+- **Departamento** (1 owner) and **Nido Smoke 924** remained. Two pre-existing Smoke 924 invitation rows remained. No `nido-rls-j-%` invitation rows.
+- Manual Hogar two-user smoke (create → list → copy → cancel → accept as second user → accepted in list) is **BLOCKED**. This environment cannot operate the app with two real sessions. Do not treat RPC/matrix success as a UI pass.
+- Verdict: **CASI CERRADA**. Implementation and automated checks are complete; the 10-step UI smoke is the only open 9.3.1 item.
 
 Do not record production results here unless they were performed.
