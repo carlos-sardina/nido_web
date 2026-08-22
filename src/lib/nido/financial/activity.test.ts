@@ -122,6 +122,21 @@ describe("activity transformation", () => {
     assert.equal(items[0].id, "expense:e1");
   });
 
+  it("excludes soft-deleted expenses from normal activity", () => {
+    const items = buildActivityItems({
+      expenses: [
+        expense,
+        { ...expense, id: "e-deleted", deletedAt: "2026-08-21T18:00:00.000Z" },
+      ],
+      incomes: [],
+      contributions: [],
+      goals: [],
+      members,
+    });
+    assert.equal(items.length, 1);
+    assert.equal(items[0].id, "expense:e1");
+  });
+
   it("returns an empty list when there is no activity", () => {
     const items = buildActivityItems({
       expenses: [],

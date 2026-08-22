@@ -6,10 +6,36 @@ export function isActiveExpense(expense: Pick<ExpenseRow, "deletedAt">): boolean
   return expense.deletedAt == null;
 }
 
+export function canMutateExpense(
+  expense: Pick<ExpenseRow, "createdBy" | "deletedAt">,
+  userId: string | null | undefined,
+): boolean {
+  return Boolean(userId) && expense.createdBy === userId && expense.deletedAt == null;
+}
+
 export function expensesInRange(expenses: ExpenseRow[], range: MonthRange): ExpenseRow[] {
   return expenses.filter(
     (expense) => isActiveExpense(expense) && isDateInRange(expense.occurredAt, range),
   );
+}
+
+/**
+ * Confirmed expenses of the current period for Gastos / totals.
+ * Soft-deleted rows are excluded. Newest date first, then newest created_at.
+ */
+export function visiblePeriodExpenses(
+  expenses: ExpenseRow[],
+  range: MonthRange,
+  householdId?: string,
+): ExpenseRow[] {
+  return expensesInRange(expenses, range)
+    .filter((expense) => householdId == null || expense.householdId === householdId)
+    .slice()
+    .sort((a, b) => {
+      const byDate = b.occurredAt.localeCompare(a.occurredAt);
+      if (byDate !== 0) return byDate;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
 }
 
 /**

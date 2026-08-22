@@ -56,6 +56,7 @@ Shared shell: `FlowScreen`.
 | `primary` | Main action (Crear cuenta, Continuar, Crear mi Nido) |
 | `secondary` | Alternate action (Iniciar sesión on landing) |
 | `ghost` | Cancel / close in nested surfaces |
+| `danger` | Destructive confirmations (`--danger`, e.g. Eliminar gasto) |
 | `compact` size | 44px, only inside nested forms |
 
 Tertiary actions use `TextLink` (brand or muted), not a fourth button style.

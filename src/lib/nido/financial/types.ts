@@ -219,6 +219,7 @@ export type DashboardViewModel = {
   featuredGoal: FeaturedGoalView | null;
   activeGoals: GoalProgress[];
   activity: ActivityItem[];
+  periodExpenses: ExpenseRow[];
   empty: {
     expenses: boolean;
     incomes: boolean;

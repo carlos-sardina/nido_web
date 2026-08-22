@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  amountToExpenseInput,
   buildCreateExpensePayload,
   expenseAmountMessage,
   expenseDescriptionMessage,
@@ -25,6 +26,13 @@ function request(overrides: Partial<Parameters<typeof buildCreateExpensePayload>
     ...overrides,
   };
 }
+
+describe("amountToExpenseInput", () => {
+  it("round-trips a stored amount without using floats", () => {
+    assert.equal(amountToExpenseInput(700), "700");
+    assert.equal(amountToExpenseInput(700.5), "700.50");
+  });
+});
 
 describe("parseExpenseAmountInput", () => {
   it("parses a valid amount and does not coerce invalid input to 0", () => {
@@ -122,6 +130,74 @@ describe("buildCreateExpensePayload", () => {
     const result = buildCreateExpensePayload(request({ occurredAt: "2026-02-31" }), "diana");
     assert.equal(result.ok, false);
     if (result.ok === false) assert.equal(result.error, "invalid_date");
+  });
+
+  it("rebuilds personal splits when switching from shared to personal", () => {
+    const result = buildCreateExpensePayload(
+      request({
+        scope: "personal",
+        amount: 90,
+        participantIds: ["diana", "carlos"],
+      }),
+      "diana",
+    );
+    assert.equal(result.ok, true);
+    if (result.ok === false) return;
+    assert.equal(result.data.splits.length, 1);
+    assert.equal(result.data.splits[0].memberId, "diana");
+    assert.equal(result.data.splits[0].amount, 90);
+  });
+
+  it("creates equal shared splits when switching from personal to shared", () => {
+    const result = buildCreateExpensePayload(
+      request({ scope: "shared", amount: 99, participantIds: members }),
+      "diana",
+    );
+    assert.equal(result.ok, true);
+    if (result.ok === false) return;
+    assert.equal(result.data.splits.length, 2);
+    assert.equal(
+      result.data.splits.reduce((sum, split) => sum + Math.round(split.amount * 100), 0),
+      9900,
+    );
+  });
+
+  it("rebuilds splits when participants change", () => {
+    const two = buildCreateExpensePayload(
+      request({ scope: "shared", amount: 30, participantIds: members }),
+      "diana",
+    );
+    const three = buildCreateExpensePayload(
+      request({
+        scope: "shared",
+        amount: 30,
+        participantIds: ["diana", "carlos", "ana"],
+        activeMemberIds: ["diana", "carlos", "ana"],
+      }),
+      "diana",
+    );
+    assert.equal(two.ok, true);
+    assert.equal(three.ok, true);
+    if (two.ok === false || three.ok === false) return;
+    assert.equal(two.data.splits.length, 2);
+    assert.equal(three.data.splits.length, 3);
+    assert.equal(
+      three.data.splits.reduce((sum, split) => sum + Math.round(split.amount * 100), 0),
+      3000,
+    );
+  });
+
+  it("rebuilds split amounts when the total changes", () => {
+    const result = buildCreateExpensePayload(
+      request({ scope: "shared", amount: 10, participantIds: members }),
+      "diana",
+    );
+    assert.equal(result.ok, true);
+    if (result.ok === false) return;
+    assert.equal(
+      result.data.splits.reduce((sum, split) => sum + Math.round(split.amount * 100), 0),
+      1000,
+    );
   });
 
   it("rejects a shared expense with an inactive or foreign member", () => {

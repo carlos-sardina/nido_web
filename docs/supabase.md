@@ -44,12 +44,13 @@ npx supabase db push
 npx supabase gen types typescript --linked --schema public > src/lib/supabase/types.ts
 ```
 
-The four repository migrations are applied on that project, in order:
+Repository migrations on that project, in order:
 
 1. `20260816000000_nido_foundation_schema.sql`
 2. `20260817000000_nido_rls.sql`
 3. `20260818000000_nido_household_lifecycle.sql`
 4. `20260821000000_nido_categories_and_create_expense.sql`
+5. `20260821120000_nido_expense_mutations.sql` (apply on nido_dev; do not edit earlier files)
 
 Do not put the database password, service-role key, or anon key in this document.
 

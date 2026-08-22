@@ -6,7 +6,8 @@
 --
 -- Required environment:
 --   1. Supabase local (`supabase start`) or a linked Supabase database
---   2. Migrations applied (foundation, RLS, lifecycle, categories/create_expense)
+--   2. Migrations applied (foundation, RLS, lifecycle, categories/create_expense,
+--      expense mutations)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -919,9 +920,10 @@ END;
 $$;
 
 -- -----------------------------------------------------------------------------
--- Phase 9.1.2A — create_expense RPC (while Carlos is still active in A)
--- These assertions require migration 20260821000000. They are not a substitute
--- for a live app session; they exercise Postgres + RLS with set_auth().
+-- Phase 9.1.2A / 9.1.2B — expense RPCs (while Carlos is still active in A)
+-- These assertions require migrations 20260821000000 and 20260821120000.
+-- They are not a substitute for a live app session; they exercise Postgres
+-- + RLS with set_auth().
 -- -----------------------------------------------------------------------------
 
 DO $$
@@ -935,6 +937,9 @@ DECLARE
   v_cat_expense_b uuid;
   v_before integer;
   v_after integer;
+  v_mutate uuid;
+  v_split_count integer;
+  v_deleted_at timestamptz;
 BEGIN
   SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
   SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
@@ -1050,6 +1055,149 @@ BEGIN
     'X06', 'Carlos', 'A', 'active', 'invalid split leaves no orphan expense',
     'allow',
     CASE WHEN v_after = v_before THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.create_expense(
+    v_nido_a,
+    v_cat_expense_a,
+    30,
+    'Para editar',
+    DATE '2026-08-21',
+    v_carlos,
+    'personal',
+    jsonb_build_array(jsonb_build_object('member_id', v_carlos, 'amount', 30, 'percentage', 100))
+  ) INTO v_mutate;
+
+  PERFORM pg_temp.record_result(
+    'X08', 'Carlos', 'A', 'active', 'creator can update expense',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.update_expense(
+          %L::uuid, %L::uuid, 40, 'Cena editada', DATE '2026-08-21', 'shared',
+          jsonb_build_array(
+            jsonb_build_object('member_id', %L, 'amount', 20, 'percentage', 50),
+            jsonb_build_object('member_id', %L, 'amount', 20, 'percentage', 50)
+          )
+        )
+      $sql$,
+      v_mutate, v_cat_expense_a, v_carlos, v_diana
+    ))
+  );
+
+  SELECT count(*) INTO v_split_count
+  FROM public.expense_splits
+  WHERE expense_id = v_mutate;
+
+  IF v_split_count <> 2 THEN
+    UPDATE rls_test_results
+    SET actual = 'deny', passed = false
+    WHERE test_id = 'X08';
+  END IF;
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'X09', 'Diana', 'A', 'active', 'non-creator cannot update',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_expense(
+            %L::uuid, %L::uuid, 15, 'Diana no puede', DATE '2026-08-21', 'personal',
+            jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 15, 'percentage', 100))
+          )
+        $sql$,
+        v_mutate, v_cat_expense_a, v_diana
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.expenses SET description = %L WHERE id = %L',
+        'diana overwrite', v_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'X11', 'Diana', 'A', 'active', 'non-creator cannot soft-delete',
+    'deny',
+    pg_temp.expect_allow(format(
+      'SELECT public.soft_delete_expense(%L::uuid)',
+      v_mutate
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'X12', 'Luis', 'B', 'never member', 'other household cannot modify',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_expense(
+            %L::uuid, %L::uuid, 15, 'Luis no puede', DATE '2026-08-21', 'personal',
+            jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 15, 'percentage', 100))
+          )
+        $sql$,
+        v_mutate, v_cat_expense_a, v_luis
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_expense(%L::uuid)',
+        v_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'X10', 'Carlos', 'A', 'active', 'creator can soft-delete',
+    'allow',
+    pg_temp.expect_allow(format(
+      'SELECT public.soft_delete_expense(%L::uuid)',
+      v_mutate
+    ))
+  );
+
+  SELECT deleted_at, (
+    SELECT count(*) FROM public.expense_splits WHERE expense_id = v_mutate
+  )
+  INTO v_deleted_at, v_split_count
+  FROM public.expenses
+  WHERE id = v_mutate;
+
+  IF v_deleted_at IS NULL OR v_split_count <> 2 THEN
+    UPDATE rls_test_results
+    SET actual = 'deny', passed = false
+    WHERE test_id = 'X10';
+  END IF;
+
+  PERFORM pg_temp.record_result(
+    'X14', 'Carlos', 'A', 'active', 'deleted expense cannot be mutated',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_expense(
+            %L::uuid, %L::uuid, 12, 'Ya eliminado', DATE '2026-08-21', 'personal',
+            jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 12, 'percentage', 100))
+          )
+        $sql$,
+        v_mutate, v_cat_expense_a, v_carlos
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_expense(%L::uuid)',
+        v_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.expenses SET description = %L WHERE id = %L',
+        'after delete', v_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
   );
 END;
 $$;
@@ -1181,6 +1329,32 @@ BEGIN
       $sql$,
       v_nido_a, v_cat_expense_a, v_carlos, v_carlos
     ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'X13', 'Carlos', 'A', 'left', 'historical member cannot modify',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_expense(
+            %L::uuid, %L::uuid, 12, 'Ya salio', DATE '2026-08-21', 'personal',
+            jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 12, 'percentage', 100))
+          )
+        $sql$,
+        v_expense_a, v_cat_expense_a, v_carlos
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_expense(%L::uuid)',
+        v_expense_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.expenses SET description = %L WHERE id = %L',
+        'historical overwrite', v_expense_a
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
   );
 
   PERFORM pg_temp.record_result(
@@ -1531,5 +1705,9 @@ BEGIN
   END IF;
 END;
 $$;
+
+SELECT test_id, actor, household, membership, operation, expected, actual, passed
+FROM rls_test_results
+ORDER BY test_id;
 
 ROLLBACK;

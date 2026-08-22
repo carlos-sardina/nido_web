@@ -244,6 +244,48 @@ describe("dashboard view model", () => {
     assert.match(model.activity[0].title, /Supermercado/);
     assert.equal(model.empty.expenses, false);
     assert.equal(model.empty.activity, false);
+    assert.equal(model.periodExpenses.length, 1);
+    assert.equal(model.periodExpenses[0].id, "e-new");
+  });
+
+  it("drops a soft-deleted expense from totals, period list, and activity", () => {
+    const live: ExpenseRow = {
+      id: "e-live",
+      householdId: "h1",
+      categoryId: "c1",
+      amount: 400,
+      description: "Cafe",
+      occurredAt: "2026-08-21",
+      payerId: "diana",
+      scope: "personal",
+      distributionMethod: "fixed",
+      recurringId: null,
+      createdBy: "diana",
+      createdAt: "2026-08-21T10:00:00.000Z",
+      deletedAt: null,
+      category: { id: "c1", name: "Restaurantes", icon: "🍽️" },
+      payer: { id: "diana", displayName: "Diana Vega" },
+      splits: [{ id: "s1", expenseId: "e-live", memberId: "diana", amount: 400, percentage: 100 }],
+    };
+    const deleted: ExpenseRow = {
+      ...live,
+      id: "e-gone",
+      amount: 9000,
+      deletedAt: "2026-08-21T12:00:00.000Z",
+    };
+
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        expenses: [live, deleted],
+        periodExpenses: [live, deleted],
+      }),
+      members,
+      range,
+    });
+
+    assert.equal(model.periodSpent, 400);
+    assert.deepEqual(model.periodExpenses.map((row) => row.id), ["e-live"]);
+    assert.equal(model.activity.some((item) => item.id === "expense:e-gone"), false);
   });
 
   it("does not add an out-of-month expense to the monthly total", () => {

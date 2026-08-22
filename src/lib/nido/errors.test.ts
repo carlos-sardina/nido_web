@@ -66,6 +66,10 @@ describe("nidoErrorFromUnknown", () => {
     assert.equal(nidoErrorFromUnknown({ message: "nido.invalid_amount" }).code, "invalid_amount");
     assert.equal(nidoErrorFromUnknown({ message: "nido.invalid_category" }).code, "invalid_category");
     assert.equal(nidoErrorFromUnknown({ message: "nido.invalid_split" }).code, "invalid_split");
+    assert.equal(nidoErrorFromUnknown({ message: "nido.expense_not_found" }).code, "expense_not_found");
+    assert.equal(nidoErrorFromUnknown({ message: "nido.expense_deleted" }).code, "expense_deleted");
+    assert.match(userMessageFor("expense_not_found"), /encontramos/i);
+    assert.match(userMessageFor("expense_deleted"), /eliminado/i);
     assert.equal(
       nidoErrorFromUnknown({ message: "nido.forbidden" }).message.includes("auth.uid"),
       false,

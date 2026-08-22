@@ -21,6 +21,9 @@ const USER_MESSAGES: Record<NidoErrorCode, string> = {
   invalid_category: "Esta categoría no está disponible.",
   invalid_split: "La división del gasto no es válida.",
   invalid_date: "La fecha no es válida.",
+  expense_not_found: "No encontramos este gasto.",
+  expense_deleted: "Este gasto ya fue eliminado.",
+  conflict: "Este gasto cambió. Inténtalo de nuevo.",
   network: "No pudimos completar la operación. Inténtalo de nuevo.",
 };
 
@@ -71,6 +74,9 @@ const MESSAGE_CODES: Record<string, NidoErrorCode> = {
   "nido.invalid_category": "invalid_category",
   "nido.invalid_split": "invalid_split",
   "nido.invalid_date": "invalid_date",
+  "nido.expense_not_found": "expense_not_found",
+  "nido.expense_deleted": "expense_deleted",
+  "nido.conflict": "conflict",
 };
 
 function readErrorField(error: unknown, key: string): string | null {
@@ -98,6 +104,9 @@ export function nidoErrorFromUnknown(error: unknown): NidoError {
   if (pgCode === "23505") {
     if (/household_invitations_pending_email/i.test(raw)) {
       return new NidoError("invite_pending");
+    }
+    if (/expense/i.test(raw)) {
+      return new NidoError("conflict");
     }
     return new NidoError("already_in_nido");
   }

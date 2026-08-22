@@ -3,7 +3,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/app/components/ui/utils";
 
-export type NidoButtonVariant = "primary" | "secondary" | "ghost";
+export type NidoButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type NidoButtonSize = "default" | "compact";
 
 export function Button({
@@ -40,6 +40,8 @@ export function Button({
           "bg-secondary text-secondary-foreground hover:bg-muted",
         variant === "ghost" &&
           "bg-transparent text-muted-foreground border border-border hover:bg-muted",
+        variant === "danger" &&
+          "bg-danger text-white hover:opacity-90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-70",
         className,
       )}
       {...props}

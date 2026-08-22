@@ -2,7 +2,7 @@ import type { HouseholdMemberView } from "../types.ts";
 import { buildActivityItems } from "./activity.ts";
 import { buildMonthBudgetView } from "./budgets.ts";
 import { greetingForNow, type MonthRange } from "./dates.ts";
-import { householdSpent } from "./expenses.ts";
+import { householdSpent, isActiveExpense, visiblePeriodExpenses } from "./expenses.ts";
 import { activeGoalProgress, emergencyMonthsCovered, featuredSavingGoal } from "./goals.ts";
 import { computeHealth } from "./health.ts";
 import { periodIncomeTotal } from "./incomes.ts";
@@ -19,7 +19,13 @@ export function buildDashboardViewModel(input: {
 }): DashboardViewModel {
   const { snapshot, members, range, now = new Date() } = input;
   const periodIncome = periodIncomeTotal(snapshot.periodIncomes);
-  const periodSpent = householdSpent(snapshot.periodExpenses);
+  const periodExpenses = visiblePeriodExpenses(
+    snapshot.periodExpenses,
+    range,
+    snapshot.householdId,
+  );
+  const recentExpenses = snapshot.expenses.filter(isActiveExpense);
+  const periodSpent = householdSpent(periodExpenses);
   const activeGoals = activeGoalProgress(snapshot.goals);
   const featured = featuredSavingGoal(snapshot.goals);
   const emergencyMonths = featured
@@ -28,14 +34,14 @@ export function buildDashboardViewModel(input: {
 
   const hasAnyFinancialData =
     snapshot.periodIncomes.length > 0 ||
-    snapshot.periodExpenses.length > 0 ||
+    periodExpenses.length > 0 ||
     snapshot.incomes.length > 0 ||
-    snapshot.expenses.length > 0 ||
+    recentExpenses.length > 0 ||
     snapshot.goals.length > 0 ||
     snapshot.contributions.length > 0 ||
     snapshot.budgets.length > 0;
 
-  const budget = buildMonthBudgetView(snapshot.budgets, snapshot.periodExpenses, range);
+  const budget = buildMonthBudgetView(snapshot.budgets, periodExpenses, range);
   const health = computeHealth({
     incomeThisMonth: periodIncome,
     spentThisMonth: periodSpent,
@@ -78,9 +84,10 @@ export function buildDashboardViewModel(input: {
     budget,
     featuredGoal,
     activeGoals,
+    periodExpenses,
     activity,
     empty: {
-      expenses: snapshot.periodExpenses.length === 0 && snapshot.expenses.length === 0,
+      expenses: periodExpenses.length === 0 && recentExpenses.length === 0,
       incomes: snapshot.periodIncomes.length === 0 && snapshot.incomes.length === 0,
       goals: activeGoals.length === 0,
       activity: activity.length === 0,

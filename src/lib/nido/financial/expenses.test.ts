@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { getMonthRange } from "./dates.ts";
 import {
+  canMutateExpense,
   householdSpent,
   memberBalance,
   memberOwed,
   memberPaid,
+  visiblePeriodExpenses,
 } from "./expenses.ts";
 import type { ExpenseRow, ExpenseSplitRow } from "./types.ts";
 
@@ -82,7 +85,96 @@ describe("expense splits", () => {
     assert.equal(memberBalance(rows, "carlos"), 500);
     assert.equal(memberBalance(rows, "diana"), -500);
   });
+});
 
+describe("expense authorization helper", () => {
+  it("allows only the creator of a live expense", () => {
+    const live = expense({ amount: 100, payerId: "carlos", createdBy: "carlos" });
+    assert.equal(canMutateExpense(live, "carlos"), true);
+    assert.equal(canMutateExpense(live, "diana"), false);
+    assert.equal(canMutateExpense(live, null), false);
+  });
+
+  it("rejects a soft-deleted expense even for the creator", () => {
+    const deleted = expense({
+      amount: 100,
+      payerId: "carlos",
+      createdBy: "carlos",
+      deletedAt: "2026-08-21T12:00:00.000Z",
+    });
+    assert.equal(canMutateExpense(deleted, "carlos"), false);
+  });
+});
+
+describe("visible period expenses", () => {
+  const range = getMonthRange(2026, 8);
+
+  it("excludes soft-deleted rows and another household", () => {
+    const rows = [
+      expense({
+        id: "keep",
+        amount: 80,
+        payerId: "carlos",
+        occurredAt: "2026-08-20",
+        createdAt: "2026-08-20T10:00:00.000Z",
+      }),
+      expense({
+        id: "deleted",
+        amount: 200,
+        payerId: "carlos",
+        occurredAt: "2026-08-21",
+        deletedAt: "2026-08-21T12:00:00.000Z",
+      }),
+      expense({
+        id: "other",
+        householdId: "h2",
+        amount: 50,
+        payerId: "luis",
+        occurredAt: "2026-08-21",
+      }),
+      expense({
+        id: "july",
+        amount: 90,
+        payerId: "carlos",
+        occurredAt: "2026-07-31",
+      }),
+    ];
+    const visible = visiblePeriodExpenses(rows, range, "h1");
+    assert.deepEqual(visible.map((row) => row.id), ["keep"]);
+  });
+
+  it("sorts by date descending then created_at descending", () => {
+    const rows = [
+      expense({
+        id: "older",
+        amount: 10,
+        payerId: "carlos",
+        occurredAt: "2026-08-21",
+        createdAt: "2026-08-21T10:00:00.000Z",
+      }),
+      expense({
+        id: "newer",
+        amount: 20,
+        payerId: "carlos",
+        occurredAt: "2026-08-21",
+        createdAt: "2026-08-21T18:00:00.000Z",
+      }),
+      expense({
+        id: "earlier-day",
+        amount: 30,
+        payerId: "carlos",
+        occurredAt: "2026-08-10",
+        createdAt: "2026-08-10T20:00:00.000Z",
+      }),
+    ];
+    assert.deepEqual(
+      visiblePeriodExpenses(rows, range, "h1").map((row) => row.id),
+      ["newer", "older", "earlier-day"],
+    );
+  });
+});
+
+describe("personal expense split", () => {
   it("treats a personal expense as a single full split", () => {
     const splits = [split({ memberId: "diana", amount: 240, percentage: 100 })];
     const rows = [

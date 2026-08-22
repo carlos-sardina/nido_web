@@ -5,7 +5,8 @@ import {
   BarChart2, Clock, Home, Plus, Target, Users,
 } from "lucide-react";
 import { ActivityScreen } from "@/components/activity/ActivityScreen";
-import { BudgetScreen } from "@/components/budget/BudgetScreen";
+import { ExpenseDetail } from "@/components/expenses/ExpenseDetail";
+import { ExpensesScreen } from "@/components/expenses/ExpensesScreen";
 import { ActionSheet } from "@/components/flows/ActionSheet";
 import { ComingSoon } from "@/components/flows/ComingSoon";
 import { ExpenseFlow } from "@/components/flows/ExpenseFlow";
@@ -17,6 +18,7 @@ import { applyProfileDisplayName, identityFromUser } from "@/lib/auth/identity";
 import { P } from "@/lib/palette";
 import type { Flow, Model, Tab } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
+import type { ExpenseRow } from "@/lib/nido/financial";
 import { useDashboard } from "@/lib/nido/use-dashboard";
 import type { Household, HouseholdMember, HouseholdMemberView, Profile } from "@/lib/nido/types";
 
@@ -45,6 +47,8 @@ export function MainApp({
   const [showSheet, setShowSheet] = useState(false);
   const [activeFlow, setActiveFlow] = useState<Flow>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [selectedExpense, setSelectedExpense] = useState<ExpenseRow | null>(null);
+  const [editingExpense, setEditingExpense] = useState<ExpenseRow | null>(null);
   const dashboard = useDashboard(household.id, members);
 
   const tabs = [
@@ -57,12 +61,22 @@ export function MainApp({
 
   const handleFlowDone = () => {
     setActiveFlow(null);
+    setEditingExpense(null);
+    setSelectedExpense(null);
     void dashboard.refresh();
   };
 
   const openFlow = (flow: Flow) => {
     setShowSheet(false);
+    setEditingExpense(null);
     setActiveFlow(flow);
+  };
+
+  const openExpenseCreate = () => {
+    setShowSheet(false);
+    setSelectedExpense(null);
+    setEditingExpense(null);
+    setActiveFlow("expense");
   };
 
   return (
@@ -78,7 +92,14 @@ export function MainApp({
               onNavigate={t => { setTab(t); setShowSheet(false); }}
             />
           )}
-          {tab === "budget"    && <BudgetScreen />}
+          {tab === "budget"    && (
+            <ExpensesScreen
+              dashboard={dashboard}
+              members={members}
+              onOpenExpense={setSelectedExpense}
+              onRegisterExpense={openExpenseCreate}
+            />
+          )}
           {tab === "goals"     && <GoalsScreen />}
           {tab === "household" && (
             <HouseholdScreen
@@ -128,11 +149,30 @@ export function MainApp({
           />
         )}
 
+        {selectedExpense && activeFlow !== "expense" && (
+          <ExpenseDetail
+            expense={selectedExpense}
+            members={members}
+            currentUserId={user?.id ?? null}
+            onClose={() => setSelectedExpense(null)}
+            onEdit={() => {
+              setEditingExpense(selectedExpense);
+              setSelectedExpense(null);
+              setActiveFlow("expense");
+            }}
+            onDeleted={handleFlowDone}
+          />
+        )}
+
         {activeFlow === "expense" && (
           <ExpenseFlow
             householdId={household.id}
             members={members}
-            onClose={() => setActiveFlow(null)}
+            expense={editingExpense}
+            onClose={() => {
+              setActiveFlow(null);
+              setEditingExpense(null);
+            }}
             onDone={handleFlowDone}
           />
         )}

@@ -58,4 +58,7 @@ export type NidoErrorCode =
   | "invalid_category"
   | "invalid_split"
   | "invalid_date"
+  | "expense_not_found"
+  | "expense_deleted"
+  | "conflict"
   | "network";

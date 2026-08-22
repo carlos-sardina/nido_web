@@ -74,6 +74,67 @@ describe("createExpenseWithAuth (unit, mocked auth adapter)", () => {
     }
   });
 
+  it("does not call the RPC for an invalid category", async () => {
+    let called = 0;
+    const result = await createExpenseWithAuth(
+      { ...validInput, categoryId: "other" },
+      {
+        getUserId: async () => "u1",
+        rpc: async () => {
+          called += 1;
+          return { data: "e-1", error: null };
+        },
+      },
+    );
+    assert.equal(result.ok, false);
+    if (result.ok === false) assert.equal(result.error.code, "invalid_category");
+    assert.equal(called, 0);
+  });
+
+  it("does not call the RPC for an inactive participant", async () => {
+    let called = 0;
+    const result = await createExpenseWithAuth(
+      {
+        ...validInput,
+        scope: "shared",
+        participantIds: ["u1", "luis"],
+      },
+      {
+        getUserId: async () => "u1",
+        rpc: async () => {
+          called += 1;
+          return { data: "e-1", error: null };
+        },
+      },
+    );
+    assert.equal(result.ok, false);
+    if (result.ok === false) assert.equal(result.error.code, "invalid_split");
+    assert.equal(called, 0);
+  });
+
+  it("sends equal splits for a valid shared expense", async () => {
+    const result = await createExpenseWithAuth(
+      {
+        ...validInput,
+        scope: "shared",
+        amount: 100,
+        participantIds: ["u1", "u2"],
+        activeMemberIds: ["u1", "u2"],
+      },
+      {
+        getUserId: async () => "u1",
+        rpc: async (fn, args) => {
+          assert.equal(fn, "create_expense");
+          const splits = args.p_splits as Array<{ member_id: string; amount: number }>;
+          assert.equal(splits.length, 2);
+          assert.equal(splits.reduce((sum, split) => sum + Math.round(split.amount * 100), 0), 10000);
+          return { data: "e-shared", error: null };
+        },
+      },
+    );
+    assert.equal(result.ok, true);
+  });
+
   it("returns the created id when the RPC succeeds", async () => {
     const result = await createExpenseWithAuth(validInput, {
       getUserId: async () => "u1",

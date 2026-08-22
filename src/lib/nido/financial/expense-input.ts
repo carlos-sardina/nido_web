@@ -47,6 +47,12 @@ function decimalPlacesOf(normalized: string): number {
  * MoneyField already strips currency symbols; this still rejects
  * scientific notation, extra decimals, NaN, and Infinity.
  */
+export function amountToExpenseInput(amount: number): string {
+  const rounded = roundMoney(amount);
+  if (!Number.isFinite(rounded)) return "";
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+}
+
 export function parseExpenseAmountInput(raw: string | null | undefined): number | null {
   if (raw == null) return null;
   const trimmed = raw.trim();

@@ -14,12 +14,14 @@ import {
 } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
 import { Text } from "@/components/nido/Typography";
-import { canSubmitExpense, createExpense } from "@/lib/nido/expenses";
+import { canSubmitExpense, createExpense, updateExpense } from "@/lib/nido/expenses";
 import {
+  amountToExpenseInput,
   expenseAmountMessage,
   expenseDescriptionMessage,
   parseExpenseAmountInput,
   todayIso,
+  type ExpenseRow,
   type ExpenseScope,
   type HouseholdCategory,
 } from "@/lib/nido/financial";
@@ -39,23 +41,30 @@ type FieldErrors = {
 export function ExpenseFlow({
   householdId,
   members,
+  expense,
   onClose,
   onDone,
 }: {
   householdId: string;
   members: HouseholdMemberView[];
+  expense?: ExpenseRow | null;
   onClose: () => void;
   onDone: () => void;
 }) {
   const ids = useId();
   const submittingRef = useRef(false);
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [occurredAt, setOccurredAt] = useState(() => todayIso());
-  const [scope, setScope] = useState<ExpenseScope | null>(null);
+  const isEditing = Boolean(expense);
+  const [amount, setAmount] = useState(() =>
+    expense ? amountToExpenseInput(expense.amount) : "",
+  );
+  const [description, setDescription] = useState(() => expense?.description ?? "");
+  const [categoryId, setCategoryId] = useState(() => expense?.categoryId ?? "");
+  const [occurredAt, setOccurredAt] = useState(() => expense?.occurredAt ?? todayIso());
+  const [scope, setScope] = useState<ExpenseScope | null>(() => expense?.scope ?? null);
   const [participantIds, setParticipantIds] = useState<string[]>(() =>
-    members.map((member) => member.userId),
+    expense?.scope === "shared"
+      ? expense.splits.map((split) => split.memberId)
+      : members.map((member) => member.userId),
   );
   const [categories, setCategories] = useState<HouseholdCategory[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
@@ -132,7 +141,7 @@ export function ExpenseFlow({
     setSubmitting(true);
     setErrors({});
 
-    const result = await createExpense({
+    const request = {
       householdId,
       categoryId,
       amount: parsedAmount,
@@ -142,7 +151,10 @@ export function ExpenseFlow({
       participantIds,
       activeMemberIds: members.map((member) => member.userId),
       allowedCategoryIds: categories.map((category) => category.id),
-    });
+    };
+    const result = expense
+      ? await updateExpense({ ...request, expenseId: expense.id })
+      : await createExpense(request);
 
     if (result.ok === false) {
       submittingRef.current = false;
@@ -154,7 +166,11 @@ export function ExpenseFlow({
     onDone();
   };
 
-  const saveLabel = submitting ? "Guardando…" : "Guardar gasto";
+  const saveLabel = submitting
+    ? "Guardando…"
+    : isEditing
+      ? "Guardar cambios"
+      : "Guardar gasto";
 
   return (
     <div className="absolute inset-0 z-30">
@@ -179,8 +195,12 @@ export function ExpenseFlow({
             <BackLink onClick={onClose} label="Cerrar" />
             <ScreenIntro
               className="mb-6"
-              title="Registrar un gasto"
-              description="El gasto se guarda en tu Nido activo."
+              title={isEditing ? "Editar gasto" : "Registrar un gasto"}
+              description={
+                isEditing
+                  ? "Los cambios se guardan en tu Nido activo."
+                  : "El gasto se guarda en tu Nido activo."
+              }
             />
           </div>
 

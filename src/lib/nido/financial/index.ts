@@ -13,12 +13,15 @@ export {
   type MonthRange,
 } from "./dates.ts";
 export {
+  canMutateExpense,
   householdSpent,
+  isActiveExpense,
   isPersonalExpense,
   isRecurringExpense,
   memberBalance,
   memberOwed,
   memberPaid,
+  visiblePeriodExpenses,
 } from "./expenses.ts";
 export {
   activeExpenseCategories,
@@ -32,6 +35,7 @@ export {
   splitIssue,
 } from "./splits.ts";
 export {
+  amountToExpenseInput,
   buildCreateExpensePayload,
   expenseAmountMessage,
   expenseDescriptionMessage,

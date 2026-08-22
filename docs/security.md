@@ -183,7 +183,9 @@ Using an archived category on a new transaction remains an application rule.
 
 ### Financial and planning tables with `household_id`
 
-Applies to `incomes`, `recurring_incomes`, `expenses`, `recurring_expenses`, `budgets`, and `goals`.
+Applies to `incomes`, `recurring_incomes`, `recurring_expenses`, `budgets`, and `goals`.
+
+**`expenses` UPDATE is tighter** (Phase 9.1.2B): the writer must be an **active** member, `created_by = auth.uid()`, and the row must not already be soft-deleted. Other members may SELECT. See the expenses table below.
 
 | Operation | Policy |
 | --- | --- |
@@ -204,12 +206,14 @@ Budgets do not restrict spending.
 
 Applies to `expense_splits`, `recurring_expense_splits`, and `goal_contributions`.
 
+**`expense_splits` writes** (Phase 9.1.2B) require `can_mutate_expense(expense_id)`: active membership, `created_by = auth.uid()`, and `deleted_at IS NULL` on the parent. SELECT stays historical-member.
+
 | Operation | Policy |
 | --- | --- |
 | SELECT | Historical member of the parent household |
-| INSERT | Active member of the parent household. Split/contribution `member_id` must be an active member of that household. `goal_contributions.created_by` must be `auth.uid()` |
-| UPDATE | Active member of the parent household |
-| DELETE | Active member of the parent household |
+| INSERT | Parent-household write rule. Split/contribution `member_id` must be an active member of that household. `goal_contributions.created_by` must be `auth.uid()` |
+| UPDATE | Parent-household write rule |
+| DELETE | Parent-household write rule |
 
 DELETE on splits is allowed so an edit can replace participants. Aggregate split totals remain an application/service transaction rule. There is no incremental-insert-blocking trigger.
 
@@ -257,9 +261,9 @@ Still application/service work:
 - Leave / invite accept (`leave_household`, `accept_invitation`)
 - Owner transfer (not implemented)
 - At-least-one-owner invariant (enforced on leave; not an RLS trigger)
-- Expense + all splits in one transaction, including sum and personal-expense cardinality (`create_expense`)
+- Expense + all splits in one transaction, including sum and personal-expense cardinality (`create_expense`, `update_expense`)
 - Recurring generate / edit / skip / confirm
-- Soft-delete via `deleted_at`, deactivate via `is_active`, archive via `archived_at` / goal `status`
+- Soft-delete via `deleted_at` (`soft_delete_expense` for expenses), deactivate via `is_active`, archive via `archived_at` / goal `status`
 - Do not use archived categories on new transactions
 - Do not hard-delete households, expenses, or goals in normal operation
 - Income-based distribution and “requires review” derivation
@@ -347,18 +351,21 @@ Expected results for the documented actors. `allow` / `deny` are RLS outcomes. S
 | --- | --- | --- | --- | --- |
 | Carlos | A | active | SELECT expense | allow |
 | Carlos | A | active | INSERT expense | allow |
-| Carlos | A | active | UPDATE expense | allow |
-| Carlos | A | active | SELECT/INSERT/UPDATE/DELETE split | allow |
+| Carlos | A | active, creator | UPDATE / soft-delete expense | allow |
+| Diana | A | active, not creator | UPDATE / soft-delete Carlos expense | deny |
+| Carlos | A | active | SELECT/INSERT/UPDATE/DELETE split of own expense | allow |
+| Diana | A | active, not creator | INSERT/UPDATE/DELETE split of Carlos expense | deny |
 | Carlos | A | active | INSERT expense into B | deny |
 | Carlos | A | active | INSERT split with Luis as participant | deny |
 | Carlos | A | active | INSERT expense with fake `created_by` | deny |
 | Carlos | A | left | SELECT historical expense/split | allow |
 | Carlos | A | left | INSERT/UPDATE expense | deny |
 | Luis | A | never member | SELECT expense/split | deny |
-| Luis | A | never member | INSERT expense | deny |
+| Luis | A | never member | INSERT/UPDATE expense | deny |
 | Carlos | B | active | INSERT expense in B | allow |
 | Carlos | A | left, now in B | SELECT A history | allow |
 | Carlos | A | left, now in B | WRITE A | deny |
+| Carlos | A | active | UPDATE already soft-deleted expense | deny |
 
 ### Recurring expenses and splits
 
@@ -407,13 +414,15 @@ Result: RLS coverage validation passed for 14 tables. The script confirmed RLS i
 
 ### Behavioral matrix against the linked project
 
-`supabase/tests/rls_security_matrix.sql` was executed against the linked hosted project with:
+`supabase/tests/rls_security_matrix.sql` was executed against the linked hosted project in this phase, including `X01`–`X14`. All assertions passed. The script rolls back seeded users.
 
 ```bash
 npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
 ```
 
-It impersonates Carlos, Diana, and Luis with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, and post-leave historical read.
+It impersonates Carlos, Diana, and Luis with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, and expense mutation cases `X01`–`X14`.
+
+`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. They are runtime SQL, not unit mocks.
 
 The script rolls back seeded users. After the run, `auth.users` and application tables were empty.
 

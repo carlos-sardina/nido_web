@@ -880,6 +880,10 @@ export type Database = {
           name: string
         }[]
       }
+      can_mutate_expense: {
+        Args: { p_expense_id: string }
+        Returns: boolean
+      }
       create_expense: {
         Args: {
           p_amount: number
@@ -948,6 +952,22 @@ export type Database = {
         }[]
       }
       shares_household_with: { Args: { p_user_id: string }; Returns: boolean }
+      soft_delete_expense: {
+        Args: { p_expense_id: string }
+        Returns: string
+      }
+      update_expense: {
+        Args: {
+          p_amount: number
+          p_category_id: string
+          p_description: string
+          p_expense_id: string
+          p_occurred_at: string
+          p_scope: Database["public"]["Enums"]["expense_scope"]
+          p_splits: Json
+        }
+        Returns: string
+      }
     }
     Enums: {
       budget_period: "monthly"

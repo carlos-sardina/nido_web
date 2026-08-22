@@ -1,14 +1,16 @@
-# Financial data layer (Phase 9.1.2A)
+# Financial data layer (Phase 9.1.2B)
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
-Phase 9.1.1 was **read-only**. Phase 9.1.2A adds:
+Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar un gasto**. Phase 9.1.2B closes the expense module:
 
-- a household expense category catalog
-- **Registrar un gasto** from the Home `+` sheet
-- an atomic `create_expense` RPC
+- Gastos reads the same dashboard snapshot
+- expense detail
+- creator edit / soft-delete
+- `update_expense` / `soft_delete_expense` RPCs
+- creator-only UPDATE RLS
 
-Metas and aportaciones are still not implemented.
+Metas, aportaciones, ingresos, presupuestos, and recurrencias are still not implemented.
 
 ---
 
@@ -138,7 +140,54 @@ Messages are Spanish `NidoError` copy. Raw Supabase / Postgres text is never sho
 
 The save button is disabled with **Guardando…** (`aria-busy`) while the request is in flight. A second tap does not call the RPC.
 
-After success the form closes and Home refreshes the live snapshot. Totals, activity, and health come from the financial layer, not from a local mock patch.
+After success the form closes and Home/Gastos refresh the live snapshot. Totals, activity, and health come from the financial layer, not from a local mock patch.
+
+---
+
+## Authorization (product contract)
+
+Only the **creator** of an expense may edit or soft-delete it. Other members of the Nido may read it. This applies to personal and shared expenses.
+
+Authority:
+
+`auth.uid()` → active household membership → `expense.household_id` → `expense.created_by = auth.uid()`
+
+The UI hides Editar/Eliminar for non-creators. That is not sufficient. RLS and RPCs reject a mutation that supplies another UUID.
+
+| Actor | SELECT | UPDATE / soft-delete |
+| --- | --- | --- |
+| Active member, creator | yes | yes, if `deleted_at` is null |
+| Active member, not creator | yes | no |
+| Historical member | yes (existing SELECT policy) | no |
+| Other household | no | no |
+
+---
+
+## Edit
+
+Gastos → row → detail → **Editar** (creator only) reuses `ExpenseFlow`. Same validations as create. Changing personal↔shared, participants, category, or amount **replaces** `expense_splits` in one transaction (`update_expense`). There are no orphan splits: old rows are deleted, then the canonical set is inserted.
+
+Payer and `created_by` stay the original creator. The client cannot change them.
+
+---
+
+## Soft-delete
+
+There is no physical `DELETE FROM expenses`. `soft_delete_expense` sets `deleted_at`. Splits remain. Dashboard queries, totals, Gastos, and normal activity filter `deleted_at IS NULL`.
+
+Confirmation copy:
+
+- **¿Eliminar este gasto?**
+- **Esta acción quitará el gasto de tus totales y actividad.**
+- Cancelar (ghost) / Eliminar gasto (`Button` danger)
+
+Already-deleted expenses cannot be edited or deleted again.
+
+---
+
+## Gastos screen
+
+The Gastos tab (`budget` in navigation) lists `model.periodExpenses` from `useDashboard()`. Same month range (`America/Mexico_City`), same snapshot as Home. Empty Nido: **Sin gastos todavía** + **Registrar un gasto** (existing ExpenseFlow).
 
 ---
 
@@ -148,11 +197,11 @@ After success the form closes and Home refreshes the live snapshot. Totals, acti
 | --- | --- |
 | `queries/dashboard.ts` | `fetchDashboardSnapshot(householdId)` |
 | `queries/categories.ts` | `fetchActiveExpenseCategories(householdId)` |
-| `expenses.ts` | `createExpense(...)` → `create_expense` |
+| `expenses.ts` | `createExpense` / `updateExpense` / `deleteExpense` |
 | `financial/` | dates, money, splits, validation, dashboard view model |
-| `use-dashboard.ts` | Home hook; refresh after a successful gasto |
+| `use-dashboard.ts` | shared snapshot; `refresh()` after create/edit/delete |
 
-Visual components do not query Supabase tables directly.
+Visual components do not query Supabase tables directly. Home and Gastos do not keep a parallel financial store.
 
 ---
 
@@ -166,20 +215,17 @@ Onboarding income/expenses are still not persisted. A newly created Nido has def
 
 ## RLS
 
-SELECT policies require historical membership (`is_household_member`). INSERT/UPDATE remain active-member + `created_by = auth.uid()` where that column exists. Physical DELETE is denied on incomes/expenses/goals.
+SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense **UPDATE** (including soft-delete) requires the same plus `created_by = auth.uid()` and `deleted_at IS NULL` on the existing row. Physical DELETE remains denied on incomes/expenses/goals.
 
-9.1.2A does **not** add or duplicate policies. `create_expense` is `SECURITY INVOKER`. Authorization is still:
+`create_expense`, `update_expense`, and `soft_delete_expense` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`.
 
-`auth.uid()` → active membership → household allowed → category in that household → split members active in that household.
-
-No `service_role` client. Historical members can still SELECT old rows and cannot create a new expense.
-
-SQL coverage for `create_expense` lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X07`). Those tests are not run by the default unit-test command.
+SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
 
 ---
 
 ## Ownership
 
-- Dashboard and gasto creation: active household from `useMyNido` only
+- Dashboard and gasto mutations: active household from `useMyNido` only
+- Only the expense creator may update or soft-delete
 - A user without an active Nido never reaches MainApp
-- Historical membership can still SELECT old rows (by design) but the dashboard and the form do not use them
+- Historical membership can still SELECT old rows (by design) but the dashboard and forms do not use them

@@ -4,7 +4,7 @@ Use this against a real Vercel + Supabase + SMTP environment. Automated unit tes
 
 Confirm email stays enabled. Google OAuth stays disabled. Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
 
-Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Gastos / Metas / Actividad screens remain prototype until 9.1.3. See [financial.md](./financial.md).
+Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Metas / Actividad screens remain prototype. See [financial.md](./financial.md).
 
 The 60-second email cooldown is a **UX protection**. It prevents accidental repeat clicks and shows a countdown. The real protection against abuse remains in **Supabase Auth rate limits** and **Brevo SMTP limits**. The frontend cooldown does not replace or weaken those provider limits.
 
@@ -221,6 +221,33 @@ Manual runs actually executed for this checklist: none in this phase.
 
 ---
 
+## Cerrar gastos (Phase 9.1.2B)
+
+Requires migrations `20260821000000_nido_categories_and_create_expense.sql` and `20260821120000_nido_expense_mutations.sql` on the linked project. Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. SQL cases `X08`–`X14` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). The manual UI checklist below was **not** executed in a live app session.
+
+A. **Crear gasto personal** — Home `+` → Registrar un gasto → personal → aparece en Home y Gastos.
+B. **Crear gasto compartido** — al menos dos miembros activos; los splits suman el monto.
+C. **Ver gasto en Home** — total del mes y actividad reciente usan el snapshot real.
+D. **Ver gasto en Gastos** — lista del mes actual, sin mocks, ordenada por fecha.
+E. **Abrir detalle** — descripción, monto, categoría, fecha, personal/compartido, quién registró, quién pagó, distribución si es compartido.
+F. **Editar como creador** — Editar visible; validaciones iguales a crear; splits se reemplazan.
+G. **Ver cambio en Home** — después de guardar, `useDashboard().refresh()` actualiza totales y actividad.
+H. **Intentar editar como otro miembro** — no hay Editar/Eliminar; una mutación directa debe rechazarse (RLS/RPC, no solo UI).
+I. **Eliminar como creador** — confirmación **¿Eliminar este gasto?** / **Esta acción quitará el gasto de tus totales y actividad.** Cancelar (ghost) + Eliminar gasto (danger). No borra al primer tap.
+J. **Desaparece de totales** — el monto ya no entra en el mes.
+K. **Desaparece de actividad normal** — no aparece en la capa de actividad del snapshot (la pantalla Actividad sigue siendo prototipo).
+L. **Intentar eliminar como otro miembro** — no hay botón; RPC/RLS rechaza.
+M. **Refresh** — los gastos reales siguen; el soft-deleted no vuelve.
+N. **Logout/login** — misma lista y totales.
+O. **Mobile** — scroll, safe-area, footer 56px, pinch-to-zoom habilitado.
+P. **Empty state** — Nido sin gastos: **Sin gastos todavía** + **Registrar un gasto** abre el mismo ExpenseFlow.
+Q. **Error de red** — copy en español, sin PostgREST.
+R. **Doble tap** — Guardar / Eliminar: un solo request, botones disabled + loading.
+
+Manual runs actually executed for this checklist: none in this phase.
+
+---
+
 ## Unconfirmed login
 
 If Supabase reports email-not-confirmed on login:
@@ -239,7 +266,7 @@ If Supabase reports email-not-confirmed on login:
 - No sensitive auth data in `sessionStorage` (draft is onboarding fields only; pending invite is a join token, not an access token; email cooldown stores only action, normalized email, and a timestamp)
 - `?next=` rejects absolute URLs (`safeNextPath`)
 - Recovery marker still distinguishes recovery from login
-- RLS unchanged except additive `create_expense` coverage in the SQL matrix (`X01`–`X07`); no new policies
+- RLS for expense UPDATE/splits is now creator-only (`20260821120000`); SQL matrix `X01`–`X14` needs a real database. Unit mocks are not RLS proofs.
 - No account enumeration on signup, resend, or recovery
 - No “email exists” lookup, RPC, or client query to `auth.users`
 - Signup does not inspect `identities` / user id to branch the UI
