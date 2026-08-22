@@ -10,7 +10,8 @@
 --      expense mutations, goal mutations, goal contribution mutations,
 --      goal contribution edit / soft-delete, income mutations,
 --      budget mutations, owner transfer, recurrence mutations,
---      onboarding financial persist, household categories/split)
+--      onboarding financial persist, household categories/split,
+--      onboarding savings / budgets)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -5036,6 +5037,373 @@ BEGIN
     'Y20', 'Carlos', 'A', 'active', 'shared equal keeps equal distribution',
     'allow',
     CASE WHEN v_eq_dist = 'equal' THEN 'allow' ELSE 'deny' END
+  );
+END;
+$$;
+
+-- Phase 9.4.2 — onboarding savings stock, estimates → budgets, split method
+DO $$
+DECLARE
+  v_quinn uuid := '0a0a0a0a-0a0a-4a0a-8a0a-0a0a0a0a0a01';
+  v_rita uuid := '0a0a0a0a-0a0a-4a0a-8a0a-0a0a0a0a0a02';
+  v_carlos uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_quinn_nido uuid;
+  v_rita_nido uuid;
+  v_today date := (timezone('America/Mexico_City', now()))::date;
+  v_month_start date := date_trunc('month', (timezone('America/Mexico_City', now()))::date)::date;
+  v_month_end date;
+  v_savings_personal integer;
+  v_savings_shared integer;
+  v_income_count integer;
+  v_expense_count integer;
+  v_goal_count integer;
+  v_budget_shared integer;
+  v_budget_personal integer;
+  v_budget_amount numeric;
+  v_budget_member uuid;
+  v_renta_count integer;
+  v_vivienda_count integer;
+  v_restaurantes_count integer;
+  v_split public.household_split_method;
+  v_retry_id uuid;
+  v_foreign_savings integer;
+BEGIN
+  v_month_end := (v_month_start + interval '1 month' - interval '1 day')::date;
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  PERFORM pg_temp.create_auth_user(v_quinn, 'quinn-rls@example.test', 'Quinn');
+  PERFORM pg_temp.create_auth_user(v_rita, 'rita-rls@example.test', 'Rita');
+
+  PERFORM pg_temp.clear_auth();
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.record_result(
+    'OB12', 'none', '-', 'none', 'unauthenticated cannot persist onboarding stock',
+    'deny',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.create_household_with_onboarding_income(
+          'Nido huérfano 942',
+          1000,
+          'equal',
+          100,
+          200,
+          '[{"name":"Renta","icon":"🏢","type":"shared","amount":8000}]'::jsonb
+        )
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.set_auth(v_quinn);
+  PERFORM pg_temp.record_result(
+    'OB13', 'Quinn', 'new', 'none', 'capacity split is rejected',
+    'deny',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.create_household_with_onboarding_income(
+          'Nido capacity',
+          1000,
+          'capacity'
+        )
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  PERFORM pg_temp.record_result(
+    'OB13b', 'Quinn', 'new', 'none', 'rejected capacity left no Nido',
+    'allow',
+    CASE WHEN NOT EXISTS (
+      SELECT 1 FROM public.household_members WHERE user_id = '0a0a0a0a-0a0a-4a0a-8a0a-0a0a0a0a0a01' AND left_at IS NULL
+    ) THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_quinn);
+  PERFORM pg_temp.record_result(
+    'OB14', 'Quinn', 'new', 'none', 'equal persist with savings and estimates',
+    'allow',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.create_household_with_onboarding_income(
+          'Nido Quinn',
+          25000,
+          'equal',
+          1500,
+          2000,
+          '[
+            {"name":"Renta","icon":"🏢","type":"shared","amount":8000},
+            {"name":"Gym","icon":"🏋️","type":"personal","amount":800},
+            {"name":"Restaurantes","icon":"🍔","type":"shared","amount":1500},
+            {"name":"Spotify","icon":"🎵","type":"personal","amount":200}
+          ]'::jsonb
+        )
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  SELECT h.id, h.default_split_method
+  INTO v_quinn_nido, v_split
+  FROM public.households AS h
+  INNER JOIN public.household_members AS hm ON hm.household_id = h.id
+  WHERE hm.user_id = v_quinn AND hm.left_at IS NULL;
+
+  SELECT count(*) INTO v_savings_personal
+  FROM public.savings_balances
+  WHERE household_id = v_quinn_nido AND member_id = v_quinn AND amount = 1500;
+
+  SELECT count(*) INTO v_savings_shared
+  FROM public.savings_balances
+  WHERE household_id = v_quinn_nido AND member_id IS NULL AND amount = 2000;
+
+  SELECT count(*) INTO v_income_count
+  FROM public.incomes
+  WHERE household_id = v_quinn_nido AND deleted_at IS NULL;
+
+  SELECT count(*) INTO v_expense_count
+  FROM public.expenses
+  WHERE household_id = v_quinn_nido AND deleted_at IS NULL;
+
+  SELECT count(*) INTO v_goal_count
+  FROM public.goals
+  WHERE household_id = v_quinn_nido;
+
+  SELECT count(*) INTO v_budget_shared
+  FROM public.budgets
+  WHERE household_id = v_quinn_nido
+    AND member_id IS NULL
+    AND deleted_at IS NULL
+    AND start_date = v_month_start
+    AND end_date = v_month_end;
+
+  SELECT count(*) INTO v_budget_personal
+  FROM public.budgets
+  WHERE household_id = v_quinn_nido
+    AND member_id = v_quinn
+    AND deleted_at IS NULL
+    AND start_date = v_month_start
+    AND end_date = v_month_end;
+
+  SELECT count(*) INTO v_renta_count
+  FROM public.categories
+  WHERE household_id = v_quinn_nido
+    AND type = 'expense'
+    AND archived_at IS NULL
+    AND lower(name) = 'renta';
+
+  SELECT count(*) INTO v_vivienda_count
+  FROM public.categories
+  WHERE household_id = v_quinn_nido
+    AND type = 'expense'
+    AND archived_at IS NULL
+    AND lower(name) = 'vivienda';
+
+  SELECT count(*) INTO v_restaurantes_count
+  FROM public.categories
+  WHERE household_id = v_quinn_nido
+    AND type = 'expense'
+    AND archived_at IS NULL
+    AND lower(name) = 'restaurantes';
+
+  PERFORM pg_temp.record_result(
+    'OB15', 'Quinn', 'own', 'owner', 'equal split persisted',
+    'allow',
+    CASE WHEN v_split = 'equal' THEN 'allow' ELSE 'deny' END
+  );
+  PERFORM pg_temp.record_result(
+    'OB16', 'Quinn', 'own', 'owner', 'personal and shared savings stock persisted',
+    'allow',
+    CASE WHEN v_savings_personal = 1 AND v_savings_shared = 1 THEN 'allow' ELSE 'deny' END
+  );
+  PERFORM pg_temp.record_result(
+    'OB17', 'Quinn', 'own', 'owner', 'savings did not become income, expense, or goal',
+    'allow',
+    CASE
+      WHEN v_income_count = 1 AND v_expense_count = 0 AND v_goal_count = 0
+      THEN 'allow' ELSE 'deny'
+    END
+  );
+  PERFORM pg_temp.record_result(
+    'OB18', 'Quinn', 'own', 'owner', 'shared estimates became Nido budgets for this month',
+    'allow',
+    CASE WHEN v_budget_shared = 2 THEN 'allow' ELSE 'deny' END
+  );
+  PERFORM pg_temp.record_result(
+    'OB19', 'Quinn', 'own', 'owner', 'personal estimates became personal budgets',
+    'allow',
+    CASE WHEN v_budget_personal = 2 THEN 'allow' ELSE 'deny' END
+  );
+  PERFORM pg_temp.record_result(
+    'OB20', 'Quinn', 'own', 'owner', 'Renta is a custom category, not Vivienda',
+    'allow',
+    CASE WHEN v_renta_count = 1 AND v_vivienda_count = 1 THEN 'allow' ELSE 'deny' END
+  );
+  PERFORM pg_temp.record_result(
+    'OB21', 'Quinn', 'own', 'owner', 'Restaurantes reused the default category',
+    'allow',
+    CASE WHEN v_restaurantes_count = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  SELECT b.amount, b.member_id
+  INTO v_budget_amount, v_budget_member
+  FROM public.budgets AS b
+  INNER JOIN public.categories AS c ON c.id = b.category_id
+  WHERE b.household_id = v_quinn_nido
+    AND b.deleted_at IS NULL
+    AND lower(c.name) = 'renta';
+
+  PERFORM pg_temp.record_result(
+    'OB22', 'Quinn', 'own', 'owner', 'Renta budget amount and household scope',
+    'allow',
+    CASE
+      WHEN v_budget_amount = 8000 AND v_budget_member IS NULL
+      THEN 'allow' ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_quinn);
+  SELECT id INTO v_retry_id
+  FROM public.create_household_with_onboarding_income(
+    'Nido Quinn otra vez',
+    99999,
+    'proportional',
+    50,
+    60,
+    '[{"name":"Renta","icon":"🏢","type":"shared","amount":1}]'::jsonb
+  );
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  PERFORM pg_temp.record_result(
+    'OB23', 'Quinn', 'own', 'owner', 'retry does not duplicate household, savings, budgets, or categories',
+    'allow',
+    CASE
+      WHEN v_retry_id = v_quinn_nido
+       AND (
+         SELECT count(*) FROM public.savings_balances WHERE household_id = v_quinn_nido
+       ) = 2
+       AND (
+         SELECT count(*) FROM public.budgets
+         WHERE household_id = v_quinn_nido AND deleted_at IS NULL
+       ) = 4
+       AND v_renta_count = 1
+       AND (
+         SELECT default_split_method FROM public.households WHERE id = v_quinn_nido
+       ) = 'equal'
+      THEN 'allow' ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_rita);
+  PERFORM pg_temp.record_result(
+    'OB24', 'Rita', 'new', 'none', 'proportional persist with zero savings',
+    'allow',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.create_household_with_onboarding_income(
+          'Nido Rita',
+          0,
+          'proportional',
+          0,
+          0,
+          '[{"name":"Supermercado","icon":"🛒","type":"shared","amount":3000}]'::jsonb
+        )
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  SELECT h.id, h.default_split_method
+  INTO v_rita_nido, v_split
+  FROM public.households AS h
+  INNER JOIN public.household_members AS hm ON hm.household_id = h.id
+  WHERE hm.user_id = v_rita AND hm.left_at IS NULL;
+
+  PERFORM pg_temp.record_result(
+    'OB25', 'Rita', 'own', 'owner', 'proportional split and zero stock persisted without income',
+    'allow',
+    CASE
+      WHEN v_split = 'proportional'
+       AND (
+         SELECT count(*) FROM public.incomes
+         WHERE household_id = v_rita_nido AND deleted_at IS NULL
+       ) = 0
+       AND (
+         SELECT count(*) FROM public.savings_balances
+         WHERE household_id = v_rita_nido AND amount = 0
+       ) = 2
+       AND (
+         SELECT count(*) FROM public.categories
+         WHERE household_id = v_rita_nido
+           AND type = 'expense'
+           AND archived_at IS NULL
+           AND lower(name) = 'supermercado'
+       ) = 1
+       AND (
+         SELECT count(*) FROM public.expenses
+         WHERE household_id = v_rita_nido AND deleted_at IS NULL
+       ) = 0
+      THEN 'allow' ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'OB26', 'Carlos', 'B', 'active elsewhere', 'cannot write savings into another Nido by payload',
+    'allow',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.create_household_with_onboarding_income(
+          'Nido ajeno',
+          10,
+          'equal',
+          999,
+          999,
+          '[]'::jsonb
+        )
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.clear_auth();
+  RESET ROLE;
+  SELECT count(*) INTO v_foreign_savings
+  FROM public.savings_balances
+  WHERE household_id IN (v_nido_a, v_nido_b);
+
+  PERFORM pg_temp.record_result(
+    'OB27', 'Carlos', 'A/B', 'active', 'existing Nidos received no onboarding savings',
+    'allow',
+    CASE WHEN v_foreign_savings = 0 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_rita);
+  PERFORM pg_temp.record_result(
+    'OB28', 'Rita', 'Quinn', 'other Nido', 'cannot insert personal savings for another member',
+    'deny',
+    pg_temp.expect_allow(
+      format(
+        $sql$
+          INSERT INTO public.savings_balances (
+            household_id, member_id, amount, recorded_at, created_by
+          ) VALUES (
+            %L, %L, 50, %L, %L
+          )
+        $sql$,
+        v_quinn_nido,
+        v_quinn,
+        v_today,
+        v_rita
+      )
+    )
   );
 END;
 $$;

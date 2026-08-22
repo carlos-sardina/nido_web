@@ -1,6 +1,6 @@
 # Phase 9.4 — Technical contract
 
-Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1 is implemented** (household name, initials contract, category RPCs + Hogar UI, `households.default_split_method`, `create_expense` uses that preference for new shared expenses). Subphases 9.4.2–9.4.9 are **not** implemented.
+Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1 is implemented** (household name, initials contract, category RPCs + Hogar UI, `households.default_split_method`, `create_expense` uses that preference for new shared expenses). **9.4.2 is implemented** (onboarding persists savings stock, estimates as initial monthly budgets, and `contrib` → `households.default_split_method`). Subphases 9.4.3–9.4.9 are **not** implemented.
 
 Source of confirmed product decisions: the 9.4.0 brief. Discarded items live in [future.md](./future.md). Do not re-interpret those as pending 9.4 work.
 
@@ -10,7 +10,7 @@ Source of confirmed product decisions: the 9.4.0 brief. Discarded items live in 
 
 ### 1.1 Migrations
 
-Exactly **14** migrations. Local and remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) match. This phase must not run `supabase db push`.
+Exactly **16** local migrations. Remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) still has the previous **14** until 9.4.1 and 9.4.2 are applied. This phase must not run `supabase db push`.
 
 | # | Migration |
 | --- | --- |
@@ -28,6 +28,8 @@ Exactly **14** migrations. Local and remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`
 | 12 | `20260822120000_nido_recurrence_mutations.sql` |
 | 13 | `20260822300000_nido_onboarding_financial.sql` |
 | 14 | `20260822400000_nido_expense_payer_identity.sql` |
+| 15 | `20260822500000_nido_household_categories_split.sql` |
+| 16 | `20260822600000_nido_onboarding_savings_budgets.sql` |
 
 Protected business data (do not touch): **Departamento**, **Nido Smoke 924**.
 
@@ -45,11 +47,11 @@ Protected business data (do not touch): **Departamento**, **Nido Smoke 924**.
 | Personal budgets | Schema supports `budgets.member_id`. No RPC, no UI. Home / Presupuestos ignore them. |
 | Goals / contributions / recurrences | Live. Recurring **budgets** do not exist. |
 | Activity | Derived from expenses, incomes, goal contributions. No activity table. |
-| Split preference | Onboarding UI collects `equal` / `proportional`. **Not persisted.** `capacity` remains in `Model` and validation but is **not** offered in the UI. |
+| Split preference | Onboarding UI collects `equal` / `proportional` and persist writes `households.default_split_method`. `capacity` is not a product value. |
 | DB `distribution_method` | `equal`, `percentage`, `fixed`, `income_based`. Stored **per expense / recurring template**, not on the household. |
 | `income_based` | Recurring materialization only. Basis = **active recurring incomes** of participants. One-time `incomes` (including onboarding) do **not** participate. |
-| Savings | Onboarding collects personal + shared amounts. Draft only. No table. |
-| Estimated onboarding expenses | Draft only. Not budgets, not expenses. |
+| Savings | Onboarding persists personal + shared stock in `savings_balances`. Not income, expense, or a goal. |
+| Estimated onboarding expenses | Become initial monthly `budgets` (shared → `member_id` NULL; personal → creator). Never `expenses`. |
 | Visibility | No column, no RLS filter. Every member can read every personal expense and every budget. |
 | Settlements / refunds | No tables. `memberBalance()` exists in domain and has no UI. Amounts are `>= 0`. |
 | Initials | `initialsFromName`: one word → first **two** letters (`Carlos` → `CA`). Product contract is one letter (`C`). |
@@ -471,9 +473,9 @@ No indispensable product decision is missing for **LISTA PARA IMPLEMENTACIÓN** 
 ## 12. Verdict
 
 ```text
-9.4.1 IMPLEMENTADA — veredicto de cierre en testing.md
+9.4.2 IMPLEMENTADA — veredicto de cierre en testing.md
 ```
 
-Next subphase: **9.4.2** — onboarding persist (savings stock + estimates → budgets + split preference).
+Next subphase: **9.4.3** — personal budgets UI + global visibility (schema + RLS + UI).
 
-Do not declare 9.4.2–9.4.9 implemented.
+Do not declare 9.4.3–9.4.9 implemented.

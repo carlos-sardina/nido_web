@@ -833,6 +833,61 @@ export type Database = {
           },
         ]
       }
+      savings_balances: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          household_id: string
+          id: string
+          member_id: string | null
+          recorded_at: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by: string
+          household_id: string
+          id?: string
+          member_id?: string | null
+          recorded_at: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          household_id?: string
+          id?: string
+          member_id?: string | null
+          recorded_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "savings_balances_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "savings_balances_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "savings_balances_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -961,7 +1016,14 @@ export type Database = {
         }
       }
       create_household_with_onboarding_income: {
-        Args: { p_income_amount: number; p_name: string }
+        Args: {
+          p_estimates?: Json
+          p_income_amount: number
+          p_name: string
+          p_savings_personal?: number | null
+          p_savings_shared?: number | null
+          p_split_method?: Database["public"]["Enums"]["household_split_method"]
+        }
         Returns: {
           created_at: string
           created_by: string

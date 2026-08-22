@@ -212,6 +212,10 @@ export function OnboardingFlow({
     const result = await createHouseholdFromOnboarding({
       name: plan.plan.householdName,
       incomeAmount: plan.plan.income.amount ?? 0,
+      splitMethod: plan.plan.splitMethod,
+      savingsPersonal: plan.plan.savingsPersonal.persist ? plan.plan.savingsPersonal.amount : null,
+      savingsShared: plan.plan.savingsShared.persist ? plan.plan.savingsShared.amount : null,
+      estimates: plan.plan.estimates,
     });
     if (result.ok === false) {
       setNidoError(result.error.message);

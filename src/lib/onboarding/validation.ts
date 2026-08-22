@@ -1,3 +1,4 @@
+import { isHouseholdSplitMethod } from "../nido/split-method.ts";
 import type { Model, OData } from "../types";
 
 export const HOUSEHOLD_NAME_MAX = 80;
@@ -168,10 +169,22 @@ export function divisionMethodHint(input: {
   return null;
 }
 
-export function validateOnboardingFinalize(data: Pick<OData, "nestName" | "userName" | "salary">): string | null {
+export function validateDivisionMethod(method: unknown): string | null {
+  if (!isHouseholdSplitMethod(method)) {
+    return "Elige un método de división válido.";
+  }
+  return null;
+}
+
+export function validateOnboardingFinalize(
+  data: Pick<OData, "nestName" | "userName" | "salary"> &
+    Partial<Pick<OData, "savings" | "savingsShared" | "contrib">>,
+): string | null {
   return validateHouseholdName(data.nestName)
     ?? validateDisplayName(data.userName)
-    ?? validateIncome(data.salary);
+    ?? validateIncome(data.salary)
+    ?? validateSavings(data.savings ?? "", data.savingsShared ?? "")
+    ?? (data.contrib === undefined ? null : validateDivisionMethod(data.contrib));
 }
 
 export function canStartExclusiveAction(submitting: boolean): boolean {

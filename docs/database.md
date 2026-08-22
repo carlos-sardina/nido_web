@@ -21,6 +21,7 @@ Nido manages:
 - incomes (one-time and recurring templates)
 - expenses (personal and shared, one model)
 - budgets (Nido-level and personal)
+- savings stock (personal and shared; `savings_balances`)
 - goals (Nido-level, with member contributions)
 - recurring income rules
 - recurring expense rules
@@ -45,6 +46,7 @@ auth.users 1──1 profiles
                  ├── pays ── expenses / recurring_expenses
                  ├── participates in ── expense_splits / recurring_expense_splits
                  ├── owns optional ── budgets (personal)
+                 ├── owns optional ── savings_balances (personal)
                  └── contributes to ── goal_contributions
 
 households 1──* household_members
@@ -55,6 +57,7 @@ households 1──* recurring_incomes
 households 1──* expenses
 households 1──* recurring_expenses
 households 1──* budgets
+households 1──* savings_balances
 households 1──* goals
 
 categories 1──* incomes / recurring_incomes / expenses / recurring_expenses / budgets
@@ -408,6 +411,25 @@ Member contributions toward a goal. Multiple contributions per member are allowe
 
 Leaving a Nido does not delete contribution rows. Do not physically delete contributions; set `deleted_at`. Only the creator with an active membership may update or soft-delete a live contribution on an **active** goal. Over-target sums are allowed. Do not persist `goals.status = completed` from a contribution. Deleted rows do not participate in progress, totals, or activity.
 
+### 3.15 `savings_balances`
+
+Current savings stock. Added in 9.4.2. Not an income, expense, goal, or contribution.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` PK | |
+| `household_id` | `uuid` FK → `households.id` | ON DELETE CASCADE. |
+| `member_id` | `uuid` nullable FK → `profiles.id` | `NULL` = shared / Nido stock; set = personal stock. |
+| `amount` | `numeric(12,2)` | `>= 0`. Zero is a valid recorded stock. |
+| `recorded_at` | `date` | Snapshot date. Onboarding writes today in `America/Mexico_City`. |
+| `created_by` | `uuid` FK → `profiles.id` | |
+| `created_at` | `timestamptz` | |
+| `updated_at` | `timestamptz` | |
+
+One row per `(household_id, member_id)` (`UNIQUE NULLS NOT DISTINCT`). Update in place later; do not append fake movements. There is no `onboarding_id`: retry after a finished create returns the existing Nido and does not insert again.
+
+Personal-visibility RLS is **not** applied yet (9.4.3). SELECT follows the current member-read model.
+
 ---
 
 ## 4. Enums
@@ -511,6 +533,7 @@ Every table uses a `uuid` primary key. `profiles.id` is the auth user id. All ot
 | `expense_splits (expense_id, member_id)` | No duplicate participant on an expense. |
 | `recurring_expense_splits (recurring_expense_id, member_id)` | No duplicate participant on a recurring expense. |
 | `budgets_unique_live_scope` on `(household_id, category_id, member_id, start_date)` NULLS NOT DISTINCT `WHERE deleted_at IS NULL` | One live budget per scope / category / period start. |
+| `savings_balances_unique_scope` on `(household_id, member_id)` NULLS NOT DISTINCT | One personal stock per member and one shared stock per Nido. |
 
 `UNIQUE(user_id)` is intentionally **not** used on `household_members`.
 
@@ -537,6 +560,7 @@ On INSERT, or on UPDATE that changes the relevant keys:
 | `expense_splits` | `member_id` is an **active** member of the parent expense's Nido. |
 | `recurring_expense_splits` | `member_id` is an **active** member of the parent rule's Nido. |
 | `budgets` | If `member_id` is set, that person is an active member. Category is an `expense` category in the Nido. |
+| `savings_balances` | If `member_id` is set, that person is an active member of `household_id`. |
 | `goal_contributions` | `member_id` is an active member of the goal's Nido. |
 
 These checks use **current active membership**. They do not reconstruct membership as of `occurred_at`.
@@ -909,7 +933,7 @@ Still deferred (not 9.4 unless [phase-9.4.md](./phase-9.4.md) says otherwise):
 9. **Stored `requires_review` flag** — derived at materialize time instead.
 10. **Separate pause vs archive on recurring rules** — `is_active` covers both for now.
 
-Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): category CRUD, personal budgets + visibility, onboarding savings/estimates, household split preference, household rename, initials identity, refunds, derived monthly balance / settlements, pull-to-refresh.
+Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): personal budgets UI + visibility (9.4.3), budget consumption (9.4.4), refunds, derived monthly balance / settlements, pull-to-refresh. 9.4.1 (name, initials, categories, split column) and 9.4.2 (onboarding persist) are implemented.
 
 Moved to **[future.md](./future.md)** (not pending 9.4): multi-currency, notifications, activity-feed persistence, insights, Google OAuth, image avatars, Realtime, receipts, email invitations, recurring budgets, push.
 
@@ -924,6 +948,9 @@ Moved to **[future.md](./future.md)** (not pending 9.4): multi-currency, notific
 - Categories catalog + `create_expense`: `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`
 - Income catalog + `create_income` / `update_income` / `soft_delete_income`: `supabase/migrations/20260821220000_nido_income_mutations.sql`
 - Onboarding income persist: `supabase/migrations/20260822300000_nido_onboarding_financial.sql` (`create_household_with_onboarding_income`)
+- Household name / categories / split preference: `supabase/migrations/20260822500000_nido_household_categories_split.sql`
+- Onboarding savings + estimates → budgets: `supabase/migrations/20260822600000_nido_onboarding_savings_budgets.sql` (`savings_balances`; extends the onboarding RPC)
+- 9.4.1 and 9.4.2 are local migrations. They were **not** applied to remote by this phase.
 - Security model: [docs/security.md](./security.md)
 - Application clients: [docs/supabase.md](./supabase.md)
 - These migrations are applied on the linked hosted project. See [docs/supabase.md](./supabase.md).

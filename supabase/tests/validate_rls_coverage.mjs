@@ -15,16 +15,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const foundationPath = path.join(
-  root,
-  "supabase/migrations/20260816000000_nido_foundation_schema.sql"
-);
 const rlsPath = path.join(
   root,
   "supabase/migrations/20260817000000_nido_rls.sql"
 );
 
-const foundation = fs.readFileSync(foundationPath, "utf8");
 const rls = fs.readFileSync(rlsPath, "utf8");
 const migrationsDir = path.join(root, "supabase/migrations");
 const allMigrations = fs
@@ -41,7 +36,7 @@ function fail(message) {
 }
 
 const tables = [
-  ...foundation.matchAll(/CREATE TABLE public\.([a-z_]+)/g),
+  ...allMigrations.matchAll(/CREATE TABLE public\.([a-z_]+)/g),
 ].map((match) => match[1]);
 
 if (tables.length === 0) {
@@ -94,6 +89,7 @@ const expectedPolicies = {
   budgets: ["SELECT", "INSERT", "UPDATE"],
   goals: ["SELECT", "INSERT", "UPDATE"],
   goal_contributions: ["SELECT", "INSERT", "UPDATE", "DELETE"],
+  savings_balances: ["SELECT", "INSERT", "UPDATE"],
 };
 
 const noClientWritePolicies = {
@@ -107,20 +103,21 @@ const noClientWritePolicies = {
   expenses: ["DELETE"],
   budgets: ["DELETE"],
   goals: ["DELETE"],
+  savings_balances: ["DELETE"],
 };
 
 for (const table of tables) {
   const enable = new RegExp(
     `ALTER TABLE public\\.${table} ENABLE ROW LEVEL SECURITY;`
   );
-  if (!enable.test(rls)) {
+  if (!enable.test(allMigrations)) {
     fail(`RLS is not enabled on public.${table}.`);
   }
 
   const revoke = new RegExp(
     `REVOKE ALL ON TABLE public\\.${table} FROM PUBLIC, anon;`
   );
-  if (!revoke.test(rls)) {
+  if (!revoke.test(allMigrations)) {
     fail(`public.${table} is not revoked from PUBLIC/anon.`);
   }
 
@@ -135,7 +132,7 @@ for (const table of tables) {
       `CREATE POLICY [a-z0-9_]+\\s+ON public\\.${table}\\s+FOR ${operation}\\s+TO authenticated`,
       "i"
     );
-    if (!policy.test(rls)) {
+    if (!policy.test(allMigrations)) {
       fail(`Missing ${operation} policy for authenticated on public.${table}.`);
     }
   }
@@ -146,7 +143,7 @@ for (const table of tables) {
       `CREATE POLICY [a-z0-9_]+\\s+ON public\\.${table}\\s+FOR ${operation}\\b`,
       "i"
     );
-    if (policy.test(rls)) {
+    if (policy.test(allMigrations)) {
       fail(
         `Unexpected client ${operation} policy on public.${table}. This operation must stay service-layer or denied.`
       );
@@ -154,7 +151,7 @@ for (const table of tables) {
   }
 }
 
-if (/USING\s*\(\s*true\s*\)/i.test(rls) || /WITH CHECK\s*\(\s*true\s*\)/i.test(rls)) {
+if (/USING\s*\(\s*true\s*\)/i.test(allMigrations) || /WITH CHECK\s*\(\s*true\s*\)/i.test(allMigrations)) {
   fail("Found a wide-open USING (true) or WITH CHECK (true) policy.");
 }
 
@@ -176,7 +173,7 @@ const missingTables = Object.keys(expectedPolicies).filter(
   (table) => !tables.includes(table)
 );
 for (const table of missingTables) {
-  fail(`Expected table public.${table} was not found in the foundation schema.`);
+  fail(`Expected table public.${table} was not found in the migrations.`);
 }
 
 if (errors.length > 0) {

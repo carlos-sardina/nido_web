@@ -4,6 +4,7 @@ import type { HouseholdSplitMethod } from "./split-method";
 export type { HouseholdSplitMethod };
 
 export type Household = Tables<"households">;
+export type SavingsBalance = Tables<"savings_balances">;
 export type HouseholdMember = Tables<"household_members">;
 export type HouseholdInvitation = Tables<"household_invitations">;
 export type Profile = Tables<"profiles">;

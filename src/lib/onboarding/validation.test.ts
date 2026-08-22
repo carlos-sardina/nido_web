@@ -12,6 +12,7 @@ import {
   validateDisplayName,
   validateExpenseEntry,
   validateHouseholdName,
+  validateDivisionMethod,
   validateIncome,
   validateOnboardingFinalize,
   validateSavings,
@@ -148,6 +149,13 @@ describe("division method requirements", () => {
       null,
     );
   });
+
+  it("accepts equal and proportional and rejects capacity", () => {
+    assert.equal(validateDivisionMethod("equal"), null);
+    assert.equal(validateDivisionMethod("proportional"), null);
+    assert.equal(validateDivisionMethod("capacity"), "Elige un método de división válido.");
+    assert.equal(validateDivisionMethod(""), "Elige un método de división válido.");
+  });
 });
 
 describe("finalize and double-submit", () => {
@@ -167,6 +175,24 @@ describe("finalize and double-submit", () => {
     assert.equal(
       validateOnboardingFinalize({ nestName: "Casa", userName: "Carlos", salary: "40000" }),
       null,
+    );
+    assert.equal(
+      validateOnboardingFinalize({
+        nestName: "Casa",
+        userName: "Carlos",
+        salary: "40000",
+        savings: "-1",
+      }),
+      "El monto no puede ser negativo.",
+    );
+    assert.equal(
+      validateOnboardingFinalize({
+        nestName: "Casa",
+        userName: "Carlos",
+        salary: "40000",
+        contrib: "capacity" as "equal",
+      }),
+      "Elige un método de división válido.",
     );
   });
 

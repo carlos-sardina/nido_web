@@ -606,4 +606,15 @@ Phase 9.4.1 (household name + initials + categories + `default_split_method`) ag
 - Manual Hogar / expense UI smoke (19 cases) is **BLOCKED**. This environment cannot operate the app with a real browser session. Do not treat unit/build success as a UI pass.
 - Verdict: **CASI CERRADA**. Implementation and unit/build checks are complete; UI smoke and the live RLS matrix remain open.
 
+Phase 9.4.2 (onboarding persist: savings stock + estimates → budgets + split preference) against the repo on 2026-08-22:
+
+- New migration `20260822600000_nido_onboarding_savings_budgets.sql`: table `savings_balances` (personal `member_id` / shared NULL, unique per household+member), RLS (SELECT members, INSERT/UPDATE creator+active, no DELETE), and `create_household_with_onboarding_income` extended with `p_split_method`, `p_savings_personal`, `p_savings_shared`, `p_estimates`. SECURITY INVOKER. No `service_role`. No client household_id or identity. Existing 2-argument calls keep working via defaults. Estimates never write `expenses`.
+- Idempotency: already-active membership returns the existing household and does not insert again. No `onboarding_id`. Unique savings and live-budget indexes are the remaining backstops.
+- Unit tests 725 passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 15 tables (includes `savings_balances`).
+- Local Docker / `supabase start` is not available in this environment, so the migration was **not** applied to a running database here. `supabase db push` against `nido_dev` was **not** run (project procedure). Remote still has the previous 14 migrations until the team applies 9.4.1 and 9.4.2.
+- RLS matrix cases `OB12`–`OB28` are in `rls_security_matrix.sql` (ROLLBACK). Do not treat them as executed.
+- **Departamento** and **Nido Smoke 924** were not modified. No temporary users, invitations, or permanent seeds.
+- Manual onboarding UI smoke (16 cases) is **BLOCKED**. This environment cannot operate the app with a real browser session. Do not treat unit/build success as a UI pass.
+- Verdict: **CASI CERRADA**. Implementation and unit/build checks are complete; UI smoke and the live RLS matrix remain open.
+
 Do not record production results here unless they were performed.

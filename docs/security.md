@@ -63,6 +63,7 @@ Leaving updates `left_at`. It does not delete the membership row and does not de
 - incomes and recurring incomes
 - expenses, splits, recurring expenses, and recurring splits
 - budgets
+- savings_balances
 - goals and contributions
 - profiles of people who have shared that household
 
@@ -184,7 +185,7 @@ Using an archived category on a new transaction remains an application rule.
 
 ### Financial and planning tables with `household_id`
 
-Applies to `incomes`, `recurring_incomes`, `recurring_expenses`, `budgets`, and `goals`.
+Applies to `incomes`, `recurring_incomes`, `recurring_expenses`, `budgets`, `savings_balances`, and `goals`.
 
 **`recurring_incomes` / `recurring_expenses` UPDATE is tighter** (Phase 9.1.5): the writer must be an **active** member and `created_by = auth.uid()`. INSERT also requires `member_id = auth.uid()` (income) or `payer_id = auth.uid()` (expense). Pause/reactivate is `is_active`. Physical DELETE remains denied. `recurring_expense_splits` writes follow `can_mutate_recurring_expense`.
 
@@ -211,7 +212,9 @@ UPDATE does not require the **subject** (`member_id` / `payer_id`) to still be a
 
 A writer cannot move a row to another household. They cannot be an active member of two households, and UPDATE `WITH CHECK` requires active membership in `NEW.household_id`.
 
-Personal budgets (`member_id IS NOT NULL`) require that member to be active on INSERT. Household budgets (`member_id IS NULL`) can be created by any active member. Phase 9.1.4 create RPC only writes Nido-level rows.
+Personal budgets (`member_id IS NOT NULL`) require that member to be active on INSERT. Household budgets (`member_id IS NULL`) can be created by any active member. Phase 9.1.4 create RPC only writes Nido-level rows. Onboarding (9.4.2) may INSERT a personal budget with `member_id = auth.uid()` from the same INVOKER transaction. Personal-visibility RLS is still 9.4.3.
+
+**`savings_balances`:** SELECT is historical membership (same as today’s personal expenses). INSERT requires active membership, `created_by = auth.uid()`, and `member_id` NULL or `auth.uid()`. UPDATE is creator + active member. Physical DELETE is not granted. Personal-visibility filtering is 9.4.3.
 
 Budgets do not restrict spending. Soft-delete uses `deleted_at` (migration `20260821230000`). `create_budget` / `update_budget` / `soft_delete_budget` are `SECURITY INVOKER`.
 
@@ -275,7 +278,7 @@ RLS does not replace the application transaction rules in [database.md](./databa
 Still application/service work:
 
 - Household create + first owner row in one transaction (`create_household`)
-- Onboarding finalize + first income in one transaction (`create_household_with_onboarding_income`; INVOKER; no client household_id)
+- Onboarding finalize + income + split + savings + initial budgets in one transaction (`create_household_with_onboarding_income`; INVOKER; no client household_id or identity)
 - Leave / invite accept (`leave_household`, `accept_invitation`)
 - Owner transfer (`transfer_household_ownership`; atomic demote + promote)
 - At-least-one-owner invariant (enforced on leave and transfer; not an RLS trigger)
@@ -337,9 +340,12 @@ Expected results for the documented actors. `allow` / `deny` are RLS outcomes. S
 | none | - | none | `create_household_with_onboarding_income` | deny |
 | new user | new | none | `create_household_with_onboarding_income` with valid amount | allow (one income) |
 | new user | new | none | invalid amount | deny (no household) |
-| same user | own | owner | second call | allow (same household, no second income) |
-| Carlos | B | active | second Nido / inject income into A | no new household; A unchanged |
+| new user | new | none | `capacity` split | deny (no household) |
+| new user | new | none | valid savings + estimates | allow (stock + budgets; no expenses) |
+| same user | own | owner | second call | allow (same household; no second income, savings, budget, or category) |
+| Carlos | B | active | second Nido / inject income or savings into A | no new household; A unchanged |
 | historical member | old | left | `create_household_with_onboarding_income` | allow new Nido; old household unchanged |
+| other member | other | active elsewhere | INSERT `savings_balances` for another member | deny |
 | Luis | A | never member | INSERT anything into A | deny |
 | Carlos | B | never member | SELECT household B | deny |
 | Carlos | B | active | SELECT household B | allow |
@@ -475,7 +481,7 @@ The static check that **was executed** and passed:
 node supabase/tests/validate_rls_coverage.mjs
 ```
 
-Result: RLS coverage validation passed for 14 tables. The script confirmed RLS is enabled on every foundation table, expected policies exist, helpers exist, `SECURITY DEFINER` functions set `search_path`, and no policy uses `USING (true)`. It does **not** prove runtime authorization.
+Result: RLS coverage validation passed for 14 tables at the 9.3/9.4.1 baseline. After 9.4.2 the same static script reports **15 tables** (adds `savings_balances`). The script confirmed RLS is enabled, expected policies exist, helpers exist, `SECURITY DEFINER` functions set `search_path`, and no policy uses `USING (true)`. It does **not** prove runtime authorization.
 
 ### Behavioral matrix against the linked project
 
@@ -495,7 +501,7 @@ npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
 
 It impersonates Carlos, Diana, Luis, and Eva with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, expense mutation cases `X01`–`X14`, goal mutation cases `Y01`–`Y12`, contribution cases `Z01`–`Z22`, and owner-transfer / leave cases `T01`–`T13` and `T20`–`T30`.
 
-`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. `Z12`–`Z22` (creator update/delete, non-creator deny, other household, deleted row, archived goal, other Nido goal, unauthenticated, historical member, member who left) require migration `20260821210000`. `I01`–`I13` require `20260821220000`. `K01`–`K16` (budget create/update/soft-delete, non-creator deny, other household, historical member, deleted row, spent derivation; 1:1 with the requested B01–B16 list) require `20260821230000`. Prefix **K** is used because **B01–B09** already cover Luis / never-member and **P01–P07** already cover child-table SELECT. `T01`–`T13` and `T20`–`T30` (owner transfer, last-owner leave, historical / other-Nido / unauthenticated deny, atomic role swap, privilege change after transfer) require `20260822000000`. `OB01`–`OB11` (onboarding persist: unauthenticated, no membership, invalid amount, double execution, already-active member, historical member, other Nido) require `20260822300000`. They are runtime SQL, not unit mocks.
+`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. `Z12`–`Z22` (creator update/delete, non-creator deny, other household, deleted row, archived goal, other Nido goal, unauthenticated, historical member, member who left) require migration `20260821210000`. `I01`–`I13` require `20260821220000`. `K01`–`K16` (budget create/update/soft-delete, non-creator deny, other household, historical member, deleted row, spent derivation; 1:1 with the requested B01–B16 list) require `20260821230000`. Prefix **K** is used because **B01–B09** already cover Luis / never-member and **P01–P07** already cover child-table SELECT. `T01`–`T13` and `T20`–`T30` (owner transfer, last-owner leave, historical / other-Nido / unauthenticated deny, atomic role swap, privilege change after transfer) require `20260822000000`. `OB01`–`OB11` (onboarding persist: unauthenticated, no membership, invalid amount, double execution, already-active member, historical member, other Nido) require `20260822300000`. `OB12`–`OB28` (savings stock, estimates → budgets, split method, capacity reject, retry, other-Nido deny) require `20260822600000`. They are runtime SQL, not unit mocks.
 
 The script rolls back its own seeded users. It does not empty the linked database: existing **Departamento** and **Nido Smoke 924** rows remain after `ROLLBACK`.
 

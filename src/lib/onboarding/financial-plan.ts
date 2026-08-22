@@ -7,6 +7,8 @@
  */
 
 import type { OData } from "../types.ts";
+import { normalizeCategoryName } from "../nido/financial/categories.ts";
+import { isHouseholdSplitMethod, type HouseholdSplitMethod } from "../nido/split-method.ts";
 import { normalizeHouseholdName } from "../nido/rules.ts";
 import { parseMoneyInput, validateOnboardingFinalize } from "./validation.ts";
 
@@ -18,10 +20,6 @@ export const ONBOARDING_INCOME_DESCRIPTION = "Ingreso mensual neto";
 
 export type SkippedOnboardingField =
   | "freelance"
-  | "savings_personal"
-  | "savings_shared"
-  | "estimated_expenses"
-  | "division_method"
   | "income_zero";
 
 export type OnboardingIncomePlan = {
@@ -31,10 +29,27 @@ export type OnboardingIncomePlan = {
   description: typeof ONBOARDING_INCOME_DESCRIPTION;
 };
 
+export type OnboardingSavingsPlan = {
+  persist: boolean;
+  amount: number | null;
+  scope: "personal" | "shared";
+};
+
+export type OnboardingEstimatePlan = {
+  name: string;
+  icon: string;
+  type: "personal" | "shared";
+  amount: number;
+};
+
 export type OnboardingFinancialPlan = {
   householdName: string;
   displayName: string;
   income: OnboardingIncomePlan;
+  splitMethod: HouseholdSplitMethod;
+  savingsPersonal: OnboardingSavingsPlan;
+  savingsShared: OnboardingSavingsPlan;
+  estimates: OnboardingEstimatePlan[];
   skipped: SkippedOnboardingField[];
 };
 
@@ -47,9 +62,73 @@ export function hasOptionalSavings(data: Pick<OData, "savings" | "savingsShared"
 }
 
 /**
- * Build the persist plan. Required household name, display name, and a
- * parseable income amount must be present. A zero income is valid and
- * does not create an `incomes` row.
+ * Exact onboarding name, trimmed. No alias table.
+ * `Renta` stays `Renta`. It does not become `Vivienda`.
+ */
+export function onboardingEstimateCategoryName(name: string): string | null {
+  return normalizeCategoryName(name);
+}
+
+function optionalSavingsPlan(
+  raw: string,
+  scope: "personal" | "shared",
+): { ok: true; plan: OnboardingSavingsPlan } | { ok: false; error: string } {
+  if (!raw.trim()) {
+    return { ok: true, plan: { persist: false, amount: null, scope } };
+  }
+  const amount = parseMoneyInput(raw);
+  if (amount === null) return { ok: false, error: "Ingresa un monto válido." };
+  return { ok: true, plan: { persist: true, amount, scope } };
+}
+
+/**
+ * Selected estimates with a positive amount. Same resolved name + type
+ * are summed so the RPC writes one live budget per scope/category/month.
+ */
+export function buildOnboardingEstimates(
+  data: Pick<OData, "expenses">,
+): { ok: true; estimates: OnboardingEstimatePlan[] } | { ok: false; error: string } {
+  const grouped = new Map<string, OnboardingEstimatePlan>();
+
+  for (const expense of data.expenses) {
+    if (!expense.selected) continue;
+    if (!expense.amount.trim()) continue;
+
+    const amount = parseMoneyInput(expense.amount);
+    if (amount === null) return { ok: false, error: "Ingresa un monto válido." };
+    if (amount < 0) return { ok: false, error: "El monto no puede ser negativo." };
+    if (amount === 0) continue;
+
+    if (expense.type !== "personal" && expense.type !== "shared") {
+      return { ok: false, error: "Elige si el gasto es personal o compartido." };
+    }
+
+    const name = onboardingEstimateCategoryName(expense.name);
+    if (!name) return { ok: false, error: "Ingresa el nombre del gasto." };
+
+    const key = `${name.toLowerCase()}|${expense.type}`;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.amount = Math.round((existing.amount + amount) * 100) / 100;
+      continue;
+    }
+
+    grouped.set(key, {
+      name,
+      icon: expense.icon.trim() || "💳",
+      type: expense.type,
+      amount,
+    });
+  }
+
+  return { ok: true, estimates: [...grouped.values()] };
+}
+
+/**
+ * Build the persist plan. Required household name, display name, a
+ * parseable income amount, and a valid split method must be present.
+ * A zero income is valid and does not create an `incomes` row.
+ * Savings of zero persist as stock. Blank savings are omitted.
  */
 export function planOnboardingFinances(
   data: Pick<OData, "nestName" | "userName" | "salary" | "freelance" | "savings" | "savingsShared" | "expenses" | "contrib">,
@@ -65,12 +144,20 @@ export function planOnboardingFinances(
   const amount = parseMoneyInput(data.salary);
   if (amount === null) return { ok: false, error: "Ingresa un monto válido." };
 
+  if (!isHouseholdSplitMethod(data.contrib)) {
+    return { ok: false, error: "Elige un método de división válido." };
+  }
+
+  const personal = optionalSavingsPlan(data.savings, "personal");
+  if (personal.ok === false) return personal;
+  const shared = optionalSavingsPlan(data.savingsShared, "shared");
+  if (shared.ok === false) return shared;
+
+  const estimates = buildOnboardingEstimates(data);
+  if (estimates.ok === false) return estimates;
+
   const skipped: SkippedOnboardingField[] = [];
   if (data.freelance.trim()) skipped.push("freelance");
-  if (data.savings.trim()) skipped.push("savings_personal");
-  if (data.savingsShared.trim()) skipped.push("savings_shared");
-  if (selectedEstimatedExpenses(data).length > 0) skipped.push("estimated_expenses");
-  if (data.contrib) skipped.push("division_method");
   if (amount === 0) skipped.push("income_zero");
 
   return {
@@ -84,6 +171,10 @@ export function planOnboardingFinances(
         categoryName: ONBOARDING_INCOME_CATEGORY_NAME,
         description: ONBOARDING_INCOME_DESCRIPTION,
       },
+      splitMethod: data.contrib,
+      savingsPersonal: personal.plan,
+      savingsShared: shared.plan,
+      estimates: estimates.estimates,
       skipped,
     },
   };

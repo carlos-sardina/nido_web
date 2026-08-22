@@ -65,9 +65,9 @@ Abandoning before **Crear mi Nido** leaves no household, no membership, and no f
 
 The household is **not** created when the user enters onboarding.
 
-It is created on the invitations step, when the user taps **Crear mi Nido**, **Invitar por enlace**, or **Invitar por QR**. Those actions call `create_household_with_onboarding_income(p_name, p_income_amount)` (atomic household + owner membership + default catalogs + the declared monthly income) after `updateMyDisplayName`. Optional invitation rows are inserted only after that RPC succeeds.
+It is created on the invitations step, when the user taps **Crear mi Nido**, **Invitar por enlace**, or **Invitar por QR**. Those actions call `create_household_with_onboarding_income` (atomic household + owner membership + default catalogs + split preference + optional savings stock + initial budgets from estimates + the declared monthly income) after `updateMyDisplayName`. Optional invitation rows are inserted only after that RPC succeeds.
 
-Invitation links need a `household_id`, so generating a real link or QR finalizes the Nido first. The income is persisted in that same transaction. Savings, estimated expenses, and the division preference are not persisted until 9.4.2 ([phase-9.4.md](./phase-9.4.md)).
+Invitation links need a `household_id`, so generating a real link or QR finalizes the Nido first. Income, `contrib`, savings, and selected estimates are persisted in that same transaction.
 
 If the user leaves before that tap, nothing is written to `households` or `household_members`.
 
@@ -214,6 +214,9 @@ Accepted invitations stay accepted even if they would also be expired.
 | Household name edit | `households.name` via `update_household_name` (active member; name only) |
 | Household split preference | `households.default_split_method` via `update_household_default_split_method` (`equal` \| `proportional`) |
 | Onboarding monthly income | `incomes` via `create_household_with_onboarding_income` → `create_income` |
+| Onboarding savings stock | `savings_balances` (`member_id` set = personal, NULL = shared) |
+| Onboarding estimated expenses | initial monthly `budgets` (shared → Nido, personal → creator). Never `expenses`. |
+| Onboarding split preference | `households.default_split_method` (`equal` \| `proportional`) |
 | Confirmed expense | `expenses` + `expense_splits` via `create_expense` |
 
 Auth identity still comes from Supabase Auth. The profile is the canonical application display name. Auth user metadata is not updated.
@@ -224,14 +227,11 @@ Perfil shows that persisted name and lets the signed-in user edit `profiles.disp
 
 ## What is still mock / local
 
-Intentionally not persisted by onboarding **until 9.4.2** ([phase-9.4.md](./phase-9.4.md)):
-
-- personal / shared savings (existing stock; no goal target)
-- estimated monthly expenses (planning estimates, not confirmed `expenses`)
-- division preference collected in onboarding (`equal` / `proportional`; the household column exists since 9.4.1 but onboarding does not write it yet)
-- unused draft leftovers (`freelance`, `savingsType`, nest type)
+Onboarding leftovers still not persisted (`freelance`, `savingsType`, nest type). Cleanup of unused draft fields is 9.4.8.
 
 The onboarding **Ingreso mensual neto** is persisted. Category is the household **Sueldo** catalog row. `occurred_at` is today in `America/Mexico_City`. Description is `Ingreso mensual neto`. Amount `0` creates the Nido and writes no income row.
+
+Personal / shared savings persist as `savings_balances` stock (zero is valid; blank is omitted). Estimated monthly expenses become current-month `budgets` using the estimate name as the category (`Renta` stays `Renta`). `contrib` writes `households.default_split_method`. `capacity` is rejected.
 
 Live on Home, empty when the Nido has no financial rows:
 
@@ -260,7 +260,7 @@ The PostgREST client cannot run a multi-statement transaction. These operations 
 | Function | Security | Why |
 | --- | --- | --- |
 | `create_household(p_name)` | `SECURITY INVOKER` | Household + first owner + default catalogs must be atomic. RLS still applies. |
-| `create_household_with_onboarding_income(p_name, p_income_amount)` | `SECURITY INVOKER` | Reuses `create_household` + `create_income` so a failed income cannot leave a finished-looking Nido. Takes no household_id or identity. |
+| `create_household_with_onboarding_income(p_name, p_income_amount, p_split_method, p_savings_personal, p_savings_shared, p_estimates)` | `SECURITY INVOKER` | Reuses `create_household` + `create_income` and writes split, savings stock, and initial budgets in the same transaction. Takes no household_id or identity. New parameters default so older 2-argument calls still work. |
 | `create_expense(...)` | `SECURITY INVOKER` | Expense + splits must be atomic. Split sums and personal cardinality are enforced here. RLS still applies. |
 | `create_goal(...)` / `update_goal` / `archive_goal` | `SECURITY INVOKER` | Goal definition. Only the creator may update or archive. |
 | `create_goal_contribution(...)` | `SECURITY INVOKER` | Any active member may contribute to an active goal of the same Nido. `member_id` and `created_by` are `auth.uid()`. |
@@ -270,7 +270,7 @@ The PostgREST client cannot run a multi-statement transaction. These operations 
 | `leave_household()` | `SECURITY DEFINER` | No client UPDATE on `household_members`. Last owner cannot leave. |
 | `transfer_household_ownership(p_new_owner_id)` | `SECURITY DEFINER` | No client UPDATE on `household_members`. Two role writes must be atomic. INVOKER would require an UPDATE policy that could leave a Nido without an owner. |
 
-`create_household` and `create_expense` live in `supabase/migrations/20260818000000_nido_household_lifecycle.sql` and `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`. Phase 9.4.1 (`20260822500000_nido_household_categories_split.sql`) adds `households.default_split_method` and the name / category / split RPCs, and updates `create_expense` for the household preference. Onboarding income persist lives in `supabase/migrations/20260822300000_nido_onboarding_financial.sql`. Owner transfer lives in `supabase/migrations/20260822000000_nido_owner_transfer.sql`. `SECURITY DEFINER` functions set `search_path = public`, require `auth.uid()`, and never take a user-supplied actor `user_id`. They do not bypass the one-active-Nido unique index.
+`create_household` and `create_expense` live in `supabase/migrations/20260818000000_nido_household_lifecycle.sql` and `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`. Phase 9.4.1 (`20260822500000_nido_household_categories_split.sql`) adds `households.default_split_method` and the name / category / split RPCs, and updates `create_expense` for the household preference. Phase 9.4.2 (`20260822600000_nido_onboarding_savings_budgets.sql`) adds `savings_balances` and extends `create_household_with_onboarding_income`. Onboarding income persist was introduced in `supabase/migrations/20260822300000_nido_onboarding_financial.sql`. Owner transfer lives in `supabase/migrations/20260822000000_nido_owner_transfer.sql`. `SECURITY DEFINER` functions set `search_path = public`, require `auth.uid()`, and never take a user-supplied actor `user_id`. They do not bypass the one-active-Nido unique index.
 
 There is no service-role client.
 

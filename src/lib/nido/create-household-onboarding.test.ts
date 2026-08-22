@@ -78,26 +78,125 @@ describe("createHouseholdFromOnboardingWithAuth", () => {
     assert.equal(called, 0);
   });
 
-  it("sends only the name and amount — no household, identity, or date", async () => {
+  it("sends only persistable fields — no household, identity, or date", async () => {
     const result = await createHouseholdFromOnboardingWithAuth(
-      { name: "  Casa Roma  ", incomeAmount: 40000 },
+      {
+        name: "  Casa Roma  ",
+        incomeAmount: 40000,
+        splitMethod: "proportional",
+        savingsPersonal: 1500,
+        savingsShared: 2000,
+        estimates: [
+          { name: "Renta", icon: "🏢", type: "shared", amount: 8000 },
+          { name: "Gym", icon: "🏋️", type: "personal", amount: 800 },
+        ],
+      },
       {
         getUserId: async () => "u1",
         rpc: async (fn, args) => {
           assert.equal(fn, "create_household_with_onboarding_income");
           assert.equal(args.p_name, "Casa Roma");
           assert.equal(args.p_income_amount, 40000);
+          assert.equal(args.p_split_method, "proportional");
+          assert.equal(args.p_savings_personal, 1500);
+          assert.equal(args.p_savings_shared, 2000);
+          assert.deepEqual(args.p_estimates, [
+            { name: "Renta", icon: "🏢", type: "shared", amount: 8000 },
+            { name: "Gym", icon: "🏋️", type: "personal", amount: 800 },
+          ]);
           assert.equal("p_household_id" in args, false);
           assert.equal("p_created_by" in args, false);
           assert.equal("p_member_id" in args, false);
           assert.equal("p_category_id" in args, false);
           assert.equal("p_occurred_at" in args, false);
+          assert.equal("p_user_id" in args, false);
+          return {
+            data: { ...household, default_split_method: "proportional" },
+            error: null,
+          };
+        },
+      },
+    );
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.data.id, "h1");
+      assert.equal(result.data.default_split_method, "proportional");
+    }
+  });
+
+  it("defaults omitted split to equal and omitted stock to null", async () => {
+    const result = await createHouseholdFromOnboardingWithAuth(
+      { name: "Casa", incomeAmount: 1000 },
+      {
+        getUserId: async () => "u1",
+        rpc: async (_fn, args) => {
+          assert.equal(args.p_split_method, "equal");
+          assert.equal(args.p_savings_personal, null);
+          assert.equal(args.p_savings_shared, null);
+          assert.deepEqual(args.p_estimates, []);
           return { data: household, error: null };
         },
       },
     );
     assert.equal(result.ok, true);
-    if (result.ok) assert.equal(result.data.id, "h1");
+  });
+
+  it("rejects capacity before calling the RPC", async () => {
+    let called = 0;
+    const result = await createHouseholdFromOnboardingWithAuth(
+      { name: "Casa", incomeAmount: 1000, splitMethod: "capacity" as "equal" },
+      {
+        getUserId: async () => "u1",
+        rpc: async () => {
+          called += 1;
+          return { data: household, error: null };
+        },
+      },
+    );
+    assert.equal(result.ok, false);
+    if (result.ok === false) assert.equal(result.error.code, "invalid_split");
+    assert.equal(called, 0);
+  });
+
+  it("rejects invalid savings before creating a Nido", async () => {
+    let called = 0;
+    const auth = {
+      getUserId: async () => "u1",
+      rpc: async () => {
+        called += 1;
+        return { data: household, error: null };
+      },
+    };
+    const negative = await createHouseholdFromOnboardingWithAuth(
+      { name: "Casa", incomeAmount: 1000, savingsPersonal: -1 },
+      auth,
+    );
+    const invalidEstimate = await createHouseholdFromOnboardingWithAuth(
+      {
+        name: "Casa",
+        incomeAmount: 1000,
+        estimates: [{ name: "Renta", icon: "🏢", type: "shared", amount: 0 }],
+      },
+      auth,
+    );
+    assert.equal(negative.ok, false);
+    assert.equal(invalidEstimate.ok, false);
+    assert.equal(called, 0);
+  });
+
+  it("allows a zero savings stock so the RPC can persist it", async () => {
+    const result = await createHouseholdFromOnboardingWithAuth(
+      { name: "Casa", incomeAmount: 1000, savingsPersonal: 0, savingsShared: 0 },
+      {
+        getUserId: async () => "u1",
+        rpc: async (_fn, args) => {
+          assert.equal(args.p_savings_personal, 0);
+          assert.equal(args.p_savings_shared, 0);
+          return { data: household, error: null };
+        },
+      },
+    );
+    assert.equal(result.ok, true);
   });
 
   it("allows a zero income so the RPC can skip the movement", async () => {

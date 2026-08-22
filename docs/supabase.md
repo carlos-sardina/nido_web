@@ -246,11 +246,11 @@ The onboarding name field is persisted to `profiles.display_name` when the Nido 
 
 ### Current-phase limitations
 
-Household identity is real after the user finishes onboarding. The declared monthly income is persisted with the Nido. Other financial onboarding fields remain a local draft.
+Household identity is real after the user finishes onboarding. Monthly income, split preference, savings stock, and selected estimates (as initial budgets) persist with the Nido.
 
 This phase does **not**:
 
-- persist onboarding savings, estimated expenses, or the division preference (scheduled in 9.4.2; see [phase-9.4.md](./phase-9.4.md))
+- invent patrimonio / emergency-month metrics from savings (later)
 - replace live dashboard reads with mock figures
 - use a service-role client
 - enable Google OAuth ([future.md](./future.md), not pending 9.4)
