@@ -678,7 +678,8 @@ After confirm, the March `expense_splits` are historical. A later income change 
 ### Other recurrence rules
 
 - Creating or updating a recurring rule does not insert a transaction.
-- Confirming should set `recurring_id` on the new transaction.
+- Confirming is `materialize_recurring_income` / `materialize_recurring_expense`: insert `incomes` / `expenses` (+ splits) with `recurring_id` set, then advance `next_occurrence`. The first materialization is an explicit user action when `next_occurrence <=` today in `America/Mexico_City`. Saving the template does not create historical or future movements.
+- Idempotency is a unique partial index on `(recurring_id, occurred_at)` where the movement is live, plus `SELECT … FOR UPDATE` in the RPC. The same rule and date return the existing movement.
 - Deactivate a rule with `is_active = false`. Do not hard-delete it in normal operation.
 - When a member leaves, deactivate their `recurring_incomes` in that Nido. Leave `recurring_expense_splits` in place so the next expense occurrence can require review.
 - `frequency` values are `weekly`, `biweekly`, `monthly`, and `yearly`. `day_of_month` exists on recurring incomes as an optional monthly hint. Recurring expenses rely on `next_occurrence` plus `frequency` for now.

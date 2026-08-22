@@ -1,0 +1,122 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import {
+  buildCreateRecurringExpensePayload,
+  buildCreateRecurringIncomePayload,
+  recurrenceEndDateMessage,
+  recurrenceFrequencyMessage,
+} from "./recurrence-input.ts";
+
+const incomeInput = {
+  householdId: "h1",
+  categoryId: "c1",
+  amount: 40000,
+  description: "Sueldo",
+  startDate: "2026-08-01",
+  frequency: "monthly" as const,
+  activeMemberIds: ["u1"],
+  allowedCategoryIds: ["c1"],
+};
+
+const expenseInput = {
+  householdId: "h1",
+  categoryId: "c1",
+  amount: 800,
+  description: "Renta",
+  startDate: "2026-08-01",
+  frequency: "monthly" as const,
+  scope: "personal" as const,
+  participantIds: ["u1"],
+  activeMemberIds: ["u1", "u2"],
+  allowedCategoryIds: ["c1"],
+};
+
+describe("buildCreateRecurringIncomePayload", () => {
+  it("accepts a valid monthly template and does not invent member_id", () => {
+    const result = buildCreateRecurringIncomePayload(incomeInput, "u1");
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.data.frequency, "monthly");
+      assert.equal(result.data.startDate, "2026-08-01");
+      assert.equal(result.data.endDate, null);
+      assert.equal("memberId" in result.data, false);
+      assert.equal("createdBy" in result.data, false);
+    }
+  });
+
+  it("rejects amount, category, frequency, and inverted dates", () => {
+    assert.equal(buildCreateRecurringIncomePayload({ ...incomeInput, amount: 0 }, "u1").ok, false);
+    assert.equal(
+      buildCreateRecurringIncomePayload({ ...incomeInput, categoryId: "other" }, "u1").ok,
+      false,
+    );
+    assert.equal(
+      buildCreateRecurringIncomePayload(
+        { ...incomeInput, frequency: "daily" as never },
+        "u1",
+      ).ok,
+      false,
+    );
+    const ended = buildCreateRecurringIncomePayload(
+      { ...incomeInput, endDate: "2026-07-01" },
+      "u1",
+    );
+    assert.equal(ended.ok, false);
+    if (ended.ok === false) assert.equal(ended.error, "invalid_date");
+  });
+
+  it("rejects another household membership", () => {
+    const result = buildCreateRecurringIncomePayload(
+      { ...incomeInput, householdId: "", activeMemberIds: ["u2"] },
+      "u1",
+    );
+    assert.equal(result.ok, false);
+    if (result.ok === false) assert.equal(result.error, "not_a_member");
+  });
+});
+
+describe("buildCreateRecurringExpensePayload", () => {
+  it("builds a personal template with a 100% payer split", () => {
+    const result = buildCreateRecurringExpensePayload(expenseInput, "u1");
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.data.scope, "personal");
+      assert.equal(result.data.splits.length, 1);
+      assert.equal(result.data.splits[0].memberId, "u1");
+      assert.equal(result.data.splits[0].amount, 800);
+    }
+  });
+
+  it("builds shared equal splits that sum to the amount", () => {
+    const result = buildCreateRecurringExpensePayload(
+      { ...expenseInput, scope: "shared", participantIds: ["u1", "u2"] },
+      "u1",
+    );
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.data.splits.length, 2);
+      assert.equal(
+        result.data.splits.reduce((sum, split) => sum + split.amount, 0),
+        800,
+      );
+    }
+  });
+
+  it("rejects a shared template with one participant", () => {
+    const result = buildCreateRecurringExpensePayload(
+      { ...expenseInput, scope: "shared", participantIds: ["u1"] },
+      "u1",
+    );
+    assert.equal(result.ok, false);
+    if (result.ok === false) assert.equal(result.error, "invalid_split");
+  });
+});
+
+describe("recurrence field messages", () => {
+  it("requires a schema frequency and a valid end date", () => {
+    assert.equal(recurrenceFrequencyMessage("monthly"), null);
+    assert.match(recurrenceFrequencyMessage("daily") ?? "", /frecuencia/i);
+    assert.equal(recurrenceEndDateMessage("", "2026-08-01"), null);
+    assert.match(recurrenceEndDateMessage("2026-07-01", "2026-08-01") ?? "", /fin/i);
+  });
+});

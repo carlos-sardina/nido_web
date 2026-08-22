@@ -22,11 +22,25 @@ import { HomeScreen } from "@/components/home/HomeScreen";
 import { HouseholdScreen } from "@/components/household/HouseholdScreen";
 import { IncomeDetail } from "@/components/incomes/IncomeDetail";
 import { IncomesScreen } from "@/components/incomes/IncomesScreen";
+import { RecurringExpenseFlow } from "@/components/flows/RecurringExpenseFlow";
+import { RecurringIncomeFlow } from "@/components/flows/RecurringIncomeFlow";
+import { RecurringExpenseDetail } from "@/components/recurring/RecurringExpenseDetail";
+import { RecurringExpensesScreen } from "@/components/recurring/RecurringExpensesScreen";
+import { RecurringIncomeDetail } from "@/components/recurring/RecurringIncomeDetail";
+import { RecurringIncomesScreen } from "@/components/recurring/RecurringIncomesScreen";
 import { applyProfileDisplayName, identityFromUser } from "@/lib/auth/identity";
 import { P } from "@/lib/palette";
 import type { Flow, Model, Tab } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
-import type { BudgetItemView, ExpenseRow, GoalContributionRow, GoalRow, IncomeRow } from "@/lib/nido/financial";
+import type {
+  BudgetItemView,
+  ExpenseRow,
+  GoalContributionRow,
+  GoalRow,
+  IncomeRow,
+  RecurringExpenseTemplate,
+  RecurringIncomeTemplate,
+} from "@/lib/nido/financial";
 import { useDashboard } from "@/lib/nido/use-dashboard";
 import type { Household, HouseholdMember, HouseholdMemberView, Profile } from "@/lib/nido/types";
 
@@ -65,6 +79,15 @@ export function MainApp({
   const [showBudgets, setShowBudgets] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<BudgetItemView | null>(null);
   const [editingBudget, setEditingBudget] = useState<BudgetItemView | null>(null);
+  const [showRecurringExpenses, setShowRecurringExpenses] = useState(false);
+  const [showRecurringIncomes, setShowRecurringIncomes] = useState(false);
+  const [selectedRecurringExpense, setSelectedRecurringExpense] = useState<RecurringExpenseTemplate | null>(null);
+  const [selectedRecurringIncome, setSelectedRecurringIncome] = useState<RecurringIncomeTemplate | null>(null);
+  const [editingRecurringExpense, setEditingRecurringExpense] = useState<RecurringExpenseTemplate | null>(null);
+  const [editingRecurringIncome, setEditingRecurringIncome] = useState<RecurringIncomeTemplate | null>(null);
+  const [creatingRecurringExpense, setCreatingRecurringExpense] = useState(false);
+  const [creatingRecurringIncome, setCreatingRecurringIncome] = useState(false);
+  const [recurringRefresh, setRecurringRefresh] = useState(0);
   const dashboard = useDashboard(household.id, members);
   const liveSelectedIncome = selectedIncome
     ? dashboard.model?.periodIncomes.find((row) => row.id === selectedIncome.id) ?? selectedIncome
@@ -96,6 +119,11 @@ export function MainApp({
     setEditingContribution(null);
     setEditingBudget(null);
     setSelectedBudget(null);
+    setCreatingRecurringExpense(false);
+    setCreatingRecurringIncome(false);
+    setEditingRecurringExpense(null);
+    setEditingRecurringIncome(null);
+    setRecurringRefresh((value) => value + 1);
     void dashboard.refresh();
   };
 
@@ -160,6 +188,7 @@ export function MainApp({
               members={members}
               onOpenIncome={setSelectedIncome}
               onRegisterIncome={openIncomeCreate}
+              onOpenRecurring={() => setShowRecurringIncomes(true)}
             />
           )}
           {tab === "budget"    && (
@@ -168,6 +197,7 @@ export function MainApp({
               members={members}
               onOpenExpense={setSelectedExpense}
               onRegisterExpense={openExpenseCreate}
+              onOpenRecurring={() => setShowRecurringExpenses(true)}
             />
           )}
           {tab === "goals"     && (
@@ -352,6 +382,96 @@ export function MainApp({
               setEditingGoal(null);
             }}
             onDone={handleFlowDone}
+          />
+        )}
+
+        {showRecurringExpenses && !creatingRecurringExpense && !editingRecurringExpense && !selectedRecurringExpense && (
+          <RecurringExpensesScreen
+            householdId={household.id}
+            refreshKey={recurringRefresh}
+            onClose={() => setShowRecurringExpenses(false)}
+            onCreate={() => setCreatingRecurringExpense(true)}
+            onOpen={setSelectedRecurringExpense}
+          />
+        )}
+
+        {showRecurringIncomes && !creatingRecurringIncome && !editingRecurringIncome && !selectedRecurringIncome && (
+          <RecurringIncomesScreen
+            householdId={household.id}
+            refreshKey={recurringRefresh}
+            onClose={() => setShowRecurringIncomes(false)}
+            onCreate={() => setCreatingRecurringIncome(true)}
+            onOpen={setSelectedRecurringIncome}
+          />
+        )}
+
+        {selectedRecurringExpense && !editingRecurringExpense && (
+          <RecurringExpenseDetail
+            template={selectedRecurringExpense}
+            currentUserId={user?.id ?? null}
+            onClose={() => setSelectedRecurringExpense(null)}
+            onEdit={() => {
+              setEditingRecurringExpense(selectedRecurringExpense);
+              setSelectedRecurringExpense(null);
+            }}
+            onChanged={() => {
+              setSelectedRecurringExpense(null);
+              setRecurringRefresh((value) => value + 1);
+              void dashboard.refresh();
+            }}
+          />
+        )}
+
+        {selectedRecurringIncome && !editingRecurringIncome && (
+          <RecurringIncomeDetail
+            template={selectedRecurringIncome}
+            currentUserId={user?.id ?? null}
+            onClose={() => setSelectedRecurringIncome(null)}
+            onEdit={() => {
+              setEditingRecurringIncome(selectedRecurringIncome);
+              setSelectedRecurringIncome(null);
+            }}
+            onChanged={() => {
+              setSelectedRecurringIncome(null);
+              setRecurringRefresh((value) => value + 1);
+              void dashboard.refresh();
+            }}
+          />
+        )}
+
+        {(creatingRecurringExpense || editingRecurringExpense) && (
+          <RecurringExpenseFlow
+            householdId={household.id}
+            members={members}
+            template={editingRecurringExpense}
+            onClose={() => {
+              setCreatingRecurringExpense(false);
+              setEditingRecurringExpense(null);
+            }}
+            onDone={() => {
+              setCreatingRecurringExpense(false);
+              setEditingRecurringExpense(null);
+              setRecurringRefresh((value) => value + 1);
+              void dashboard.refresh();
+            }}
+          />
+        )}
+
+        {(creatingRecurringIncome || editingRecurringIncome) && (
+          <RecurringIncomeFlow
+            householdId={household.id}
+            members={members}
+            template={editingRecurringIncome}
+            onClose={() => {
+              setCreatingRecurringIncome(false);
+              setEditingRecurringIncome(null);
+            }}
+            onDone={() => {
+              setCreatingRecurringIncome(false);
+              setEditingRecurringIncome(null);
+              setRecurringRefresh((value) => value + 1);
+              void dashboard.refresh();
+            }}
           />
         )}
 

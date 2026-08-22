@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/nido/Button";
 import { EmptyState } from "@/components/nido/EmptyState";
+import { TextLink } from "@/components/nido/TextLink";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
   formatCompactMoney,
@@ -31,11 +32,13 @@ export function IncomesScreen({
   members,
   onOpenIncome,
   onRegisterIncome,
+  onOpenRecurring,
 }: {
   dashboard: DashboardQuery;
   members: HouseholdMemberView[];
   onOpenIncome: (income: IncomeRow) => void;
   onRegisterIncome: () => void;
+  onOpenRecurring: () => void;
 }) {
   const { isLoading, error, model, refresh } = dashboard;
   const incomes = model?.periodIncomes ?? [];
@@ -50,6 +53,9 @@ export function IncomesScreen({
         <Text size="caption" tone="muted" className="mt-1">
           {model?.range.label ?? "Este mes"}
         </Text>
+        <TextLink className="mt-1 px-0 min-h-9" onClick={onOpenRecurring}>
+          Recurrencias
+        </TextLink>
       </div>
 
       {isLoading && !model ? (

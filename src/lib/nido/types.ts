@@ -70,5 +70,9 @@ export type NidoErrorCode =
   | "income_deleted"
   | "budget_not_found"
   | "budget_deleted"
+  | "recurrence_not_found"
+  | "recurrence_inactive"
+  | "recurrence_not_due"
+  | "recurrence_requires_review"
   | "conflict"
   | "network";

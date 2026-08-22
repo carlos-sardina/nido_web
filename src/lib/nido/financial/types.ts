@@ -81,6 +81,35 @@ export type RecurringExpenseRow = {
   frequency: RecurrenceFrequency;
 };
 
+export type RecurringSplitRow = {
+  id: string;
+  memberId: string;
+  amount: number;
+  percentage: number | null;
+};
+
+export type RecurringIncomeTemplate = RecurringIncomeRow & {
+  categoryId: string;
+  startDate: string;
+  nextOccurrence: string;
+  createdBy: string;
+  dayOfMonth: number | null;
+  category: CategoryRef | null;
+};
+
+export type RecurringExpenseTemplate = RecurringExpenseRow & {
+  categoryId: string;
+  payerId: string;
+  distributionMethod: DistributionMethod;
+  startDate: string;
+  endDate: string | null;
+  nextOccurrence: string;
+  createdBy: string;
+  category: CategoryRef | null;
+  payer: MemberRef | null;
+  splits: RecurringSplitRow[];
+};
+
 export type BudgetRow = {
   id: string;
   householdId: string;

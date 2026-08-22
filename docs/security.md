@@ -186,6 +186,10 @@ Using an archived category on a new transaction remains an application rule.
 
 Applies to `incomes`, `recurring_incomes`, `recurring_expenses`, `budgets`, and `goals`.
 
+**`recurring_incomes` / `recurring_expenses` UPDATE is tighter** (Phase 9.1.5): the writer must be an **active** member and `created_by = auth.uid()`. INSERT also requires `member_id = auth.uid()` (income) or `payer_id = auth.uid()` (expense). Pause/reactivate is `is_active`. Physical DELETE remains denied. `recurring_expense_splits` writes follow `can_mutate_recurring_expense`.
+
+**Las recurrencias son plantillas.** Materialize inserts a real `incomes` / `expenses` row. Templates never participate in financial totals.
+
 **`expenses` UPDATE is tighter** (Phase 9.1.2B): the writer must be an **active** member, `created_by = auth.uid()`, and the row must not already be soft-deleted. Other members may SELECT. See the expenses table below.
 
 **`incomes` UPDATE is tighter** (Phase 9.1.3C): the writer must be an **active** member, `created_by = auth.uid()`, `member_id` remains `auth.uid()`, and the row must not already be soft-deleted. INSERT also requires `member_id = auth.uid()`. Other members may SELECT. Physical DELETE remains denied.
@@ -198,7 +202,7 @@ Applies to `incomes`, `recurring_incomes`, `recurring_expenses`, `budgets`, and 
 | --- | --- |
 | SELECT | Historical member of `household_id` |
 | INSERT | Active member, `created_by = auth.uid()`, subject (`member_id` / `payer_id`) is an active member of the same household when present, and `category_id` belongs to that household when present |
-| UPDATE | Active member of the row’s household. Category must remain in that household. **`goals` UPDATE** also requires `created_by = auth.uid()` and `status <> archived`. **`incomes` UPDATE** also requires `created_by = auth.uid()`, `member_id = auth.uid()`, and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`). **`budgets` UPDATE** also requires `created_by = auth.uid()` and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`) |
+| UPDATE | Active member of the row’s household. Category must remain in that household. **`goals` UPDATE** also requires `created_by = auth.uid()` and `status <> archived`. **`incomes` UPDATE** also requires `created_by = auth.uid()`, `member_id = auth.uid()`, and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`). **`budgets` UPDATE** also requires `created_by = auth.uid()` and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`). **`recurring_incomes` / `recurring_expenses` UPDATE** also requires `created_by = auth.uid()` and keeps `member_id` / `payer_id` as `auth.uid()` |
 | DELETE | None. Soft-delete / deactivate / archive instead |
 
 UPDATE does not require the **subject** (`member_id` / `payer_id`) to still be active. Remaining members can correct or soft-delete rows that belong to people who have left. Integrity triggers still reject key changes that attach a new departed member.
@@ -348,6 +352,19 @@ Expected results for the documented actors. `allow` / `deny` are RLS outcomes. S
 | Carlos | A | left | SELECT | allow |
 | Carlos | A | left | INSERT/UPDATE/archive | deny |
 | Luis | A | never member | SELECT/INSERT | deny |
+
+### Recurring templates (Phase 9.1.5)
+
+| Actor | Household | Membership | Operation | Expected |
+| --- | --- | --- | --- | --- |
+| Carlos | A | active, creator | create / edit / pause / materialize | allow |
+| Diana | A | active, not creator | edit / pause / materialize Carlos template | deny |
+| Luis | A | never member | SELECT / create / materialize | deny |
+| Carlos | A | left | SELECT | allow |
+| Carlos | A | left | edit / materialize | deny |
+| none | - | none | create / materialize | deny |
+
+Same period + same `recurring_id` cannot insert two live movements.
 
 ### Incomes and recurring incomes
 

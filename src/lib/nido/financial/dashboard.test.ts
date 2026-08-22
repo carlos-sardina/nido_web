@@ -359,6 +359,52 @@ describe("dashboard view model", () => {
     assert.deepEqual(model.activity, []);
   });
 
+  it("includes a materialized recurring expense in spent, budget, health, and activity", () => {
+    const materialized: ExpenseRow = {
+      id: "e-rent",
+      householdId: "h1",
+      categoryId: "c1",
+      amount: 8000,
+      description: "Renta",
+      occurredAt: "2026-08-01",
+      payerId: "diana",
+      scope: "personal",
+      distributionMethod: "fixed",
+      recurringId: "re1",
+      createdBy: "diana",
+      createdAt: "2026-08-01T12:00:00.000Z",
+      deletedAt: null,
+      category: { id: "c1", name: "Vivienda", icon: "🏠" },
+      payer: { id: "diana", displayName: "Diana Vega" },
+      splits: [{ id: "s1", expenseId: "e-rent", memberId: "diana", amount: 8000, percentage: 100 }],
+    };
+
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        expenses: [materialized],
+        periodExpenses: [materialized],
+        recurringExpenses: [
+          {
+            id: "re1",
+            householdId: "h1",
+            amount: 8000,
+            description: "Renta",
+            scope: "personal",
+            isActive: true,
+            frequency: "monthly",
+          },
+        ],
+      }),
+      members,
+      range,
+    });
+
+    assert.equal(model.periodSpent, 8000);
+    assert.equal(model.hasAnyFinancialData, true);
+    assert.equal(model.activity.some((item) => item.id === "expense:e-rent"), true);
+    assert.equal(model.activity.some((item) => item.id.startsWith("recurring")), false);
+  });
+
   it("excludes archived goals from the Metas list and keeps derived progress", () => {
     const archived: GoalRow = {
       id: "g-old",

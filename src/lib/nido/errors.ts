@@ -33,6 +33,10 @@ const USER_MESSAGES: Record<NidoErrorCode, string> = {
   income_deleted: "Este ingreso ya fue eliminado.",
   budget_not_found: "No encontramos este presupuesto.",
   budget_deleted: "Este presupuesto ya fue eliminado.",
+  recurrence_not_found: "No encontramos esta recurrencia.",
+  recurrence_inactive: "Esta recurrencia está pausada o ya no está activa.",
+  recurrence_not_due: "Este periodo todavía no se puede registrar.",
+  recurrence_requires_review: "Esta recurrencia no se puede registrar. Revisa el pagador, los participantes o la categoría.",
   conflict: "Este registro ya existe o cambió. Inténtalo de nuevo.",
   network: "No pudimos completar la operación. Inténtalo de nuevo.",
 };
@@ -96,6 +100,10 @@ const MESSAGE_CODES: Record<string, NidoErrorCode> = {
   "nido.income_deleted": "income_deleted",
   "nido.budget_not_found": "budget_not_found",
   "nido.budget_deleted": "budget_deleted",
+  "nido.recurrence_not_found": "recurrence_not_found",
+  "nido.recurrence_inactive": "recurrence_inactive",
+  "nido.recurrence_not_due": "recurrence_not_due",
+  "nido.recurrence_requires_review": "recurrence_requires_review",
   "nido.conflict": "conflict",
 };
 
@@ -124,6 +132,9 @@ export function nidoErrorFromUnknown(error: unknown): NidoError {
   if (pgCode === "23505") {
     if (/household_invitations_pending_email/i.test(raw)) {
       return new NidoError("invite_pending");
+    }
+    if (/incomes_recurring_occurrence|expenses_recurring_occurrence/i.test(raw)) {
+      return new NidoError("conflict");
     }
     if (/budget/i.test(raw)) {
       return new NidoError("conflict");

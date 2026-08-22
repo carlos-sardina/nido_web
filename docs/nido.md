@@ -320,7 +320,6 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 ## What remains after owner transfer
 
 - household planning widgets and Profile personal-expense lists
-- recurrencias
 - invitation email delivery
 - Google OAuth
 - category CRUD (create / rename / archive) beyond the default catalog
@@ -330,4 +329,6 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## Apply the migration
 
-This phase applied `20260822000000_nido_owner_transfer.sql` to linked `nido_dev` (`pxfdvhavcddqmhuljxlf`). Types were regenerated with `npx supabase gen types typescript --linked`.
+This phase applied `20260822000000_nido_owner_transfer.sql` and `20260822120000_nido_recurrence_mutations.sql` to linked `nido_dev` (`pxfdvhavcddqmhuljxlf`). Types were regenerated with `npx supabase gen types typescript --linked`.
+
+`leave_household` now deactivates the leaving member’s `recurring_incomes` in that Nido. Recurring expense templates and already-materialized movements stay. A departed creator cannot materialize.

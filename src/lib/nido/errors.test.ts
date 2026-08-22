@@ -122,6 +122,26 @@ describe("nidoErrorFromUnknown", () => {
     assert.match(userMessageFor("budget_not_found"), /presupuesto/i);
     assert.match(userMessageFor("budget_deleted"), /eliminado/i);
     assert.equal(
+      nidoErrorFromUnknown({ message: "nido.recurrence_not_found" }).code,
+      "recurrence_not_found",
+    );
+    assert.equal(
+      nidoErrorFromUnknown({ message: "nido.recurrence_inactive" }).code,
+      "recurrence_inactive",
+    );
+    assert.equal(
+      nidoErrorFromUnknown({ message: "nido.recurrence_not_due" }).code,
+      "recurrence_not_due",
+    );
+    assert.equal(
+      nidoErrorFromUnknown({
+        message: 'duplicate key value violates unique constraint "incomes_recurring_occurrence_live_idx"',
+        code: "23505",
+      }).code,
+      "conflict",
+    );
+    assert.match(userMessageFor("recurrence_not_due"), /periodo/i);
+    assert.equal(
       nidoErrorFromUnknown({ message: "nido.forbidden" }).message.includes("auth.uid"),
       false,
     );

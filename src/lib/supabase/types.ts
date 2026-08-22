@@ -864,6 +864,12 @@ export type Database = {
         }
         Returns: undefined
       }
+      assert_recurrence_frequency: {
+        Args: {
+          p_frequency: Database["public"]["Enums"]["recurrence_frequency"]
+        }
+        Returns: undefined
+      }
       assert_recurring_expense_origin: {
         Args: { p_household_id: string; p_recurring_id: string }
         Returns: undefined
@@ -877,6 +883,10 @@ export type Database = {
         Returns: undefined
       }
       can_mutate_expense: { Args: { p_expense_id: string }; Returns: boolean }
+      can_mutate_recurring_expense: {
+        Args: { p_recurring_expense_id: string }
+        Returns: boolean
+      }
       category_belongs_to_household: {
         Args: { p_category_id: string; p_household_id: string }
         Returns: boolean
@@ -945,6 +955,32 @@ export type Database = {
         }
         Returns: string
       }
+      create_recurring_expense: {
+        Args: {
+          p_amount: number
+          p_category_id: string
+          p_description: string
+          p_end_date: string
+          p_frequency: Database["public"]["Enums"]["recurrence_frequency"]
+          p_household_id: string
+          p_scope: Database["public"]["Enums"]["expense_scope"]
+          p_splits: Json
+          p_start_date: string
+        }
+        Returns: string
+      }
+      create_recurring_income: {
+        Args: {
+          p_amount: number
+          p_category_id: string
+          p_description: string
+          p_end_date: string
+          p_frequency: Database["public"]["Enums"]["recurrence_frequency"]
+          p_household_id: string
+          p_start_date: string
+        }
+        Returns: string
+      }
       default_expense_category_catalog: {
         Args: never
         Returns: {
@@ -997,6 +1033,31 @@ export type Database = {
           household_name: string
           status: string
         }[]
+      }
+      materialize_recurring_expense: {
+        Args: { p_occurred_at: string; p_recurring_id: string }
+        Returns: string
+      }
+      materialize_recurring_income: {
+        Args: { p_occurred_at: string; p_recurring_id: string }
+        Returns: string
+      }
+      next_recurrence_date: {
+        Args: {
+          p_date: string
+          p_day_of_month?: number
+          p_frequency: Database["public"]["Enums"]["recurrence_frequency"]
+        }
+        Returns: string
+      }
+      nido_today: { Args: never; Returns: string }
+      set_recurring_expense_active: {
+        Args: { p_is_active: boolean; p_recurring_id: string }
+        Returns: string
+      }
+      set_recurring_income_active: {
+        Args: { p_is_active: boolean; p_recurring_id: string }
+        Returns: string
       }
       shares_household_with: { Args: { p_user_id: string }; Returns: boolean }
       soft_delete_budget: { Args: { p_budget_id: string }; Returns: string }
@@ -1060,6 +1121,40 @@ export type Database = {
           p_occurred_at: string
         }
         Returns: string
+      }
+      update_recurring_expense: {
+        Args: {
+          p_amount: number
+          p_category_id: string
+          p_description: string
+          p_end_date: string
+          p_frequency: Database["public"]["Enums"]["recurrence_frequency"]
+          p_recurring_id: string
+          p_scope: Database["public"]["Enums"]["expense_scope"]
+          p_splits: Json
+        }
+        Returns: string
+      }
+      update_recurring_income: {
+        Args: {
+          p_amount: number
+          p_category_id: string
+          p_description: string
+          p_end_date: string
+          p_frequency: Database["public"]["Enums"]["recurrence_frequency"]
+          p_recurring_id: string
+        }
+        Returns: string
+      }
+      validate_recurring_expense_splits: {
+        Args: {
+          p_amount: number
+          p_household_id: string
+          p_payer_id: string
+          p_scope: Database["public"]["Enums"]["expense_scope"]
+          p_splits: Json
+        }
+        Returns: Database["public"]["Enums"]["distribution_method"]
       }
     }
     Enums: {

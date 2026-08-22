@@ -12,7 +12,9 @@ Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar
 - only the creator may update or soft-delete a live budget
 - period is monthly calendar dates in `America/Mexico_City` (`start_date` first day, `end_date` last day)
 
-Recurrencias and owner transfer were not started.
+Phase 9.1.5 connects **Recurrencias**. Owner transfer was already delivered in 9.2.
+
+**Las recurrencias son plantillas; los movimientos reales son los únicos que participan en cálculos financieros.** `recurring_incomes` y `recurring_expenses` nunca se suman a ingresos del mes, gastos del mes, presupuestos, salud, actividad ni progreso de metas. Solo las filas de `incomes` / `expenses` materializadas (`recurring_id` apuntando a la plantilla) entran en esos totales.
 
 ---
 
@@ -105,6 +107,31 @@ Nido-level budgets (`member_id IS NULL`) overlapping the current month feed “P
 The canonical spent helper is `budgetSpent()` in `src/lib/nido/financial/budgets.ts`.
 
 Financial health is unchanged: `computeHealth` still uses `budgetTotal` / `budgetUsagePercent` when a Nido-level budget exists. Those inputs now come from live snapshot budgets and derived spent. The score formula was not modified and is not persisted.
+
+---
+
+## Recurrencias
+
+Gastos → **Recurrencias**, or Ingresos → **Recurrencias**. No new tab. ActionSheet is unchanged.
+
+### Model
+
+A recurrence is a template. `next_occurrence` is the only scheduling cursor. Frequencies are the existing enum: `weekly`, `biweekly`, `monthly`, `yearly`. Pause is `is_active = false`. Soft-delete of the template is that same flag; do not hard-delete.
+
+Creating the template sets `next_occurrence = start_date` and does **not** insert a movement. The first materialization is the user tapping **Registrar este periodo** when that date is due (`<= today` in `America/Mexico_City`). Future dates stay visible and are not created automatically. Historical periods before `start_date` are not generated.
+
+Materialize copies amount, category, description, and (for expenses) scope/splits into `expenses` / `incomes` with `recurring_id` set, then advances `next_occurrence`. Idempotency is a unique live index on `(recurring_id, occurred_at)` plus `FOR UPDATE` in the RPC.
+
+If the payer, a participant, or `income_based` is unsafe, materialize fails closed (`nido.recurrence_requires_review`) and does not write a partial movement.
+
+### Authorization
+
+| Actor | SELECT | CREATE | Edit / pause / materialize |
+| --- | --- | --- | --- |
+| Active member, creator | yes | yes | yes |
+| Active member, not creator | yes | yes (own template) | no |
+| Historical member | yes | no | no |
+| Other household | no | no | no |
 
 ---
 
@@ -256,7 +283,7 @@ The Ingresos tab lists `model.periodIncomes` from the same snapshot. Home shows 
 | Category | `category_id` of an active income category in the same household |
 | Date | `occurred_at` calendar date, default today in `America/Mexico_City` |
 | Earner / created_by | `auth.uid()` (v1 does not let the UI pick another member) |
-| Recurrence | `recurring_id` stays NULL; templates are not implemented here |
+| Recurrence | One-time rows keep `recurring_id` NULL. Recurring templates live in `recurring_*` and become movements only after `materialize_recurring_*` |
 
 There is no payer, split, percentage, or recurrence field on this form. Those are not invented on `incomes`.
 
@@ -400,7 +427,9 @@ Double submit: **Guardando…** (`aria-busy`). After create, edit, or delete, Ho
 | `goals.ts` | `createGoal` / `updateGoal` / `archiveGoal` |
 | `contributions.ts` | `createContribution` / `updateContribution` / `deleteContribution` |
 | `financial/` | dates, money, splits, validation, dashboard view model |
-| `use-dashboard.ts` | shared snapshot; `refresh()` after create/edit/delete/archive |
+| `recurring-incomes.ts` | `createRecurringIncome` / `updateRecurringIncome` / `setRecurringIncomeActive` / `materializeRecurringIncome` |
+| `recurring-expenses.ts` | `createRecurringExpense` / `updateRecurringExpense` / `setRecurringExpenseActive` / `materializeRecurringExpense` |
+| `use-dashboard.ts` | shared snapshot; `refresh()` after create/edit/delete/archive/materialize |
 
 Visual components do not query Supabase tables directly. Home, Ingresos, Gastos, Presupuestos, Metas, and Actividad do not keep a parallel financial store.
 
@@ -418,15 +447,17 @@ Onboarding income/expenses are still not persisted. A newly created Nido has def
 
 SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense, income, contribution, and budget **UPDATE** (including soft-delete) and goal **UPDATE** (including archive) require the same plus `created_by = auth.uid()` and a live row (`deleted_at IS NULL` / `status <> archived`). Income INSERT also requires `member_id = auth.uid()`. Budget create writes `member_id` NULL. Contribution **UPDATE** also requires parent goal `status = active`. Physical DELETE remains denied on incomes/expenses/goals/budgets and is revoked on `goal_contributions` for `authenticated`.
 
-`create_expense`, `update_expense`, `soft_delete_expense`, `create_income`, `update_income`, `soft_delete_income`, `create_budget`, `update_budget`, `soft_delete_budget`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, and `soft_delete_goal_contribution` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
+`create_expense`, `update_expense`, `soft_delete_expense`, `create_income`, `update_income`, `soft_delete_income`, `create_budget`, `update_budget`, `soft_delete_budget`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, `soft_delete_goal_contribution`, `create_recurring_income`, `update_recurring_income`, `set_recurring_income_active`, `materialize_recurring_income`, `create_recurring_expense`, `update_recurring_expense`, `set_recurring_expense_active`, and `materialize_recurring_expense` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Recurring split writes follow `can_mutate_recurring_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
 
-SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`, `I01`–`I13`, `K01`–`K16`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
+SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`, `I01`–`I13`, `K01`–`K16`, `RE01`–`RE16`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
 
 ---
 
 ## Ownership
 
-- Dashboard, gasto, ingreso, presupuesto, meta, and aportación mutations: active household from `useMyNido` only
+- Dashboard, gasto, ingreso, presupuesto, meta, aportación, and recurrencia mutations: active household from `useMyNido` only
+- Only the recurrence creator may edit, pause, reactivate, or materialize
+- Creating a template does not insert `incomes` / `expenses`. The first movement is an explicit **Registrar este periodo** when `next_occurrence <= today`
 - Only the expense creator may update or soft-delete
 - Only the income creator may update or soft-delete
 - Only the budget creator may update or soft-delete

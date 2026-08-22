@@ -103,6 +103,29 @@ export {
   parseIncomeAmountInput,
 } from "./income-input.ts";
 export {
+  addRecurrencePeriod,
+  canMutateRecurrence,
+  FREQUENCY_LABELS,
+  frequencyLabel,
+  isRecurrenceDue,
+  isRecurrenceFrequency,
+  RECURRENCE_FREQUENCIES,
+  recurrenceStatus,
+  recurrenceStatusLabel,
+} from "./recurrence.ts";
+export {
+  amountToRecurrenceInput,
+  buildCreateRecurringExpensePayload,
+  buildCreateRecurringIncomePayload,
+  parseRecurrenceAmountInput,
+  recurrenceAmountMessage,
+  recurrenceEndDateMessage,
+  recurrenceExpenseDescriptionMessage,
+  recurrenceFrequencyMessage,
+  recurrenceIncomeDescriptionMessage,
+  recurrenceStartDateMessage,
+} from "./recurrence-input.ts";
+export {
   activeGoalProgress,
   canMutateContribution,
   canMutateGoal,
@@ -150,4 +173,7 @@ export type {
   GoalType,
   HealthView,
   IncomeRow,
+  RecurrenceFrequency,
+  RecurringExpenseTemplate,
+  RecurringIncomeTemplate,
 } from "./types.ts";

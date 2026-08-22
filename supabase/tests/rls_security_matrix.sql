@@ -9,7 +9,7 @@
 --   2. Migrations applied (foundation, RLS, lifecycle, categories/create_expense,
 --      expense mutations, goal mutations, goal contribution mutations,
 --      goal contribution edit / soft-delete, income mutations,
---      budget mutations, owner transfer)
+--      budget mutations, owner transfer, recurrence mutations)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -2634,6 +2634,402 @@ BEGIN
 END;
 $$;
 
+-- Phase 9.1.5 — recurrencias (RE01–RE14)
+-- Prefix RE because R01 already exists as the membership-helper smoke test.
+-- Mapping: RE01=create, RE02=non-creator edit, RE03=creator edit, RE04=other
+-- household, RE06=unauthenticated, RE08=manipulated uuid, RE09=pause/resume,
+-- RE10=authorized materialize, RE11=other Nido materialize, RE12=inactive,
+-- RE13=duplicate period, RE14=unique index / concurrent second insert.
+-- RE05/RE07/RE15/RE16 run after transfer/leave below.
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_cat_income_a uuid;
+  v_cat_expense_a uuid;
+  v_cat_income_b uuid;
+  v_cat_expense_b uuid;
+  v_rec_income uuid;
+  v_rec_expense uuid;
+  v_rec_future uuid;
+  v_income_id uuid;
+  v_expense_id uuid;
+  v_income_again uuid;
+  v_expense_again uuid;
+  v_income_count integer;
+  v_expense_count integer;
+  v_template_incomes integer;
+  v_is_active boolean;
+  v_next date;
+  v_dup text;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+  SELECT id INTO v_cat_income_a FROM rls_ids WHERE key = 'cat_income_a';
+  SELECT id INTO v_cat_expense_a FROM rls_ids WHERE key = 'cat_expense_a';
+  SELECT id INTO v_cat_income_b FROM rls_ids WHERE key = 'cat_income_b';
+  SELECT id INTO v_cat_expense_b FROM rls_ids WHERE key = 'cat_expense_b';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+
+  PERFORM pg_temp.record_result(
+    'RE01', 'Carlos', 'A', 'active', 'creator creates recurring income and expense',
+    'allow',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_recurring_income(
+            %L::uuid, %L::uuid, 40000, 'Sueldo plantilla',
+            DATE '2026-08-01', 'monthly', NULL
+          )
+        $sql$,
+        v_nido_a, v_cat_income_a
+      )) = 'allow'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_recurring_expense(
+            %L::uuid, %L::uuid, 800, 'Renta plantilla',
+            DATE '2026-08-01', 'monthly', NULL, 'shared',
+            '[{"member_id":"%s","amount":400,"percentage":50},{"member_id":"%s","amount":400,"percentage":50}]'::jsonb
+          )
+        $sql$,
+        v_nido_a, v_cat_expense_a, v_carlos, v_diana
+      )) = 'allow'
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  SELECT id INTO v_rec_income
+  FROM public.recurring_incomes
+  WHERE household_id = v_nido_a AND description = 'Sueldo plantilla'
+  ORDER BY created_at DESC
+  LIMIT 1;
+
+  SELECT id INTO v_rec_expense
+  FROM public.recurring_expenses
+  WHERE household_id = v_nido_a AND description = 'Renta plantilla'
+  ORDER BY created_at DESC
+  LIMIT 1;
+
+  SELECT count(*) INTO v_template_incomes
+  FROM public.incomes
+  WHERE recurring_id = v_rec_income AND deleted_at IS NULL;
+
+  SELECT count(*) INTO v_expense_count
+  FROM public.expenses
+  WHERE recurring_id = v_rec_expense AND deleted_at IS NULL;
+
+  IF v_rec_income IS NULL OR v_rec_expense IS NULL
+     OR v_template_incomes <> 0 OR v_expense_count <> 0 THEN
+    UPDATE rls_test_results
+    SET actual = 'deny', passed = false
+    WHERE test_id = 'RE01';
+  END IF;
+
+  INSERT INTO rls_ids (key, id) VALUES
+    ('rec_income_mutate_a', v_rec_income),
+    ('rec_expense_mutate_a', v_rec_expense);
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'RE02', 'Diana', 'A', 'active', 'non-creator cannot edit',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_recurring_income(
+            %L::uuid, %L::uuid, 10, 'Diana no puede', 'monthly', NULL
+          )
+        $sql$,
+        v_rec_income, v_cat_income_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_recurring_expense(
+            %L::uuid, %L::uuid, 10, 'Diana no puede', 'monthly', NULL, 'personal',
+            '[{"member_id":"%s","amount":10,"percentage":100}]'::jsonb
+          )
+        $sql$,
+        v_rec_expense, v_cat_expense_a, v_diana
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.recurring_incomes SET amount = 1 WHERE id = %L',
+        v_rec_income
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'RE03', 'Carlos', 'A', 'active', 'creator can edit',
+    'allow',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_recurring_income(
+            %L::uuid, %L::uuid, 41000, 'Sueldo plantilla', 'monthly', NULL
+          )
+        $sql$,
+        v_rec_income, v_cat_income_a
+      )) = 'allow'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_recurring_expense(
+            %L::uuid, %L::uuid, 900, 'Renta plantilla', 'monthly', NULL, 'shared',
+            '[{"member_id":"%s","amount":450,"percentage":50},{"member_id":"%s","amount":450,"percentage":50}]'::jsonb
+          )
+        $sql$,
+        v_rec_expense, v_cat_expense_a, v_carlos, v_diana
+      )) = 'allow'
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'RE04', 'Luis', 'B', 'never member', 'other household cannot access or mutate',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_count(format(
+        'SELECT count(*) FROM public.recurring_incomes WHERE id = %L', v_rec_income
+      )) = 0
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_recurring_income(
+            %L::uuid, %L::uuid, 10, 'Cruzado', DATE '2026-08-01', 'weekly', NULL
+          )
+        $sql$,
+        v_nido_a, v_cat_income_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.materialize_recurring_income(%L::uuid, DATE '2026-08-01')
+        $sql$,
+        v_rec_income
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.clear_auth();
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.record_result(
+    'RE06', 'none', '-', 'none', 'unauthenticated cannot mutate',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_recurring_income(
+            %L::uuid, %L::uuid, 10, 'Anon', DATE '2026-08-01', 'weekly', NULL
+          )
+        $sql$,
+        v_nido_a, v_cat_income_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.materialize_recurring_expense(%L::uuid, DATE '2026-08-01')
+        $sql$,
+        v_rec_expense
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'RE08', 'Carlos', 'A', 'active', 'manipulated uuid/household does not authorize',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_recurring_income(
+            %L::uuid, %L::uuid, 10, 'Otro nido', DATE '2026-08-01', 'weekly', NULL
+          )
+        $sql$,
+        v_nido_b, v_cat_income_b
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_recurring_income(
+            %L::uuid, %L::uuid, 10, 'Fake', 'weekly', NULL
+          )
+        $sql$,
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', v_cat_income_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.materialize_recurring_income(
+            %L::uuid, DATE '2026-08-01'
+          )
+        $sql$,
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'RE09', 'Carlos', 'A', 'active', 'creator can pause and reactivate',
+    'allow',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        'SELECT public.set_recurring_income_active(%L::uuid, false)', v_rec_income
+      )) = 'allow'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.set_recurring_expense_active(%L::uuid, false)', v_rec_expense
+      )) = 'allow'
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  SELECT is_active INTO v_is_active FROM public.recurring_incomes WHERE id = v_rec_income;
+  IF v_is_active IS DISTINCT FROM false THEN
+    UPDATE rls_test_results SET actual = 'deny', passed = false WHERE test_id = 'RE09';
+  END IF;
+
+  PERFORM pg_temp.record_result(
+    'RE12', 'Carlos', 'A', 'active', 'paused template cannot materialize',
+    'deny',
+    pg_temp.expect_allow(format(
+      'SELECT public.materialize_recurring_income(%L::uuid, DATE ''2026-08-01'')',
+      v_rec_income
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'RE09B', 'Carlos', 'A', 'active', 'reactivate after pause',
+    'allow',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        'SELECT public.set_recurring_income_active(%L::uuid, true)', v_rec_income
+      )) = 'allow'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.set_recurring_expense_active(%L::uuid, true)', v_rec_expense
+      )) = 'allow'
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.create_recurring_income(
+    v_nido_a, v_cat_income_a, 100, 'Futuro', DATE '2026-12-01', 'monthly', NULL
+  ) INTO v_rec_future;
+
+  PERFORM pg_temp.record_result(
+    'RE12B', 'Carlos', 'A', 'active', 'future occurrence cannot materialize',
+    'deny',
+    pg_temp.expect_allow(format(
+      'SELECT public.materialize_recurring_income(%L::uuid, DATE ''2026-12-01'')',
+      v_rec_future
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.materialize_recurring_income(v_rec_income, DATE '2026-08-01')
+  INTO v_income_id;
+  SELECT public.materialize_recurring_expense(v_rec_expense, DATE '2026-08-01')
+  INTO v_expense_id;
+
+  PERFORM pg_temp.record_result(
+    'RE10', 'Carlos', 'A', 'active', 'authorized materialize creates live movements',
+    'allow',
+    CASE
+      WHEN v_income_id IS NOT NULL
+       AND v_expense_id IS NOT NULL
+       AND EXISTS (
+         SELECT 1 FROM public.incomes
+         WHERE id = v_income_id AND recurring_id = v_rec_income AND deleted_at IS NULL
+       )
+       AND EXISTS (
+         SELECT 1 FROM public.expenses
+         WHERE id = v_expense_id AND recurring_id = v_rec_expense AND deleted_at IS NULL
+       )
+       AND (
+         SELECT count(*) FROM public.expense_splits WHERE expense_id = v_expense_id
+       ) = 2
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  SELECT next_occurrence INTO v_next
+  FROM public.recurring_incomes WHERE id = v_rec_income;
+  IF v_next IS DISTINCT FROM DATE '2026-09-01' THEN
+    UPDATE rls_test_results SET actual = 'deny', passed = false WHERE test_id = 'RE10';
+  END IF;
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'RE11', 'Luis', 'B', 'never member', 'cannot materialize another Nido',
+    'deny',
+    pg_temp.expect_allow(format(
+      'SELECT public.materialize_recurring_expense(%L::uuid, DATE ''2026-09-01'')',
+      v_rec_expense
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.materialize_recurring_income(v_rec_income, DATE '2026-08-01')
+  INTO v_income_again;
+  SELECT public.materialize_recurring_expense(v_rec_expense, DATE '2026-08-01')
+  INTO v_expense_again;
+
+  SELECT count(*) INTO v_income_count
+  FROM public.incomes
+  WHERE recurring_id = v_rec_income AND deleted_at IS NULL AND occurred_at = DATE '2026-08-01';
+
+  SELECT count(*) INTO v_expense_count
+  FROM public.expenses
+  WHERE recurring_id = v_rec_expense AND deleted_at IS NULL AND occurred_at = DATE '2026-08-01';
+
+  PERFORM pg_temp.record_result(
+    'RE13', 'Carlos', 'A', 'active', 'same period is idempotent',
+    'allow',
+    CASE
+      WHEN v_income_again = v_income_id
+       AND v_expense_again = v_expense_id
+       AND v_income_count = 1
+       AND v_expense_count = 1
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  v_dup := pg_temp.expect_allow(format(
+    $sql$
+      INSERT INTO public.incomes (
+        household_id, member_id, category_id, amount, occurred_at, recurring_id, created_by
+      ) VALUES (
+        %L, %L, %L, 1, DATE '2026-08-01', %L, %L
+      )
+    $sql$,
+    v_nido_a, v_carlos, v_cat_income_a, v_rec_income, v_carlos
+  ));
+
+  PERFORM pg_temp.record_result(
+    'RE14', 'Carlos', 'A', 'active', 'unique index rejects a concurrent second row',
+    'deny',
+    v_dup
+  );
+END;
+$$;
+
 -- Scenario C — Carlos transfers ownership to Diana, then leaves Nido A.
 -- Transfer + leave use the product RPCs under auth.uid(). Direct client
 -- UPDATE on household_members remains denied (T07/T08).
@@ -2685,6 +3081,33 @@ BEGIN
        AND v_diana_role = 'owner'
        AND v_created_by = v_carlos
       THEN 'allow' ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'RE15', 'Carlos', 'A', 'member after transfer', 'creator can still mutate after transferring ownership',
+    'allow',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_recurring_income(
+            (SELECT id FROM rls_ids WHERE key = 'rec_income_mutate_a'),
+            (SELECT id FROM rls_ids WHERE key = 'cat_income_a'),
+            41000, 'Sueldo plantilla', 'monthly', NULL
+          )
+        $sql$
+      )) = 'allow'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.set_recurring_expense_active(
+            (SELECT id FROM rls_ids WHERE key = 'rec_expense_mutate_a'),
+            true
+          )
+        $sql$
+      )) = 'allow'
+      THEN 'allow'
+      ELSE 'deny'
     END
   );
 
@@ -3131,6 +3554,78 @@ BEGIN
       'UPDATE public.recurring_incomes SET is_active = false WHERE id = %L',
       v_rec_income_a
     ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'RE05', 'Carlos', 'A', 'historical', 'historical member can SELECT templates',
+    'allow',
+    CASE
+      WHEN pg_temp.expect_count(format(
+        'SELECT count(*) FROM public.recurring_incomes WHERE id = %L',
+        v_rec_income_a
+      )) = 1
+      AND pg_temp.expect_count(
+        'SELECT count(*) FROM public.recurring_incomes WHERE description = ''Sueldo plantilla'''
+      ) = 1
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'RE07', 'Carlos', 'A', 'left', 'member who left cannot edit or pause',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_recurring_income(
+            (SELECT id FROM rls_ids WHERE key = 'rec_income_mutate_a'),
+            %L::uuid, 12, 'Salio', 'monthly', NULL
+          )
+        $sql$,
+        v_cat_income_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.set_recurring_expense_active(
+            (SELECT id FROM rls_ids WHERE key = 'rec_expense_mutate_a'),
+            false
+          )
+        $sql$
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'RE16', 'Carlos', 'A', 'left', 'departed creator cannot materialize',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.materialize_recurring_income(
+            (SELECT id FROM rls_ids WHERE key = 'rec_income_mutate_a'),
+            DATE '2026-09-01'
+          )
+        $sql$
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.materialize_recurring_expense(
+            (SELECT id FROM rls_ids WHERE key = 'rec_expense_mutate_a'),
+            DATE '2026-09-01'
+          )
+        $sql$
+      )) = 'deny'
+      AND EXISTS (
+        SELECT 1 FROM public.incomes
+        WHERE recurring_id = (SELECT id FROM rls_ids WHERE key = 'rec_income_mutate_a')
+          AND deleted_at IS NULL
+      )
+      THEN 'deny'
+      ELSE 'allow'
+    END
   );
 
   PERFORM pg_temp.record_result(
