@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  BarChart2, Clock, Home, Plus, Target, Users,
+  BarChart2, Clock, Home, Plus, Target, Users, Wallet,
 } from "lucide-react";
 import { ActivityScreen } from "@/components/activity/ActivityScreen";
 import { ExpenseDetail } from "@/components/expenses/ExpenseDetail";
@@ -11,16 +11,19 @@ import { ActionSheet } from "@/components/flows/ActionSheet";
 import { ContribFlow } from "@/components/flows/ContribFlow";
 import { ExpenseFlow } from "@/components/flows/ExpenseFlow";
 import { GoalFlow } from "@/components/flows/GoalFlow";
+import { IncomeFlow } from "@/components/flows/IncomeFlow";
 import { ProfilePanel } from "@/components/flows/ProfilePanel";
 import { GoalDetail } from "@/components/goals/GoalDetail";
 import { GoalsScreen } from "@/components/goals/GoalsScreen";
 import { HomeScreen } from "@/components/home/HomeScreen";
 import { HouseholdScreen } from "@/components/household/HouseholdScreen";
+import { IncomeDetail } from "@/components/incomes/IncomeDetail";
+import { IncomesScreen } from "@/components/incomes/IncomesScreen";
 import { applyProfileDisplayName, identityFromUser } from "@/lib/auth/identity";
 import { P } from "@/lib/palette";
 import type { Flow, Model, Tab } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
-import type { ExpenseRow, GoalContributionRow, GoalRow } from "@/lib/nido/financial";
+import type { ExpenseRow, GoalContributionRow, GoalRow, IncomeRow } from "@/lib/nido/financial";
 import { useDashboard } from "@/lib/nido/use-dashboard";
 import type { Household, HouseholdMember, HouseholdMemberView, Profile } from "@/lib/nido/types";
 
@@ -51,17 +54,23 @@ export function MainApp({
   const [profileOpen, setProfileOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<ExpenseRow | null>(null);
   const [editingExpense, setEditingExpense] = useState<ExpenseRow | null>(null);
+  const [selectedIncome, setSelectedIncome] = useState<IncomeRow | null>(null);
+  const [editingIncome, setEditingIncome] = useState<IncomeRow | null>(null);
   const [selectedGoal, setSelectedGoal] = useState<GoalRow | null>(null);
   const [editingGoal, setEditingGoal] = useState<GoalRow | null>(null);
   const [editingContribution, setEditingContribution] = useState<GoalContributionRow | null>(null);
   const dashboard = useDashboard(household.id, members);
+  const liveSelectedIncome = selectedIncome
+    ? dashboard.model?.periodIncomes.find((row) => row.id === selectedIncome.id) ?? selectedIncome
+    : null;
   const liveSelectedGoal = selectedGoal
     ? dashboard.model?.goals.find((row) => row.id === selectedGoal.id) ?? selectedGoal
     : null;
 
   const tabs = [
-    { id: "home"      as Tab, icon: Home,     label: "Inicio"    },
-    { id: "budget"    as Tab, icon: BarChart2, label: "Gastos"   },
+    { id: "home"      as Tab, icon: Home,      label: "Inicio"    },
+    { id: "incomes"   as Tab, icon: Wallet,    label: "Ingresos"  },
+    { id: "budget"    as Tab, icon: BarChart2, label: "Gastos"    },
     { id: "goals"     as Tab, icon: Target,    label: "Metas"    },
     { id: "household" as Tab, icon: Users,     label: "Hogar"    },
     { id: "activity"  as Tab, icon: Clock,     label: "Actividad"},
@@ -71,6 +80,8 @@ export function MainApp({
     setActiveFlow(null);
     setEditingExpense(null);
     setSelectedExpense(null);
+    setEditingIncome(null);
+    setSelectedIncome(null);
     setEditingGoal(null);
     setSelectedGoal(null);
     setEditingContribution(null);
@@ -80,6 +91,7 @@ export function MainApp({
   const openFlow = (flow: Flow) => {
     setShowSheet(false);
     setEditingExpense(null);
+    setEditingIncome(null);
     setEditingGoal(null);
     setEditingContribution(null);
     setActiveFlow(flow);
@@ -90,6 +102,13 @@ export function MainApp({
     setSelectedExpense(null);
     setEditingExpense(null);
     setActiveFlow("expense");
+  };
+
+  const openIncomeCreate = () => {
+    setShowSheet(false);
+    setSelectedIncome(null);
+    setEditingIncome(null);
+    setActiveFlow("income");
   };
 
   const openGoalCreate = () => {
@@ -111,6 +130,14 @@ export function MainApp({
               dashboard={dashboard}
               onProfileOpen={() => setProfileOpen(true)}
               onNavigate={t => { setTab(t); setShowSheet(false); }}
+            />
+          )}
+          {tab === "incomes"   && (
+            <IncomesScreen
+              dashboard={dashboard}
+              members={members}
+              onOpenIncome={setSelectedIncome}
+              onRegisterIncome={openIncomeCreate}
             />
           )}
           {tab === "budget"    && (
@@ -137,7 +164,9 @@ export function MainApp({
               setModel={setModel}
             />
           )}
-          {tab === "activity"  && <ActivityScreen />}
+          {tab === "activity"  && (
+            <ActivityScreen dashboard={dashboard} />
+          )}
         </div>
 
         {/* Bottom nav */}
@@ -191,6 +220,21 @@ export function MainApp({
           />
         )}
 
+        {liveSelectedIncome && activeFlow !== "income" && (
+          <IncomeDetail
+            income={liveSelectedIncome}
+            members={members}
+            currentUserId={user?.id ?? null}
+            onClose={() => setSelectedIncome(null)}
+            onEdit={() => {
+              setEditingIncome(liveSelectedIncome);
+              setSelectedIncome(null);
+              setActiveFlow("income");
+            }}
+            onDeleted={handleFlowDone}
+          />
+        )}
+
         {liveSelectedGoal && activeFlow !== "goal" && activeFlow !== "contrib" && (
           <GoalDetail
             goal={liveSelectedGoal}
@@ -221,6 +265,19 @@ export function MainApp({
             onClose={() => {
               setActiveFlow(null);
               setEditingExpense(null);
+            }}
+            onDone={handleFlowDone}
+          />
+        )}
+
+        {activeFlow === "income" && (
+          <IncomeFlow
+            householdId={household.id}
+            members={members}
+            income={editingIncome}
+            onClose={() => {
+              setActiveFlow(null);
+              setEditingIncome(null);
             }}
             onDone={handleFlowDone}
           />

@@ -922,7 +922,24 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_income: {
+        Args: {
+          p_amount: number
+          p_category_id: string
+          p_description: string
+          p_household_id: string
+          p_occurred_at: string
+        }
+        Returns: string
+      }
       default_expense_category_catalog: {
+        Args: never
+        Returns: {
+          icon: string
+          name: string
+        }[]
+      }
+      default_income_category_catalog: {
         Args: never
         Returns: {
           icon: string
@@ -974,6 +991,7 @@ export type Database = {
         Args: { p_contribution_id: string }
         Returns: string
       }
+      soft_delete_income: { Args: { p_income_id: string }; Returns: string }
       update_expense: {
         Args: {
           p_amount: number
@@ -1002,6 +1020,16 @@ export type Database = {
           p_amount: number
           p_contributed_at: string
           p_contribution_id: string
+        }
+        Returns: string
+      }
+      update_income: {
+        Args: {
+          p_amount: number
+          p_category_id: string
+          p_description: string
+          p_income_id: string
+          p_occurred_at: string
         }
         Returns: string
       }

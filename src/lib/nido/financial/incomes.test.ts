@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { getMonthRange } from "./dates.ts";
 import {
   activeRecurringIncomeBasis,
+  canMutateIncome,
   isConfirmedFromRecurring,
   isOneTimeIncome,
   periodIncomeTotal,
+  visiblePeriodIncomes,
 } from "./incomes.ts";
 import type { IncomeRow, RecurringIncomeRow } from "./types.ts";
 
@@ -76,5 +79,84 @@ describe("period income", () => {
       rule({ id: "r3", amount: 5000, endDate: "2026-07-31" }),
     ];
     assert.equal(activeRecurringIncomeBasis(templates, "2026-08-21"), 40000);
+  });
+});
+
+describe("income authorization helper", () => {
+  it("allows only the creator of a live income", () => {
+    const live = income({ amount: 100, createdBy: "carlos" });
+    assert.equal(canMutateIncome(live, "carlos"), true);
+    assert.equal(canMutateIncome(live, "diana"), false);
+    assert.equal(canMutateIncome(live, null), false);
+  });
+
+  it("rejects a soft-deleted income even for the creator", () => {
+    const deleted = income({
+      amount: 100,
+      createdBy: "carlos",
+      deletedAt: "2026-08-21T12:00:00.000Z",
+    });
+    assert.equal(canMutateIncome(deleted, "carlos"), false);
+  });
+});
+
+describe("visible period incomes", () => {
+  const range = getMonthRange(2026, 8);
+
+  it("excludes soft-deleted rows and another household", () => {
+    const rows = [
+      income({
+        id: "keep",
+        amount: 80,
+        occurredAt: "2026-08-20",
+        createdAt: "2026-08-20T10:00:00.000Z",
+      }),
+      income({
+        id: "deleted",
+        amount: 200,
+        occurredAt: "2026-08-21",
+        deletedAt: "2026-08-21T12:00:00.000Z",
+      }),
+      income({
+        id: "other",
+        householdId: "h2",
+        amount: 50,
+        occurredAt: "2026-08-21",
+      }),
+      income({
+        id: "july",
+        amount: 90,
+        occurredAt: "2026-07-31",
+      }),
+    ];
+    const visible = visiblePeriodIncomes(rows, range, "h1");
+    assert.deepEqual(visible.map((row) => row.id), ["keep"]);
+  });
+
+  it("sorts by date descending then created_at descending", () => {
+    const rows = [
+      income({
+        id: "older",
+        amount: 10,
+        occurredAt: "2026-08-21",
+        createdAt: "2026-08-21T10:00:00.000Z",
+      }),
+      income({
+        id: "newer",
+        amount: 20,
+        occurredAt: "2026-08-21",
+        createdAt: "2026-08-21T18:00:00.000Z",
+      }),
+      income({
+        id: "earlier-day",
+        amount: 30,
+        occurredAt: "2026-08-10",
+        createdAt: "2026-08-10T20:00:00.000Z",
+      }),
+    ];
+    assert.deepEqual(
+      visiblePeriodIncomes(rows, range, "h1").map((row) => row.id),
+      ["newer", "older", "earlier-day"],
+    );
   });
 });

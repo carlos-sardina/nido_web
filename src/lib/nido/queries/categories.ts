@@ -11,6 +11,25 @@ export async function fetchActiveExpenseCategories(
   householdId: string,
   supabase: NidoClient = nidoClient(),
 ): Promise<NidoResult<HouseholdCategory[]>> {
+  return fetchActiveCategories(householdId, "expense", supabase);
+}
+
+/**
+ * Active income categories of the caller's household.
+ * RLS still filters by membership; householdId only avoids mixing historical Nidos.
+ */
+export async function fetchActiveIncomeCategories(
+  householdId: string,
+  supabase: NidoClient = nidoClient(),
+): Promise<NidoResult<HouseholdCategory[]>> {
+  return fetchActiveCategories(householdId, "income", supabase);
+}
+
+async function fetchActiveCategories(
+  householdId: string,
+  type: "income" | "expense",
+  supabase: NidoClient,
+): Promise<NidoResult<HouseholdCategory[]>> {
   const auth = await requireUser(supabase);
   if (auth.ok === false) return nidoFail(auth.error.code);
   if (!householdId) return nidoFail("not_a_member");
@@ -19,7 +38,7 @@ export async function fetchActiveExpenseCategories(
     .from("categories")
     .select("id, household_id, name, icon, type, is_default, archived_at")
     .eq("household_id", householdId)
-    .eq("type", "expense")
+    .eq("type", type)
     .is("archived_at", null)
     .order("name", { ascending: true });
 

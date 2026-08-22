@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   activeExpenseCategories,
+  activeIncomeCategories,
   DEFAULT_EXPENSE_CATEGORIES,
+  DEFAULT_INCOME_CATEGORIES,
   isDuplicateActiveCategoryName,
   normalizeCategoryName,
   type HouseholdCategory,
@@ -32,6 +34,20 @@ describe("default expense categories", () => {
     assert.ok(names.includes("Vivienda"));
     assert.ok(names.includes("Despensa"));
     assert.equal(names.includes("Entretenim."), false);
+  });
+});
+
+describe("default income categories", () => {
+  it("has unique trimmed names matching the household catalog", () => {
+    const names = DEFAULT_INCOME_CATEGORIES.map((row) => row.name);
+    assert.equal(names.length, 4);
+    assert.equal(new Set(names.map((name) => name.toLowerCase())).size, 4);
+    for (const row of DEFAULT_INCOME_CATEGORIES) {
+      assert.equal(normalizeCategoryName(row.name), row.name);
+      assert.ok(row.icon);
+    }
+    assert.ok(names.includes("Sueldo"));
+    assert.ok(names.includes("Freelance"));
   });
 });
 
@@ -79,5 +95,24 @@ describe("activeExpenseCategories", () => {
     ];
     const active = activeExpenseCategories(rows, "h1");
     assert.deepEqual(active.map((row) => row.id), ["a"]);
+  });
+});
+
+describe("activeIncomeCategories", () => {
+  it("only returns active income categories of the requested household", () => {
+    const rows = [
+      category({ id: "c", name: "Extra", householdId: "h1", type: "income" }),
+      category({ id: "a", name: "Salud", householdId: "h1" }),
+      category({ id: "b", name: "Sueldo", householdId: "h2", type: "income" }),
+      category({
+        id: "d",
+        name: "Archivada",
+        householdId: "h1",
+        type: "income",
+        archivedAt: "2026-08-01T00:00:00.000Z",
+      }),
+    ];
+    const active = activeIncomeCategories(rows, "h1");
+    assert.deepEqual(active.map((row) => row.id), ["c"]);
   });
 });

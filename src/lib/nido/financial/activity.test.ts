@@ -153,6 +153,21 @@ describe("activity transformation", () => {
     assert.equal(items[0].id, "goal_contribution:gc1");
   });
 
+  it("excludes soft-deleted incomes from normal activity", () => {
+    const items = buildActivityItems({
+      expenses: [],
+      incomes: [
+        income,
+        { ...income, id: "i-deleted", deletedAt: "2026-08-21T18:00:00.000Z" },
+      ],
+      contributions: [],
+      goals: [],
+      members,
+    });
+    assert.equal(items.length, 1);
+    assert.equal(items[0].id, "income:i1");
+  });
+
   it("returns an empty list when there is no activity", () => {
     const items = buildActivityItems({
       expenses: [],

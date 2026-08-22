@@ -25,7 +25,9 @@ export {
 } from "./expenses.ts";
 export {
   activeExpenseCategories,
+  activeIncomeCategories,
   DEFAULT_EXPENSE_CATEGORIES,
+  DEFAULT_INCOME_CATEGORIES,
   normalizeCategoryName,
   type HouseholdCategory,
 } from "./categories.ts";
@@ -64,6 +66,16 @@ export {
   parseContributionAmountInput,
 } from "./contribution-input.ts";
 export {
+  amountToIncomeInput,
+  buildCreateIncomePayload,
+  INCOME_DESCRIPTION_MAX,
+  incomeAmountMessage,
+  incomeDateMessage,
+  incomeDescriptionMessage,
+  normalizeIncomeDescription,
+  parseIncomeAmountInput,
+} from "./income-input.ts";
+export {
   activeGoalProgress,
   canMutateContribution,
   canMutateGoal,
@@ -78,9 +90,12 @@ export {
 export { computeHealth, healthLabel } from "./health.ts";
 export {
   activeRecurringIncomeBasis,
+  canMutateIncome,
+  isActiveIncome,
   isConfirmedFromRecurring,
   isOneTimeIncome,
   periodIncomeTotal,
+  visiblePeriodIncomes,
 } from "./incomes.ts";
 export {
   clampedPercent,

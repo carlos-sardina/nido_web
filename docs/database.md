@@ -225,7 +225,7 @@ Confirmed income transactions. Always belong to one member.
 
 One-time income has `recurring_id = NULL`.
 
-Do not physically delete income rows during normal operation. Set `deleted_at`.
+Phase 9.1.3C product writes (`create_income` / `update_income` / `soft_delete_income`) set `member_id = created_by = auth.uid()`. The client cannot attribute an income to another member. Soft-delete via `deleted_at`; do not physically delete income rows during normal operation.
 
 ### 3.8 `recurring_expenses`
 
@@ -894,7 +894,7 @@ These remain out of scope for the current schema and RLS migrations:
 10. **Automatic owner membership** on household insert.
 11. **Invitation acceptance workflow details**, including expiry checks and the one-active-Nido conflict when the invitee already belongs elsewhere. RLS does not allow the invitee to UPDATE the invitation row.
 12. **Owner-count trigger** — at least one owner is an application rule.
-13. **Default income category catalog.** Expense defaults are seeded by `create_household` (Phase 9.1.2A).
+13. **Default income category catalog.** Seeded by `create_household` (Phase 9.1.3C) from `default_income_category_catalog()`: Sueldo, Freelance, Extra, Otros. Existing households are backfilled by `20260821220000_nido_income_mutations.sql`.
 14. **Audit log** of edits.
 15. **Hard-delete prevention triggers** — application must use `deleted_at` / `is_active` / `archived_at` / goal `status`.
 16. **`created_by` must be an active member** — enforced by RLS on INSERT (`created_by = auth.uid()` plus active membership). Application should still set the column to the acting user.
@@ -913,6 +913,7 @@ These remain out of scope for the current schema and RLS migrations:
 - RLS: `supabase/migrations/20260817000000_nido_rls.sql`
 - Household lifecycle RPCs: `supabase/migrations/20260818000000_nido_household_lifecycle.sql`
 - Categories catalog + `create_expense`: `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`
+- Income catalog + `create_income` / `update_income` / `soft_delete_income`: `supabase/migrations/20260821220000_nido_income_mutations.sql`
 - Security model: [docs/security.md](./security.md)
 - Application clients: [docs/supabase.md](./supabase.md)
 - These migrations are applied on the linked hosted project. See [docs/supabase.md](./supabase.md).

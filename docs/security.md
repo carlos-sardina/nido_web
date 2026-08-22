@@ -188,13 +188,15 @@ Applies to `incomes`, `recurring_incomes`, `recurring_expenses`, `budgets`, and 
 
 **`expenses` UPDATE is tighter** (Phase 9.1.2B): the writer must be an **active** member, `created_by = auth.uid()`, and the row must not already be soft-deleted. Other members may SELECT. See the expenses table below.
 
+**`incomes` UPDATE is tighter** (Phase 9.1.3C): the writer must be an **active** member, `created_by = auth.uid()`, `member_id` remains `auth.uid()`, and the row must not already be soft-deleted. INSERT also requires `member_id = auth.uid()`. Other members may SELECT. Physical DELETE remains denied.
+
 **`goals` UPDATE is tighter** (Phase 9.1.3A): the writer must be an **active** member, `created_by = auth.uid()`, and the row must not already be archived. Other members may SELECT. Archive uses `status = archived`. Physical DELETE remains denied.
 
 | Operation | Policy |
 | --- | --- |
 | SELECT | Historical member of `household_id` |
 | INSERT | Active member, `created_by = auth.uid()`, subject (`member_id` / `payer_id`) is an active member of the same household when present, and `category_id` belongs to that household when present |
-| UPDATE | Active member of the row’s household. Category must remain in that household. **`goals` UPDATE** also requires `created_by = auth.uid()` and `status <> archived` |
+| UPDATE | Active member of the row’s household. Category must remain in that household. **`goals` UPDATE** also requires `created_by = auth.uid()` and `status <> archived`. **`incomes` UPDATE** also requires `created_by = auth.uid()`, `member_id = auth.uid()`, and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`) |
 | DELETE | None. Soft-delete / deactivate / archive instead |
 
 UPDATE does not require the **subject** (`member_id` / `payer_id`) to still be active. Remaining members can correct or soft-delete rows that belong to people who have left. Integrity triggers still reject key changes that attach a new departed member.
@@ -344,9 +346,10 @@ Expected results for the documented actors. `allow` / `deny` are RLS outcomes. S
 | --- | --- | --- | --- | --- |
 | Carlos | A | active | SELECT | allow |
 | Carlos | A | active | INSERT income | allow |
-| Carlos | A | active | UPDATE income | allow |
+| Carlos | A | active, creator | UPDATE / soft-delete income | allow |
 | Carlos | A | active | INSERT with `created_by` = Diana | deny |
-| Carlos | A | active | INSERT with `member_id` = Luis | deny |
+| Carlos | A | active | INSERT with `member_id` = Diana | deny |
+| Diana | A | active, not creator | UPDATE / soft-delete Carlos income | deny |
 | Carlos | A | left | SELECT historical | allow |
 | Carlos | A | left | INSERT/UPDATE | deny |
 | Luis | A | never member | SELECT/INSERT | deny |

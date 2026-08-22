@@ -1,6 +1,7 @@
 import type { HouseholdMemberView } from "../types";
 import { isActiveExpense } from "./expenses.ts";
 import { isActiveContribution } from "./goals.ts";
+import { isActiveIncome } from "./incomes.ts";
 import type {
   ActivityItem,
   ExpenseRow,
@@ -122,7 +123,9 @@ export function buildActivityItems(input: {
     ...input.expenses
       .filter(isActiveExpense)
       .map((row) => expenseToActivity(row, input.members)),
-    ...input.incomes.map((row) => incomeToActivity(row, input.members)),
+    ...input.incomes
+      .filter(isActiveIncome)
+      .map((row) => incomeToActivity(row, input.members)),
     ...input.contributions
       .filter(isActiveContribution)
       .map((row) => contributionToActivity(row, input.goals, input.members)),

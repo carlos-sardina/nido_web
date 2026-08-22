@@ -4,7 +4,7 @@ Use this against a real Vercel + Supabase + SMTP environment. Automated unit tes
 
 Confirm email stays enabled. Google OAuth stays disabled. Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
 
-Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Phase 9.1.3A connects Metas (list, create, edit, archive). Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (edit / soft-delete). Actividad remains prototype. See [financial.md](./financial.md).
+Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Phase 9.1.3A connects Metas (list, create, edit, archive). Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (edit / soft-delete). Phase 9.1.3C connects **Ingresos**. Actividad uses the live snapshot (no `FEED` mock). See [financial.md](./financial.md).
 
 The 60-second email cooldown is a **UX protection**. It prevents accidental repeat clicks and shows a countdown. The real protection against abuse remains in **Supabase Auth rate limits** and **Brevo SMTP limits**. The frontend cooldown does not replace or weaken those provider limits.
 
@@ -281,7 +281,7 @@ G. **Miembro histórico / otro Nido** — no puede aportar.
 H. **Doble tap** — un solo request; botón disabled + loading (`aria-busy`).
 I. **Error de red** — copy en español, sin PostgREST.
 J. **Editar / eliminar aportación** is live in 9.1.3D (`deleted_at` + creator-only UPDATE).
-K. **9.1.3C ingresos** no se inició.
+K. **9.1.3C ingresos** is live (`incomes.deleted_at` + creator-only UPDATE).
 L. **9.1.4** no se inició.
 
 ---
@@ -300,10 +300,29 @@ G. **Meta archivada** — no acepta nuevas aportaciones ni mutaciones de las exi
 H. **Miembro histórico / que salió / otro Nido / no autenticado** — no puede editar ni eliminar.
 I. **Doble tap** — un solo request; botón disabled + loading.
 J. **Error de red** — copy en español, sin PostgREST.
-K. **9.1.3C ingresos** no se inició.
+K. **9.1.3C ingresos** is live (`incomes.deleted_at` + creator-only UPDATE).
 L. **9.1.4** no se inició.
 
 Manual runs actually executed for this checklist: none in this phase.
+
+---
+
+## Ingresos (Phase 9.1.3C)
+
+Requires migration `20260821220000_nido_income_mutations.sql` on the linked project (plus prior financial migrations). Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. SQL cases `I01`–`I13` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). The manual UI checklist below was **not** executed in a live app session.
+
+A. **Empty state** — Nido sin ingresos: **Sin ingresos todavía** + **Registrar un ingreso**.
+B. **Crear ingreso** — Home `+` → Registrar un ingreso. Monto > 0, descripción, categoría de ingreso, fecha (hoy por default en America/Mexico_City).
+C. **Listado** — Ingresos tab muestra filas reales del mes. Home muestra el mismo `periodIncome` del snapshot.
+D. **Editar como creador** — Editar visible; mismas validaciones; `member_id` / `created_by` no cambian.
+E. **Eliminar como creador** — confirmación **¿Eliminar este ingreso?** / **Esta acción quitará el ingreso de tus totales y actividad.** Cancelar (ghost) + Eliminar ingreso (danger).
+F. **Otro miembro** — solo lectura; no hay Editar/Eliminar; RPC/RLS rechaza.
+G. **Total** — `SUM(incomes.amount) WHERE deleted_at IS NULL` y `occurred_at` en el mes. No hay columna derivada. Recurring templates no se suman.
+H. **Ingreso eliminado** — no entra en totales, salud, Ingresos ni actividad; no se puede volver a modificar.
+I. **Miembro histórico / que salió / otro Nido / no autenticado** — no puede crear, editar ni eliminar.
+J. **Doble tap** — un solo request; botón disabled + loading (`aria-busy`).
+K. **Error de red** — copy en español, sin PostgREST.
+L. **9.1.4** no se inició.
 
 Manual runs actually executed for this checklist: none in this phase.
 

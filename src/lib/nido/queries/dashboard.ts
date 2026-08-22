@@ -87,13 +87,15 @@ export async function fetchDashboardSnapshot(
       .is("deleted_at", null)
       .gte("occurred_at", range.start)
       .lte("occurred_at", range.end)
-      .order("occurred_at", { ascending: false }),
+      .order("occurred_at", { ascending: false })
+      .order("created_at", { ascending: false }),
     client
       .from("incomes")
       .select(INCOME_SELECT)
       .eq("household_id", householdId)
       .is("deleted_at", null)
       .order("occurred_at", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(RECENT_LIMIT),
     client
       .from("recurring_incomes")

@@ -222,6 +222,7 @@ export type DashboardViewModel = {
   goals: GoalRow[];
   activity: ActivityItem[];
   periodExpenses: ExpenseRow[];
+  periodIncomes: IncomeRow[];
   empty: {
     expenses: boolean;
     incomes: boolean;

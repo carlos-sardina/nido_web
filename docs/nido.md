@@ -192,14 +192,13 @@ Intentionally not persisted by onboarding (still true):
 
 Live on Home, empty when the Nido has no financial rows:
 
-- confirmed incomes and expenses (gastos registered from `+` are live)
+- confirmed incomes and expenses (ingresos and gastos registered from `+` are live)
 - goals and contribution progress
 - Nido budgets for the current month
 - activity derived from those tables
 
 Still prototype UI (not wired):
 
-- Actividad screen layout (data comes from the live snapshot)
 - household planning widgets (capacity / split model)
 - Profile personal-expense lists
 - email or push delivery
@@ -287,10 +286,8 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ---
 
-## What remains after 9.1.3D
+## What remains after 9.1.3C
 
-- 9.1.3C: ingresos
-- Actividad screen on the same data layer
 - 9.1.4: Hogar / Perfil refinement
 - presupuestos / recurrencias
 - invitation email delivery
@@ -302,6 +299,4 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## Apply the migration
 
-This workspace does not apply SQL to a live project. After pulling this phase, apply `20260821210000_nido_goal_contribution_edit.sql` with the same process used for the foundation, RLS, lifecycle, expense, goal, and contribution-create migrations.
-
-Until that migration is applied, `update_goal_contribution` and `soft_delete_goal_contribution` will fail at runtime.
+This phase applied `20260821220000_nido_income_mutations.sql` to linked `nido_dev` (`pxfdvhavcddqmhuljxlf`). Types were regenerated with `npx supabase gen types typescript --linked`.

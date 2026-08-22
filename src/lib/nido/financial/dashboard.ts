@@ -10,11 +10,11 @@ import {
   isActiveContribution,
 } from "./goals.ts";
 import { computeHealth } from "./health.ts";
-import { periodIncomeTotal } from "./incomes.ts";
+import { isActiveIncome, periodIncomeTotal, visiblePeriodIncomes } from "./incomes.ts";
 import { clampedPercent } from "./money.ts";
 import type { DashboardSnapshot, DashboardViewModel, FeaturedGoalView } from "./types.ts";
 
-const ACTIVITY_PREVIEW = 3;
+const ACTIVITY_FEED = 20;
 
 export function buildDashboardViewModel(input: {
   snapshot: DashboardSnapshot;
@@ -23,13 +23,19 @@ export function buildDashboardViewModel(input: {
   now?: Date;
 }): DashboardViewModel {
   const { snapshot, members, range, now = new Date() } = input;
-  const periodIncome = periodIncomeTotal(snapshot.periodIncomes);
+  const periodIncomes = visiblePeriodIncomes(
+    snapshot.periodIncomes,
+    range,
+    snapshot.householdId,
+  );
+  const periodIncome = periodIncomeTotal(periodIncomes);
   const periodExpenses = visiblePeriodExpenses(
     snapshot.periodExpenses,
     range,
     snapshot.householdId,
   );
   const recentExpenses = snapshot.expenses.filter(isActiveExpense);
+  const recentIncomes = snapshot.incomes.filter(isActiveIncome);
   const periodSpent = householdSpent(periodExpenses);
   const activeGoals = activeGoalProgress(snapshot.goals);
   const featured = featuredSavingGoal(snapshot.goals);
@@ -38,9 +44,9 @@ export function buildDashboardViewModel(input: {
     : null;
 
   const hasAnyFinancialData =
-    snapshot.periodIncomes.length > 0 ||
+    periodIncomes.length > 0 ||
     periodExpenses.length > 0 ||
-    snapshot.incomes.length > 0 ||
+    recentIncomes.length > 0 ||
     recentExpenses.length > 0 ||
     snapshot.goals.length > 0 ||
     snapshot.contributions.filter(isActiveContribution).length > 0 ||
@@ -76,7 +82,7 @@ export function buildDashboardViewModel(input: {
     contributions: snapshot.contributions,
     goals: snapshot.goals,
     members,
-    limit: ACTIVITY_PREVIEW,
+    limit: ACTIVITY_FEED,
   });
 
   return {
@@ -91,10 +97,11 @@ export function buildDashboardViewModel(input: {
     activeGoals,
     goals: snapshot.goals.filter((goal) => goal.status !== "archived"),
     periodExpenses,
+    periodIncomes,
     activity,
     empty: {
       expenses: periodExpenses.length === 0 && recentExpenses.length === 0,
-      incomes: snapshot.periodIncomes.length === 0 && snapshot.incomes.length === 0,
+      incomes: periodIncomes.length === 0 && recentIncomes.length === 0,
       goals: activeGoals.length === 0,
       activity: activity.length === 0,
       budget: !budget.hasBudget && budget.totalSpent === 0,

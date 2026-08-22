@@ -242,6 +242,40 @@ function DashboardBody({
       <div className="mx-6 mb-3 rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-semibold" style={{ color: P.text }}>
+            Ingresos del mes
+          </h3>
+          <button
+            type="button"
+            onClick={() => onNavigate("incomes")}
+            className="text-[10px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+            style={{ color: P.brnDk }}
+          >
+            Ver ingresos →
+          </button>
+        </div>
+        {empty.incomes ? (
+          <EmptyState
+            plain
+            title="Aún no hay ingresos."
+            description="Registra un ingreso para ver el total de este mes."
+            actionLabel="Ver ingresos"
+            onAction={() => onNavigate("incomes")}
+          />
+        ) : (
+          <div className="flex items-baseline gap-2">
+            <span className="text-[22px] font-bold font-sans" style={{ color: P.text }}>
+              {formatCompactMoney(model.periodIncome)}
+            </span>
+            <span className="text-xs" style={{ color: P.muted }}>
+              este mes
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="mx-6 mb-3 rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold" style={{ color: P.text }}>
             Presupuesto del mes
           </h3>
           <span className="text-[10px]" style={{ color: P.muted }}>
@@ -464,7 +498,7 @@ function DashboardBody({
           />
         ) : (
           <div className="space-y-2">
-            {activity.map((item) => (
+            {activity.slice(0, 3).map((item) => (
               <div
                 key={item.id}
                 className="flex items-center gap-3 rounded-2xl p-3 shadow-sm"

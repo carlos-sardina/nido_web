@@ -54,6 +54,7 @@ describe("dashboard view model", () => {
     assert.equal(model.featuredGoal, null);
     assert.deepEqual(model.goals, []);
     assert.deepEqual(model.activity, []);
+    assert.deepEqual(model.periodIncomes, []);
     assert.equal(model.greeting, "Buenos días");
   });
 
@@ -159,6 +160,8 @@ describe("dashboard view model", () => {
     assert.equal(model.periodSpent, 700);
     assert.equal(model.empty.expenses, false);
     assert.equal(model.empty.incomes, false);
+    assert.equal(model.periodIncomes.length, 1);
+    assert.equal(model.periodIncomes[0].id, "i1");
     assert.equal(model.empty.goals, false);
     assert.equal(model.featuredGoal?.contributed, 120000);
     assert.equal(model.featuredGoal?.percent, 60);
@@ -484,5 +487,43 @@ describe("dashboard view model", () => {
     assert.equal(model.activeGoals[0].percent, 40);
     assert.equal(model.activity.some((item) => item.id === "goal_contribution:gc-gone"), false);
     assert.equal(model.activity.some((item) => item.id === "goal_contribution:gc-live"), true);
+  });
+
+  it("drops a soft-deleted income from totals, period list, and activity", () => {
+    const live: IncomeRow = {
+      id: "i-live",
+      householdId: "h1",
+      memberId: "diana",
+      categoryId: "c2",
+      amount: 40000,
+      description: "Sueldo",
+      occurredAt: "2026-08-01",
+      recurringId: null,
+      createdBy: "diana",
+      createdAt: "2026-08-01T12:00:00.000Z",
+      deletedAt: null,
+      category: { id: "c2", name: "Sueldo", icon: "💰" },
+      member: { id: "diana", displayName: "Diana Vega" },
+    };
+    const deleted: IncomeRow = {
+      ...live,
+      id: "i-gone",
+      amount: 9000,
+      deletedAt: "2026-08-21T12:00:00.000Z",
+    };
+
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        incomes: [live, deleted],
+        periodIncomes: [live, deleted],
+      }),
+      members,
+      range,
+    });
+
+    assert.equal(model.periodIncome, 40000);
+    assert.deepEqual(model.periodIncomes.map((row) => row.id), ["i-live"]);
+    assert.equal(model.activity.some((item) => item.id === "income:i-gone"), false);
+    assert.equal(model.empty.incomes, false);
   });
 });

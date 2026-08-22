@@ -8,7 +8,7 @@
 --   1. Supabase local (`supabase start`) or a linked Supabase database
 --   2. Migrations applied (foundation, RLS, lifecycle, categories/create_expense,
 --      expense mutations, goal mutations, goal contribution mutations,
---      goal contribution edit / soft-delete)
+--      goal contribution edit / soft-delete, income mutations)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -1814,6 +1814,276 @@ BEGIN
 END;
 $$;
 
+-- -----------------------------------------------------------------------------
+-- Income mutations (Phase 9.1.3C) — while Carlos is still an active member
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_cat_income_a uuid;
+  v_cat_income_b uuid;
+  v_cat_expense_a uuid;
+  v_mutate uuid;
+  v_deleted_at timestamptz;
+  v_live_sum numeric;
+  v_all_sum numeric;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+  SELECT id INTO v_cat_income_a FROM rls_ids WHERE key = 'cat_income_a';
+  SELECT id INTO v_cat_income_b FROM rls_ids WHERE key = 'cat_income_b';
+  SELECT id INTO v_cat_expense_a FROM rls_ids WHERE key = 'cat_expense_a';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+
+  PERFORM pg_temp.record_result(
+    'I01', 'Carlos', 'A', 'active', 'create_income',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_income(
+          %L::uuid, %L::uuid, 80, 'Freelance', DATE '2026-08-21'
+        )
+      $sql$,
+      v_nido_a, v_cat_income_a
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.create_income(
+    v_nido_a,
+    v_cat_income_a,
+    90,
+    'Para editar',
+    DATE '2026-08-21'
+  ) INTO v_mutate;
+
+  PERFORM pg_temp.record_result(
+    'I02', 'Carlos', 'A', 'active', 'creator can update income',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.update_income(
+          %L::uuid, %L::uuid, 95, 'Freelance editado', DATE '2026-08-21'
+        )
+      $sql$,
+      v_mutate, v_cat_income_a
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'I04', 'Diana', 'A', 'active', 'non-creator cannot update',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_income(
+            %L::uuid, %L::uuid, 15, 'Diana no puede', DATE '2026-08-21'
+          )
+        $sql$,
+        v_mutate, v_cat_income_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.incomes SET description = %L WHERE id = %L',
+        'diana overwrite', v_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'I05', 'Diana', 'A', 'active', 'non-creator cannot soft-delete',
+    'deny',
+    pg_temp.expect_allow(format(
+      'SELECT public.soft_delete_income(%L::uuid)',
+      v_mutate
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'I06', 'Luis', 'B', 'never member', 'other household cannot access or mutate',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_count(format(
+        'SELECT count(*) FROM public.incomes WHERE id = %L', v_mutate
+      )) = 0
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_income(
+            %L::uuid, %L::uuid, 15, 'Luis no puede', DATE '2026-08-21'
+          )
+        $sql$,
+        v_mutate, v_cat_income_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_income(%L::uuid)',
+        v_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_income(
+            %L::uuid, %L::uuid, 10, 'Cruzado', DATE '2026-08-21'
+          )
+        $sql$,
+        v_nido_a, v_cat_income_a
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'I11', 'Carlos', 'A', 'active', 'manipulated uuid/household does not authorize',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_income(
+            %L::uuid, %L::uuid, 10, 'Otro nido', DATE '2026-08-21'
+          )
+        $sql$,
+        v_nido_b, v_cat_income_b
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_income(
+            %L::uuid, %L::uuid, 10, 'Categoria ajena', DATE '2026-08-21'
+          )
+        $sql$,
+        v_nido_a, v_cat_income_b
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_income(
+            %L::uuid, %L::uuid, 10, 'Tipo gasto', DATE '2026-08-21'
+          )
+        $sql$,
+        v_nido_a, v_cat_expense_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_income(
+            %L::uuid, %L::uuid, 10, 'Fake id', DATE '2026-08-21'
+          )
+        $sql$,
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', v_cat_income_a
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.clear_auth();
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.record_result(
+    'I10', 'none', '-', 'none', 'unauthenticated cannot mutate',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.create_income(
+            %L::uuid, %L::uuid, 10, 'Anon', DATE '2026-08-21'
+          )
+        $sql$,
+        v_nido_a, v_cat_income_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_income(
+            %L::uuid, %L::uuid, 10, 'Anon', DATE '2026-08-21'
+          )
+        $sql$,
+        v_mutate, v_cat_income_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_income(%L::uuid)',
+        v_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'I03', 'Carlos', 'A', 'active', 'creator can soft-delete',
+    'allow',
+    pg_temp.expect_allow(format(
+      'SELECT public.soft_delete_income(%L::uuid)',
+      v_mutate
+    ))
+  );
+
+  SELECT deleted_at INTO v_deleted_at
+  FROM public.incomes
+  WHERE id = v_mutate;
+
+  IF v_deleted_at IS NULL THEN
+    UPDATE rls_test_results
+    SET actual = 'deny', passed = false
+    WHERE test_id = 'I03';
+  END IF;
+
+  PERFORM pg_temp.record_result(
+    'I12', 'Carlos', 'A', 'active', 'deleted income cannot be mutated',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_income(
+            %L::uuid, %L::uuid, 12, 'Ya eliminado', DATE '2026-08-21'
+          )
+        $sql$,
+        v_mutate, v_cat_income_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_income(%L::uuid)',
+        v_mutate
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'UPDATE public.incomes SET description = %L WHERE id = %L',
+        'after delete', v_mutate
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  SELECT
+    coalesce(sum(amount) FILTER (WHERE deleted_at IS NULL), 0),
+    coalesce(sum(amount), 0)
+  INTO v_live_sum, v_all_sum
+  FROM public.incomes
+  WHERE id = v_mutate;
+
+  PERFORM pg_temp.record_result(
+    'I13', 'Carlos', 'A', 'active', 'deleted income excluded from calculations',
+    'allow',
+    CASE
+      WHEN v_deleted_at IS NOT NULL
+       AND v_live_sum = 0
+       AND v_all_sum = 95
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  INSERT INTO rls_ids (key, id) VALUES ('income_mutate_a', v_mutate);
+END;
+$$;
+
 -- Scenario C — Carlos leaves Nido A
 -- Membership write is service_role / table-owner work, matching the
 -- chosen RLS model (clients cannot UPDATE household_members).
@@ -1999,6 +2269,48 @@ BEGIN
     pg_temp.expect_allow(format(
       'UPDATE public.incomes SET description = %L WHERE id = %L',
       'after leave', v_income_a
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'I07', 'Carlos', 'A', 'left', 'historical member can read income',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.incomes WHERE household_id = %L', v_nido_a
+    )) >= 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'I08', 'Carlos', 'A', 'left', 'historical member cannot mutate income',
+    'deny',
+    CASE
+      WHEN pg_temp.expect_allow(format(
+        $sql$
+          SELECT public.update_income(
+            %L::uuid, %L::uuid, 12, 'Ya salio', DATE '2026-08-21'
+          )
+        $sql$,
+        v_income_a, v_cat_income_a
+      )) = 'deny'
+      AND pg_temp.expect_allow(format(
+        'SELECT public.soft_delete_income(%L::uuid)',
+        v_income_a
+      )) = 'deny'
+      THEN 'deny'
+      ELSE 'allow'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'I09', 'Carlos', 'A', 'left', 'member who left cannot create income',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_income(
+          %L::uuid, %L::uuid, 10, 'Despues de salir', DATE '2026-08-21'
+        )
+      $sql$,
+      v_nido_a, v_cat_income_a
     ))
   );
 

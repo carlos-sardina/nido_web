@@ -2,7 +2,8 @@
  * Household expense category catalog and name rules.
  *
  * Categories are household-scoped. There is no global categories table.
- * Default names must stay in sync with public.default_expense_category_catalog().
+ * Default names must stay in sync with public.default_expense_category_catalog()
+ * and public.default_income_category_catalog().
  */
 
 export const CATEGORY_NAME_MAX = 80;
@@ -28,6 +29,17 @@ export const DEFAULT_EXPENSE_CATEGORIES: readonly DefaultExpenseCategory[] = [
   { name: "Salud", icon: "❤️" },
   { name: "Educación", icon: "🎓" },
   { name: "Trabajo", icon: "💼" },
+  { name: "Otros", icon: "➕" },
+];
+
+/**
+ * Product catalog used when a Nido is created.
+ * Must stay in sync with public.default_income_category_catalog().
+ */
+export const DEFAULT_INCOME_CATEGORIES: readonly DefaultExpenseCategory[] = [
+  { name: "Sueldo", icon: "💰" },
+  { name: "Freelance", icon: "💻" },
+  { name: "Extra", icon: "✨" },
   { name: "Otros", icon: "➕" },
 ];
 
@@ -75,6 +87,21 @@ export function activeExpenseCategories(
       (category) =>
         category.householdId === householdId &&
         category.type === "expense" &&
+        category.archivedAt == null,
+    )
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
+}
+
+export function activeIncomeCategories(
+  categories: readonly HouseholdCategory[],
+  householdId: string,
+): HouseholdCategory[] {
+  return categories
+    .filter(
+      (category) =>
+        category.householdId === householdId &&
+        category.type === "income" &&
         category.archivedAt == null,
     )
     .slice()

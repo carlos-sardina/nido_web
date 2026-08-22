@@ -6,6 +6,32 @@ export function isActiveIncome(income: Pick<IncomeRow, "deletedAt">): boolean {
   return income.deletedAt == null;
 }
 
+export function canMutateIncome(
+  income: Pick<IncomeRow, "createdBy" | "deletedAt">,
+  userId: string | null | undefined,
+): boolean {
+  return Boolean(userId) && income.createdBy === userId && income.deletedAt == null;
+}
+
+/**
+ * Confirmed incomes of the current period for Ingresos / totals.
+ * Soft-deleted rows are excluded. Newest date first, then newest created_at.
+ */
+export function visiblePeriodIncomes(
+  incomes: IncomeRow[],
+  range: MonthRange,
+  householdId?: string,
+): IncomeRow[] {
+  return incomesInRange(incomes, range)
+    .filter((income) => householdId == null || income.householdId === householdId)
+    .slice()
+    .sort((a, b) => {
+      const byDate = b.occurredAt.localeCompare(a.occurredAt);
+      if (byDate !== 0) return byDate;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+}
+
 export function incomesInRange(incomes: IncomeRow[], range: MonthRange): IncomeRow[] {
   return incomes.filter(
     (income) => isActiveIncome(income) && isDateInRange(income.occurredAt, range),

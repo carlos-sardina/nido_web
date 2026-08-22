@@ -54,6 +54,7 @@ Repository migrations on that project, in order:
 6. `20260821180000_nido_goal_mutations.sql` (apply on nido_dev; do not edit earlier files)
 7. `20260821200000_nido_goal_contribution_mutations.sql` (apply on nido_dev; do not edit earlier files)
 8. `20260821210000_nido_goal_contribution_edit.sql` (apply on nido_dev; do not edit earlier files)
+9. `20260821220000_nido_income_mutations.sql` (apply on nido_dev; do not edit earlier files)
 
 Do not put the database password, service-role key, or anon key in this document.
 

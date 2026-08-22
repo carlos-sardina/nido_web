@@ -1,18 +1,17 @@
-# Financial data layer (Phase 9.1.3D)
+# Financial data layer (Phase 9.1.3C)
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
-Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar un gasto**. Phase 9.1.2B closes the expense module. Phase 9.1.3A connects **Metas**. Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (list in goal detail, edit, soft-delete):
+Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar un gasto**. Phase 9.1.2B closes the expense module. Phase 9.1.3A connects **Metas**. Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (list in goal detail, edit, soft-delete). Phase 9.1.3C connects **Ingresos**:
 
-- contributions reuse `goal_contributions`
-- any active member may contribute to an active goal of the same Nido
-- only the creator may update or soft-delete a live contribution on an active goal
-- `deleted_at IS NULL` is the only source for an active contribution
-- progress remains `SUM(goal_contributions.amount) WHERE deleted_at IS NULL / target_amount` (never stored)
-- over-target contributions are allowed; visual progress stays capped at 100%
-- `status = completed` is not persisted; “alcanzada” is derived
+- confirmed incomes reuse `incomes`
+- any active member may register an income attributed to themselves (`member_id = created_by = auth.uid()`)
+- only the creator may update or soft-delete a live income
+- `deleted_at IS NULL` is the only source for an active income
+- period income remains `SUM(incomes.amount) WHERE deleted_at IS NULL` and `occurred_at` in range (never stored)
+- templates in `recurring_incomes` are not added on top of confirmed rows
 
-Ingresos, presupuestos, and recurrencias are still not implemented. Actividad remains prototype UI on the same snapshot. Phase 9.1.4 was not started.
+Presupuestos and recurrencias are still not implemented. Phase 9.1.4 was not started.
 
 ---
 
@@ -49,9 +48,13 @@ Default expense names live in `public.default_expense_category_catalog()` and `s
 
 Vivienda, Despensa, Restaurantes, Transporte, Mascotas, Servicios, Limpieza, Entretenimiento, Salud, Educación, Trabajo, Otros.
 
-`create_household` inserts those rows in the same transaction as the household and owner membership. Existing households are backfilled by migration `20260821000000_nido_categories_and_create_expense.sql`. Reopening the expense form does not insert again. Names are unique per household and type while `archived_at IS NULL`.
+Default income names live in `public.default_income_category_catalog()` and the same TypeScript module:
 
-The form only lists **active expense** categories of the active Nido. If none exist, it shows **No hay categorías disponibles.** and does not create rows.
+Sueldo, Freelance, Extra, Otros.
+
+`create_household` inserts expense **and** income rows in the same transaction as the household and owner membership. Existing households are backfilled by `20260821000000_nido_categories_and_create_expense.sql` (expenses) and `20260821220000_nido_income_mutations.sql` (incomes). Reopening a form does not insert again. Names are unique per household and type while `archived_at IS NULL`.
+
+The expense form only lists **active expense** categories of the active Nido. The income form only lists **active income** categories. If none exist, it shows **No hay categorías disponibles.** and does not create rows.
 
 ---
 
@@ -193,6 +196,57 @@ The Gastos tab (`budget` in navigation) lists `model.periodExpenses` from `useDa
 
 ---
 
+## Registrar un ingreso
+
+Home `+` → **Registrar un ingreso** → form → `createIncome()` → `create_income` RPC → `useDashboard().refresh()`.
+
+The Ingresos tab lists `model.periodIncomes` from the same snapshot. Home shows `periodIncome` from that list. Actividad uses `model.activity` (union of live expenses, incomes, and contributions). The `FEED` mock is no longer used on Actividad.
+
+### Model
+
+| Field | Representation |
+| --- | --- |
+| Amount | `incomes.amount` `numeric(12,2)`, must be `> 0` |
+| Description | trimmed text, required in this phase, max 80 |
+| Category | `category_id` of an active income category in the same household |
+| Date | `occurred_at` calendar date, default today in `America/Mexico_City` |
+| Earner / created_by | `auth.uid()` (v1 does not let the UI pick another member) |
+| Recurrence | `recurring_id` stays NULL; templates are not implemented here |
+
+There is no payer, split, percentage, or recurrence field on this form. Those are not invented on `incomes`.
+
+### Authorization
+
+`auth.uid()` → active household membership → `incomes.household_id` → `created_by = auth.uid()`.
+
+On create, `p_household_id` is only accepted after `is_active_household_member`. On update/delete, household is looked up from the row. The client cannot send `created_by` or `member_id`.
+
+| Actor | SELECT | CREATE | UPDATE / soft-delete |
+| --- | --- | --- | --- |
+| Active member, creator | yes | yes (own row) | yes, if `deleted_at` is null |
+| Active member, not creator | yes | yes (own row) | no |
+| Historical member | yes | no | no |
+| Other household | no | no | no |
+| Unauthenticated | no | no | no |
+
+`create_income`, `update_income`, and `soft_delete_income` are `SECURITY INVOKER`.
+
+### Soft-delete
+
+There is no physical `DELETE FROM incomes`. `soft_delete_income` sets `deleted_at`. Period income, Ingresos, Home, health, and activity filter `deleted_at IS NULL`.
+
+Confirmation copy:
+
+- **¿Eliminar este ingreso?**
+- **Esta acción quitará el ingreso de tus totales y actividad.**
+- Cancelar (ghost) / Eliminar ingreso (`Button` danger)
+
+Already-deleted incomes cannot be edited or deleted again.
+
+Double submit: **Guardando…** (`aria-busy`). After create, edit, or delete: `dashboard.refresh()`.
+
+---
+
 ## Metas
 
 The Metas tab lists `model.activeGoals` / `model.goals` from the same `useDashboard()` snapshot. Progress is derived from embedded `goal_contributions`. There is no `current_amount`.
@@ -294,14 +348,15 @@ Double submit: **Guardando…** (`aria-busy`). After create, edit, or delete, Ho
 | Module | Role |
 | --- | --- |
 | `queries/dashboard.ts` | `fetchDashboardSnapshot(householdId)` |
-| `queries/categories.ts` | `fetchActiveExpenseCategories(householdId)` |
+| `queries/categories.ts` | `fetchActiveExpenseCategories` / `fetchActiveIncomeCategories` |
 | `expenses.ts` | `createExpense` / `updateExpense` / `deleteExpense` |
+| `incomes.ts` | `createIncome` / `updateIncome` / `deleteIncome` |
 | `goals.ts` | `createGoal` / `updateGoal` / `archiveGoal` |
 | `contributions.ts` | `createContribution` / `updateContribution` / `deleteContribution` |
 | `financial/` | dates, money, splits, validation, dashboard view model |
 | `use-dashboard.ts` | shared snapshot; `refresh()` after create/edit/delete/archive |
 
-Visual components do not query Supabase tables directly. Home, Gastos, and Metas do not keep a parallel financial store.
+Visual components do not query Supabase tables directly. Home, Ingresos, Gastos, Metas, and Actividad do not keep a parallel financial store.
 
 ---
 
@@ -309,24 +364,25 @@ Visual components do not query Supabase tables directly. Home, Gastos, and Metas
 
 No records → empty copy, not prototype numbers.
 
-Onboarding income/expenses are still not persisted. A newly created Nido has default **categories** and otherwise empty financial tables until the user registers a gasto.
+Onboarding income/expenses are still not persisted. A newly created Nido has default **expense and income categories** and otherwise empty financial tables until the user registers a row.
 
 ---
 
 ## RLS
 
-SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense **UPDATE** (including soft-delete) and goal **UPDATE** (including archive) require the same plus `created_by = auth.uid()` and a live row (`deleted_at IS NULL` / `status <> archived`). Contribution **UPDATE** (including soft-delete) requires creator + active member + `deleted_at IS NULL` + parent goal `status = active`. Physical DELETE remains denied on incomes/expenses/goals and is revoked on `goal_contributions` for `authenticated`.
+SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense, income, and contribution **UPDATE** (including soft-delete) and goal **UPDATE** (including archive) require the same plus `created_by = auth.uid()` and a live row (`deleted_at IS NULL` / `status <> archived`). Income INSERT also requires `member_id = auth.uid()`. Contribution **UPDATE** also requires parent goal `status = active`. Physical DELETE remains denied on incomes/expenses/goals and is revoked on `goal_contributions` for `authenticated`.
 
-`create_expense`, `update_expense`, `soft_delete_expense`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, and `soft_delete_goal_contribution` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
+`create_expense`, `update_expense`, `soft_delete_expense`, `create_income`, `update_income`, `soft_delete_income`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, and `soft_delete_goal_contribution` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
 
-SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
+SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y12`, `Z01`–`Z22`, `I01`–`I13`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
 
 ---
 
 ## Ownership
 
-- Dashboard, gasto, meta, and aportación mutations: active household from `useMyNido` only
+- Dashboard, gasto, ingreso, meta, and aportación mutations: active household from `useMyNido` only
 - Only the expense creator may update or soft-delete
+- Only the income creator may update or soft-delete
 - Only the goal creator may update or archive
 - Any active member may contribute to an active goal of that Nido
 - Only the contribution creator may update or soft-delete a live contribution on an active goal

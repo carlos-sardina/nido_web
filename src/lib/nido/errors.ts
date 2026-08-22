@@ -17,7 +17,7 @@ const USER_MESSAGES: Record<NidoErrorCode, string> = {
   last_owner: "No puedes salir siendo el único propietario del Nido.",
   forbidden: "No tienes permiso para hacer esto.",
   invalid_amount: "Ingresa un monto válido.",
-  invalid_description: "Ingresa una descripción del gasto.",
+  invalid_description: "Ingresa una descripción válida.",
   invalid_category: "Esta categoría no está disponible.",
   invalid_split: "La división del gasto no es válida.",
   invalid_date: "La fecha no es válida.",
@@ -27,6 +27,8 @@ const USER_MESSAGES: Record<NidoErrorCode, string> = {
   goal_archived: "Esta meta ya fue archivada.",
   contribution_not_found: "No encontramos esta aportación.",
   contribution_deleted: "Esta aportación ya fue eliminada.",
+  income_not_found: "No encontramos este ingreso.",
+  income_deleted: "Este ingreso ya fue eliminado.",
   conflict: "Este gasto cambió. Inténtalo de nuevo.",
   network: "No pudimos completar la operación. Inténtalo de nuevo.",
 };
@@ -84,6 +86,8 @@ const MESSAGE_CODES: Record<string, NidoErrorCode> = {
   "nido.goal_archived": "goal_archived",
   "nido.contribution_not_found": "contribution_not_found",
   "nido.contribution_deleted": "contribution_deleted",
+  "nido.income_not_found": "income_not_found",
+  "nido.income_deleted": "income_deleted",
   "nido.conflict": "conflict",
 };
 
