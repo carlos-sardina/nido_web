@@ -2,15 +2,18 @@
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
-Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1**, **9.4.2**, and **9.4.3** are implemented. 9.4.4–9.4.9 are not. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
+Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1**, **9.4.2**, **9.4.3**, and **9.4.4** are implemented. 9.4.5–9.4.9 are not. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
 
 Phase 9.2.3 is the QA close of this integration. It does not add tables, columns, or product surfaces. The source of truth is the current code, the applied migrations on `nido_dev`, the RLS matrix, and the unit tests — not earlier “pending” notes in this file.
 
 Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar un gasto**. Phase 9.1.2B closes the expense module. Phase 9.1.3A connects **Metas**. Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (list in goal detail, edit, soft-delete). Phase 9.1.3C connects **Ingresos**. Phase 9.1.4 connects **Presupuestos**:
 
 - `budgets.amount` is the planning limit
-- spent is `SUM(expenses.amount)` for the same household, category, and calendar range, with `deleted_at IS NULL`
-- there is no `current_spent`, remaining, or percentage column
+- spent is derived from live `expenses` (same household, `category_id`, calendar month). There is no spending table
+- Nido budgets (`member_id` NULL) sum every visible expense in that set, including personal rows the viewer may SELECT (D5)
+- personal budgets sum only that owner’s `scope = personal` expenses. Shared expenses do not consume a personal budget
+- there is no `current_spent`, remaining, or percentage column. Those are view-model fields
+- consumption is **gross**. 9.4.5 will subtract live refunds (`net_spent = expenses − refunds`)
 - `recurring_expenses` templates are never added to spent
 - any active member may create a Nido-level budget (`member_id` NULL) or their own personal budget (`member_id = auth.uid()` via `p_personal`; never another member’s id)
 - personal SELECT follows `profiles.personal_visibility`; Nido / shared rows stay visible to the household
@@ -93,9 +96,9 @@ There is no product rule that rejects future expense dates. The form defaults to
 | Member owed | `SUM(expense_splits.amount)` for that member on non-deleted expenses |
 | Member balance | amount paid − amount owed |
 | Goal progress | `SUM(goal_contributions.amount) WHERE deleted_at IS NULL / goals.target_amount` (0 if target ≤ 0) |
-| Budget spent | `SUM(expenses.amount)` where `deleted_at IS NULL`, same `household_id`, same `category_id`, `occurred_at` in `[budgets.start_date, budgets.end_date]` |
-| Budget remaining | `budgets.amount − spent` (view model only) |
-| Budget usage | `spent / budgets.amount` (view model only; null if amount ≤ 0) |
+| Budget spent | `calculateBudgetConsumption()` / `budgetSpent()`: `SUM(expenses.amount)` where `deleted_at IS NULL`, same `household_id`, same `category_id`, `occurred_at` in `[budgets.start_date, budgets.end_date]`. Nido: all visible rows (personal + shared). Personal: `scope = personal` and `created_by = budgets.member_id`. Gross; refunds are 9.4.5 |
+| Budget remaining | `budgets.amount − spent` (view model only; may be negative) |
+| Budget usage | `spent / budgets.amount * 100` (view model only; unbounded, may exceed 100; null if amount ≤ 0) |
 | Activity | union of expenses, incomes, and goal contributions, newest first |
 
 There is no `balances` table, no `current_amount` on goals, and no `current_spent` on budgets.
@@ -112,7 +115,7 @@ Nido-level budgets (`member_id IS NULL`) overlapping the current month feed “P
 
 `profiles.personal_visibility` (`nido` \| `private`, default `nido`) is one global setting. It applies to personal expenses, personal budgets, and personal savings. Shared / Nido rows ignore it. RLS is the authority: a peer cannot SELECT another member’s personal rows when that member is `private`. Dashboard, health, and derived Activity only see rows the viewer is allowed to read. Activity stays derived (no activity table).
 
-The canonical spent helper is `budgetSpent()` in `src/lib/nido/financial/budgets.ts`.
+The canonical helpers are `calculateBudgetConsumption()` and `budgetSpent()` in `src/lib/nido/financial/budgets.ts`. They run on the RLS-filtered dashboard snapshot (period expenses already loaded). There is no consumption RPC and no persisted spent column.
 
 Financial health is unchanged: `computeHealth` still uses `budgetTotal` / `budgetUsagePercent` when a Nido-level budget exists. Those inputs now come from live snapshot budgets and derived spent. The score formula was not modified and is not persisted.
 
@@ -157,7 +160,7 @@ Home `+` → **Crear un presupuesto**, or Home **Presupuesto del mes** → Presu
 | Scope | `member_id` NULL (Nido-level). This phase does not create personal budgets |
 | created_by | `auth.uid()` |
 
-There is no name/description column. Spent, remaining, percent, exceeded, and near-limit (80%, presentation only, terracotta attention) are derived in the view model.
+There is no name/description column. Spent, remaining, percent (unbounded), exceeded, and near-limit (80%, presentation only, terracotta attention) are derived in the view model. Remaining may be negative.
 
 ### Unique live row
 
@@ -504,7 +507,7 @@ SELECT policies require historical membership (`is_household_member`). INSERT st
 
 `create_expense`, `update_expense`, `soft_delete_expense`, `create_income`, `update_income`, `soft_delete_income`, `create_budget`, `update_budget`, `soft_delete_budget`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, `soft_delete_goal_contribution`, `create_recurring_income`, `update_recurring_income`, `set_recurring_income_active`, `materialize_recurring_income`, `create_recurring_expense`, `update_recurring_expense`, `set_recurring_expense_active`, `materialize_recurring_expense`, `update_household_name`, `update_household_default_split_method`, `create_category`, `rename_category`, and `archive_category` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Recurring split writes follow `can_mutate_recurring_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
 
-SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y20`, `Z01`–`Z22`, `I01`–`I13`, `K01`–`K16`, `RE01`–`RE16`, `OB01`–`OB28`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
+SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y20`, `Z01`–`Z22`, `I01`–`I13`, `K01`–`K16`, `RE01`–`RE16`, `OB01`–`OB28`, `V01`–`V22`, `C01`–`C06`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
 
 ---
 

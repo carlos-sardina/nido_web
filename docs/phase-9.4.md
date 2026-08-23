@@ -1,6 +1,6 @@
 # Phase 9.4 — Technical contract
 
-Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1 is implemented** (household name, initials contract, category RPCs + Hogar UI, `households.default_split_method`, `create_expense` uses that preference for new shared expenses). **9.4.2 is implemented** (onboarding persists savings stock, estimates as initial monthly budgets, and `contrib` → `households.default_split_method`). **9.4.3 is implemented** (personal budgets UI + global `profiles.personal_visibility` with RLS). Subphases 9.4.4–9.4.9 are **not** implemented. Smoke UI and the live RLS matrix were not executed in the implementation environment — see [testing.md](./testing.md).
+Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1 is implemented** (household name, initials contract, category RPCs + Hogar UI, `households.default_split_method`, `create_expense` uses that preference for new shared expenses). **9.4.2 is implemented** (onboarding persists savings stock, estimates as initial monthly budgets, and `contrib` → `households.default_split_method`). **9.4.3 is implemented** (personal budgets UI + global `profiles.personal_visibility` with RLS). **9.4.4 is implemented** (derived budget consumption; personal vs Nido; live expenses; no persisted spent). Subphases 9.4.5–9.4.9 are **not** implemented. Smoke UI and the live RLS matrix were not executed in the implementation environment — see [testing.md](./testing.md).
 
 Source of confirmed product decisions: the 9.4.0 brief. Discarded items live in [future.md](./future.md). Do not re-interpret those as pending 9.4 work.
 
@@ -44,8 +44,8 @@ Protected business data (do not touch): **Departamento**, **Nido Smoke 924**.
 | Categories | Household-scoped. Defaults seeded (`is_default`). Unique active name per type. Archive via `archived_at`. RLS allows active members to INSERT/UPDATE. **No RPC, no UI.** Forms only list active rows. |
 | Expenses | Personal + shared. `create_expense` forces personal → `fixed`, shared → household preference. Creator-only edit/soft-delete. Personal SELECT follows `profiles.personal_visibility`. Shared stays visible to household members. |
 | Incomes | Live. Onboarding monthly income persists as a real `incomes` row (Sueldo, today Mexico City) when amount > 0. |
-| Nido budgets | Live monthly rows (`member_id` NULL). `create_budget` default / `p_personal = false` writes `member_id` NULL. Spent is derived: `SUM(expenses.amount)` same household + category + date range, `deleted_at IS NULL`. Does **not** filter by `scope` (9.4.4). |
-| Personal budgets | `create_budget(..., p_personal := true)` writes `member_id = auth.uid()`. UI: Presupuestos del Nido / Presupuestos personales. Creator-only edit/soft-delete. SELECT follows `personal_visibility`. |
+| Nido budgets | Live monthly rows (`member_id` NULL). `create_budget` default / `p_personal = false` writes `member_id` NULL. Spent is derived (9.4.4): `SUM(expenses.amount)` same household + category + month, `deleted_at IS NULL`. Includes visible personal expenses (D5). RLS hides `private` personal rows from peers. |
+| Personal budgets | `create_budget(..., p_personal := true)` writes `member_id = auth.uid()`. Spent is only that owner’s `scope = personal` expenses in the same category + month. Shared expenses do not consume a personal budget. UI: Presupuestos del Nido / Presupuestos personales. Creator-only edit/soft-delete. SELECT follows `personal_visibility`. |
 | Goals / contributions / recurrences | Live. Recurring **budgets** do not exist. |
 | Activity | Derived from expenses, incomes, goal contributions. No activity table. |
 | Split preference | Onboarding UI collects `equal` / `proportional` and persist writes `households.default_split_method`. `capacity` is not a product value. |
@@ -474,9 +474,9 @@ No indispensable product decision is missing for **LISTA PARA IMPLEMENTACIÓN** 
 ## 12. Verdict
 
 ```text
-9.4.3 IMPLEMENTADA (CASI CERRADA) — veredicto de cierre en testing.md
+9.4.4 IMPLEMENTADA (CASI CERRADA) — veredicto de cierre en testing.md
 ```
 
-Next subphase: **9.4.4** — budget consumption (personal vs Nido; live expenses; no mocks).
+Next subphase: **9.4.5** — refunds + automatic splits + Activity/budget hooks.
 
-Do not declare 9.4.4–9.4.9 implemented.
+Do not declare 9.4.5–9.4.9 implemented.

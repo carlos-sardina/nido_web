@@ -219,7 +219,7 @@ Accepted invitations stay accepted even if they would also be expired.
 | Onboarding split preference | `households.default_split_method` (`equal` \| `proportional`) |
 | Confirmed expense | `expenses` + `expense_splits` via `create_expense` |
 | Personal visibility | `profiles.personal_visibility` (`nido` \| `private`, default `nido`) via `update_personal_visibility` |
-| Personal / Nido budgets | `create_budget` (`p_personal` → `member_id = auth.uid()`, default → NULL) |
+| Personal / Nido budgets | `create_budget` (`p_personal` → `member_id = auth.uid()`, default → NULL). Spent is derived, never stored. |
 
 Auth identity still comes from Supabase Auth. The profile is the canonical application display name. Auth user metadata is not updated.
 
@@ -241,7 +241,7 @@ Live on Home, empty when the Nido has no financial rows:
 
 - confirmed incomes and expenses (ingresos and gastos registered from `+` are live)
 - goals and contribution progress
-- Nido and personal budgets for the current month (create / edit / soft-delete from Home and `+`; lists are separate)
+- Nido and personal budgets for the current month (create / edit / soft-delete from Home and `+`; lists are separate). Each row shows budgeted / consumed / % / remaining from live expenses (`America/Mexico_City` month, `deleted_at IS NULL`). Nido consumption includes visible personal expenses; personal consumption is only the owner’s personal expenses. Percentage may exceed 100%; remaining may be negative. Refunds are not subtracted yet (9.4.5).
 - activity derived from expenses, incomes, and goal contributions (not budget mutations). Activity stays derived. Private personal rows of other members never enter the snapshot.
 
 Not in this product and not pending 9.4 ([future.md](./future.md)):
@@ -268,7 +268,7 @@ The PostgREST client cannot run a multi-statement transaction. These operations 
 | `create_expense(...)` | `SECURITY INVOKER` | Expense + splits must be atomic. Split sums and personal cardinality are enforced here. RLS still applies. |
 | `create_goal(...)` / `update_goal` / `archive_goal` | `SECURITY INVOKER` | Goal definition. Only the creator may update or archive. |
 | `create_goal_contribution(...)` | `SECURITY INVOKER` | Any active member may contribute to an active goal of the same Nido. `member_id` and `created_by` are `auth.uid()`. |
-| `create_budget(...)` / `update_budget` / `soft_delete_budget` | `SECURITY INVOKER` | Monthly budget. `p_personal` true → `member_id = auth.uid()`; default → Nido (`NULL`). Only the creator may update or soft-delete. Spent is not stored. |
+| `create_budget(...)` / `update_budget` / `soft_delete_budget` | `SECURITY INVOKER` | Monthly budget. `p_personal` true → `member_id = auth.uid()`; default → Nido (`NULL`). Only the creator may update or soft-delete. Spent is not stored; 9.4.4 derives it from `expenses`. |
 | `update_personal_visibility(p_visibility)` | `SECURITY INVOKER` | Self only. Writes `profiles.personal_visibility` (`nido` \| `private`). Does not take a user id. |
 | `lookup_invitation(p_token)` | `SECURITY DEFINER` | Invitation SELECT is owner-only. Invitees and anonymous users need a name/status preview. |
 | `accept_invitation(p_token)` | `SECURITY DEFINER` | No client UPDATE on invitations and no client INSERT of a non-owner membership. |
@@ -362,7 +362,7 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## What remains after owner transfer
 
-Phase 9.4 work is specified in [phase-9.4.md](./phase-9.4.md). It is not implemented yet (9.4.0 is contract only).
+Phase 9.4 work is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1–9.4.4** are implemented. 9.4.5–9.4.9 remain.
 
 Do **not** treat these as pending 9.4: Google OAuth, image avatars, notifications, Realtime, insights, persistent Activity, multi-currency, receipts, email invitations, recurring budgets, push. See [future.md](./future.md).
 

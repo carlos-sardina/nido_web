@@ -637,7 +637,11 @@ current_amount = SUM(goal_contributions.amount) WHERE goal_id = goal AND deleted
 
 ### Budget spent
 
+Derived only. There is no `current_spent` column and no spending table. 9.4.4 consumption is **gross**; 9.4.5 will subtract live refunds.
+
 ```
+-- Nido (member_id IS NULL): every visible live expense in the category/month (D5).
+-- Personal (member_id set): only that owner's scope = personal rows.
 spent = SUM(expenses.amount)
         WHERE household_id = budget.household_id
           AND category_id = budget.category_id
@@ -646,14 +650,15 @@ spent = SUM(expenses.amount)
           AND (
             budget.member_id IS NULL
             OR (
-              -- personal budget: spend attributed to that member
-              -- attribution rule is application-defined; default is payer_id
-              payer_id = budget.member_id
+              scope = 'personal'
+              AND created_by = budget.member_id
             )
           )
 ```
 
-Personal-budget attribution (payer vs participant vs creator) is left to application logic. The database does not store `current_spent`. Over-budget spending is valid.
+Visibility is RLS: a peer’s SELECT (and therefore any SUM they can compute) omits another member’s `private` personal expenses. Shared expenses never consume a personal budget. Matching is by `category_id`, not name. Soft-deleted expenses and unmaterialized `recurring_expenses` templates do not count. Over-budget spending is valid (`remaining` may be negative; usage may exceed 100%).
+
+The application helper is `calculateBudgetConsumption()` in `src/lib/nido/financial/budgets.ts`. It does not re-split `expense_splits`.
 
 ### Income-based shares
 
@@ -937,7 +942,7 @@ Still deferred (not 9.4 unless [phase-9.4.md](./phase-9.4.md) says otherwise):
 9. **Stored `requires_review` flag** — derived at materialize time instead.
 10. **Separate pause vs archive on recurring rules** — `is_active` covers both for now.
 
-Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): budget consumption (9.4.4), refunds, derived monthly balance / settlements, pull-to-refresh. 9.4.1–9.4.3 (name, initials, categories, split column, onboarding persist, personal budgets + visibility) are implemented.
+Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): refunds (9.4.5), derived monthly balance / settlements, pull-to-refresh. 9.4.1–9.4.4 (name, initials, categories, split column, onboarding persist, personal budgets + visibility, derived budget consumption) are implemented.
 
 Moved to **[future.md](./future.md)** (not pending 9.4): multi-currency, notifications, activity-feed persistence, insights, Google OAuth, image avatars, Realtime, receipts, email invitations, recurring budgets, push.
 

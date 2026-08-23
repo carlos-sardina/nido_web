@@ -140,7 +140,7 @@ export function BudgetDetail({
                   style={{ backgroundColor: P.card }}
                 >
                   <Text size="caption" tone="muted">
-                    Gastado
+                    Consumido
                   </Text>
                   <p
                     className="mt-1 text-h2 font-bold font-sans"
@@ -148,14 +148,31 @@ export function BudgetDetail({
                   >
                     {formatCompactMoney(budget.spent)}
                   </p>
+                  <div
+                    className="mt-3 h-1.5 rounded-full overflow-hidden"
+                    style={{ backgroundColor: P.sub }}
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.min(100, budget.usagePercent ?? 0)}%`,
+                        backgroundColor: budget.over
+                          ? P.danger
+                          : budget.nearLimit
+                            ? P.warn
+                            : P.sageDk,
+                      }}
+                    />
+                  </div>
                   <p
-                    className="mt-1 text-caption font-semibold"
+                    className="mt-2 text-caption font-semibold"
                     style={{
                       color: budget.over ? P.danger : budget.nearLimit ? P.warn : P.sageDk,
                     }}
                   >
+                    {budget.usagePercent != null ? `${budget.usagePercent}% · ` : ""}
                     {budget.over
-                      ? `${formatCompactMoney(Math.abs(budget.remaining))} sobre el plan`
+                      ? `Restante ${formatCompactMoney(budget.remaining)}`
                       : `${formatCompactMoney(budget.remaining)} restante`}
                   </p>
                 </div>
@@ -175,9 +192,6 @@ export function BudgetDetail({
                   }
                 />
                 <DetailRow label="Periodo" value={periodLabel(budget)} />
-                {budget.usagePercent != null ? (
-                  <DetailRow label="Uso" value={`${budget.usagePercent}%`} />
-                ) : null}
               </>
             )}
           </div>

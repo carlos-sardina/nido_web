@@ -1,8 +1,9 @@
 import type { HouseholdMemberView } from "../types.ts";
 import { isDateInRange, type MonthRange } from "./dates.ts";
 import { ratioPercent, roundMoney, sumMoney } from "./money.ts";
-import { isActiveExpense } from "./expenses.ts";
+import { isActiveExpense, isPersonalExpense } from "./expenses.ts";
 import type {
+  BudgetConsumption,
   BudgetItemView,
   BudgetRow,
   ExpenseRow,
@@ -47,28 +48,73 @@ export function nidoBudgetsForMonth(budgets: BudgetRow[], range: MonthRange): Bu
 }
 
 /**
+ * Whether a live expense consumes this budget.
+ *
+ * Shared for every budget:
+ * - same household, same category_id, date in the budget month
+ * - deleted_at IS NULL
+ * - only materialized expenses (recurring templates never appear here)
+ *
+ * Nido (`member_id` NULL): every visible expense in that set. Personal
+ * expenses count when the viewer was allowed to SELECT them (D5 / RLS).
+ *
+ * Personal (`member_id` set): only that owner's `scope = personal` rows.
+ * Shared expenses never consume a personal budget. Ownership is
+ * `created_by` (same as `payer_id` on personal expenses). Splits are not
+ * re-interpreted.
+ *
+ * Amounts are gross. 9.4.5 will subtract live refunds.
+ */
+export function expenseConsumesBudget(
+  budget: Pick<BudgetRow, "householdId" | "categoryId" | "startDate" | "endDate" | "memberId">,
+  expense: ExpenseRow,
+): boolean {
+  if (!isActiveExpense(expense)) return false;
+  if (expense.householdId !== budget.householdId) return false;
+  if (expense.categoryId !== budget.categoryId) return false;
+  if (
+    !isDateInRange(expense.occurredAt, {
+      start: budget.startDate,
+      end: budget.endDate,
+    })
+  ) {
+    return false;
+  }
+  if (isPersonalBudget(budget)) {
+    return isPersonalExpense(expense) && expense.createdBy === budget.memberId;
+  }
+  return true;
+}
+
+/**
  * Single source of truth for spent against a budget.
- * Sums confirmed expenses only: same household, same category, date in the
- * budget range, deleted_at IS NULL. Does not add recurring_expenses templates.
+ * Sums confirmed expenses only. Does not add recurring_expenses templates.
+ * Does not persist. See `expenseConsumesBudget` for Nido vs personal rules.
  */
 export function budgetSpent(
-  budget: Pick<BudgetRow, "householdId" | "categoryId" | "startDate" | "endDate">,
+  budget: Pick<BudgetRow, "householdId" | "categoryId" | "startDate" | "endDate" | "memberId">,
   expenses: ExpenseRow[],
 ): number {
   return sumMoney(
-    expenses
-      .filter(
-        (expense) =>
-          isActiveExpense(expense) &&
-          expense.householdId === budget.householdId &&
-          expense.categoryId === budget.categoryId &&
-          isDateInRange(expense.occurredAt, {
-            start: budget.startDate,
-            end: budget.endDate,
-          }),
-      )
-      .map((expense) => expense.amount),
+    expenses.filter((expense) => expenseConsumesBudget(budget, expense)).map((expense) => expense.amount),
   );
+}
+
+/**
+ * Deterministic consumption view. No I/O, no React.
+ * `percentage` is unbounded (may exceed 100). `remaining` may be negative.
+ */
+export function calculateBudgetConsumption(
+  budget: Pick<BudgetRow, "householdId" | "categoryId" | "startDate" | "endDate" | "memberId" | "amount">,
+  expenses: ExpenseRow[],
+): BudgetConsumption {
+  const consumed = budgetSpent(budget, expenses);
+  return {
+    budgetAmount: budget.amount,
+    consumed,
+    remaining: budgetRemaining(budget.amount, consumed),
+    percentage: budgetUsage(consumed, budget.amount),
+  };
 }
 
 export function budgetRemaining(amount: number, spent: number): number {
@@ -101,19 +147,19 @@ export function buildBudgetItemView(
   expenses: ExpenseRow[],
   members?: HouseholdMemberView[],
 ): BudgetItemView {
-  const spent = budgetSpent(budget, expenses);
+  const consumption = calculateBudgetConsumption(budget, expenses);
   return {
     id: budget.id,
     householdId: budget.householdId,
     categoryId: budget.categoryId,
     name: budget.category?.name?.trim() || "Categoría",
     icon: budget.category?.icon?.trim() || "📌",
-    amount: budget.amount,
-    spent,
-    remaining: budgetRemaining(budget.amount, spent),
-    usagePercent: budgetUsage(spent, budget.amount),
-    over: isBudgetOver(budget.amount, spent),
-    nearLimit: isBudgetNearLimit(budget.amount, spent),
+    amount: consumption.budgetAmount,
+    spent: consumption.consumed,
+    remaining: consumption.remaining,
+    usagePercent: consumption.percentage,
+    over: isBudgetOver(consumption.budgetAmount, consumption.consumed),
+    nearLimit: isBudgetNearLimit(consumption.budgetAmount, consumption.consumed),
     startDate: budget.startDate,
     endDate: budget.endDate,
     createdBy: budget.createdBy,

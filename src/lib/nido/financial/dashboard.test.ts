@@ -768,6 +768,11 @@ describe("dashboard view model", () => {
     assert.equal(hiddenFromPeer.activity.some((item) => item.sourceId === "e-spotify"), false);
     assert.equal(hiddenFromPeer.periodBudgets.length, 1);
     assert.equal(hiddenFromPeer.periodBudgets[0].memberId, null);
+    assert.equal(hiddenFromPeer.periodBudgets[0].spent, 8000);
+    assert.equal(
+      hiddenFromPeer.periodBudgets.some((item) => item.memberId === "carlos"),
+      false,
+    );
 
     const ownerView = buildDashboardViewModel({
       snapshot: emptySnapshot({
@@ -821,6 +826,101 @@ describe("dashboard view model", () => {
     assert.equal(ownerView.periodBudgets.length, 2);
     assert.equal(ownerView.periodBudgets[1].memberId, "carlos");
     assert.equal(ownerView.periodBudgets[1].memberName, "Carlos Pérez");
+    assert.equal(ownerView.periodBudgets[1].spent, 200);
+    assert.equal(ownerView.periodBudgets[1].usagePercent, 100);
     assert.equal(ownerView.budget.totalBudget, 10000);
+    assert.equal(ownerView.budget.items[0].spent, 8000);
+  });
+
+  it("keeps Home Nido totals independent of personal-budget consumption", () => {
+    const sharedSpotify: ExpenseRow = {
+      id: "e-shared-spot",
+      householdId: "h1",
+      categoryId: "spotify",
+      amount: 50,
+      description: "Plan familiar",
+      occurredAt: "2026-08-08",
+      payerId: "diana",
+      scope: "shared",
+      distributionMethod: "equal",
+      recurringId: null,
+      createdBy: "diana",
+      createdAt: "2026-08-08T12:00:00.000Z",
+      deletedAt: null,
+      category: { id: "spotify", name: "Spotify", icon: "🎵" },
+      payer: { id: "diana", displayName: "Diana Vega" },
+      splits: [],
+    };
+    const personalSpotify: ExpenseRow = {
+      ...sharedSpotify,
+      id: "e-personal-spot",
+      amount: 120,
+      description: "Spotify",
+      payerId: "carlos",
+      scope: "personal",
+      distributionMethod: "fixed",
+      createdBy: "carlos",
+      payer: { id: "carlos", displayName: "Carlos Pérez" },
+    };
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        expenses: [sharedSpotify, personalSpotify],
+        periodExpenses: [sharedSpotify, personalSpotify],
+        budgets: [
+          {
+            id: "b-nido-spot",
+            householdId: "h1",
+            memberId: null,
+            categoryId: "spotify",
+            amount: 200,
+            period: "monthly",
+            startDate: "2026-08-01",
+            endDate: "2026-08-31",
+            createdBy: "diana",
+            createdAt: "2026-08-01T12:00:00.000Z",
+            deletedAt: null,
+            category: { id: "spotify", name: "Spotify", icon: "🎵" },
+          },
+          {
+            id: "b-carlos-spot",
+            householdId: "h1",
+            memberId: "carlos",
+            categoryId: "spotify",
+            amount: 200,
+            period: "monthly",
+            startDate: "2026-08-01",
+            endDate: "2026-08-31",
+            createdBy: "carlos",
+            createdAt: "2026-08-01T12:00:00.000Z",
+            deletedAt: null,
+            category: { id: "spotify", name: "Spotify", icon: "🎵" },
+          },
+        ],
+      }),
+      members: [
+        ...members,
+        {
+          userId: "carlos",
+          role: "member",
+          joinedAt: "2026-01-01T00:00:00.000Z",
+          displayName: "Carlos Pérez",
+          avatarUrl: null,
+        },
+      ],
+      range,
+    });
+
+    const nidoItem = model.periodBudgets.find((item) => item.memberId == null);
+    const personalItem = model.periodBudgets.find((item) => item.memberId === "carlos");
+    assert.equal(nidoItem?.spent, 170);
+    assert.equal(nidoItem?.usagePercent, 85);
+    assert.equal(personalItem?.spent, 120);
+    assert.equal(personalItem?.remaining, 80);
+    assert.equal(personalItem?.usagePercent, 60);
+    assert.equal(model.budget.totalBudget, 200);
+    assert.equal(model.budget.totalSpent, 170);
+    if (model.health.available) {
+      assert.equal(model.health.budgetUsagePercent, 85);
+    }
   });
 });

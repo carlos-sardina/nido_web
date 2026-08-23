@@ -36,6 +36,20 @@ function personalCaption(item: BudgetItemView, currentUserId: string | null): st
   return firstName(item.memberName) ?? "Personal";
 }
 
+function consumptionCaption(item: BudgetItemView): string {
+  const percent = item.usagePercent != null ? `${item.usagePercent}%` : null;
+  if (item.over) {
+    const over = `Restante ${formatCompactMoney(item.remaining)}`;
+    return percent ? `${percent} · ${over}` : over;
+  }
+  if (item.nearLimit) {
+    const near = `Cerca del límite · ${formatCompactMoney(item.remaining)} restante`;
+    return percent ? `${percent} · ${near}` : near;
+  }
+  const rest = `${formatCompactMoney(item.remaining)} restante · ${periodLabel(item)}`;
+  return percent ? `${percent} · ${rest}` : rest;
+}
+
 export function BudgetScreen({
   dashboard,
   currentUserId,
@@ -277,11 +291,7 @@ function BudgetCard({
             />
           </div>
           <p className="text-[10px] mt-1.5" style={{ color: usageColor(item) }}>
-            {item.over
-              ? `Excedido · ${formatCompactMoney(Math.abs(item.remaining))}`
-              : item.nearLimit
-                ? `Cerca del límite · ${formatCompactMoney(item.remaining)}`
-                : `${formatCompactMoney(item.remaining)} restante · ${periodLabel(item)}`}
+            {consumptionCaption(item)}
           </p>
         </div>
       </div>

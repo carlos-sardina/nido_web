@@ -11,7 +11,8 @@
 --      goal contribution edit / soft-delete, income mutations,
 --      budget mutations, owner transfer, recurrence mutations,
 --      onboarding financial persist, household categories/split,
---      onboarding savings / budgets, personal visibility)
+--      onboarding savings / budgets, personal visibility,
+--      budget consumption visibility)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -5713,6 +5714,110 @@ BEGIN
         SELECT public.update_personal_visibility('private')
       $sql$
     )
+  );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Phase 9.4.4 — budget consumption visibility (C01–C06)
+-- No new RPC. Aggregates must only see rows RLS already allows.
+-- Nido consumption includes visible personal expenses (D5).
+-- A private personal expense must not enter a peer's SUM.
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_cat_expense_a uuid;
+  v_expense_a uuid;
+  v_shared_expense uuid := 'f1111111-1111-4111-8111-111111111111';
+  v_personal_budget uuid := 'f2222222-2222-4222-8222-222222222222';
+  v_peer_sum numeric;
+  v_owner_sum numeric;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_cat_expense_a FROM rls_ids WHERE key = 'cat_expense_a';
+  SELECT id INTO v_expense_a FROM rls_ids WHERE key = 'expense_a';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.expect_allow(
+    $sql$
+      SELECT public.update_personal_visibility('private')
+    $sql$
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  SELECT coalesce(sum(amount), 0)
+  INTO v_peer_sum
+  FROM public.expenses
+  WHERE id IN (v_expense_a, v_shared_expense)
+    AND category_id = v_cat_expense_a
+    AND deleted_at IS NULL;
+
+  PERFORM pg_temp.record_result(
+    'C01', 'Diana', 'A', 'active', 'private personal expense omitted from peer Nido consumption SUM',
+    'deny',
+    CASE WHEN v_peer_sum = 120 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'C02', 'Diana', 'A', 'active', 'peer cannot read private personal budget consumption',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.budgets WHERE id = %L', v_personal_budget
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT coalesce(sum(amount), 0)
+  INTO v_owner_sum
+  FROM public.expenses
+  WHERE id IN (v_expense_a, v_shared_expense)
+    AND category_id = v_cat_expense_a
+    AND deleted_at IS NULL;
+
+  PERFORM pg_temp.record_result(
+    'C03', 'Carlos', 'A', 'active', 'owner SUM includes own private personal expense',
+    'allow',
+    CASE WHEN v_owner_sum = 200 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'C04', 'Carlos', 'A', 'active', 'owner still reads own personal budget',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.budgets WHERE id = %L', v_personal_budget
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.expect_allow(
+    $sql$
+      SELECT public.update_personal_visibility('nido')
+    $sql$
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  SELECT coalesce(sum(amount), 0)
+  INTO v_peer_sum
+  FROM public.expenses
+  WHERE id IN (v_expense_a, v_shared_expense)
+    AND category_id = v_cat_expense_a
+    AND deleted_at IS NULL;
+
+  PERFORM pg_temp.record_result(
+    'C05', 'Diana', 'A', 'active', 'visible personal expense enters peer Nido consumption SUM',
+    'allow',
+    CASE WHEN v_peer_sum = 200 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'C06', 'Diana', 'A', 'active', 'peer can read personal budget when nido',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.budgets WHERE id = %L', v_personal_budget
+    )) = 1 THEN 'allow' ELSE 'deny' END
   );
 END;
 $$;

@@ -192,6 +192,18 @@ export type GoalProgress = {
   completed: boolean;
 };
 
+/**
+ * Derived budget consumption. Never persisted.
+ * Gross of refunds until 9.4.5 (`net_spent = expenses - refunds`).
+ */
+export type BudgetConsumption = {
+  budgetAmount: number;
+  consumed: number;
+  remaining: number;
+  /** Unbounded. 0 when consumed is 0. Null if budgetAmount <= 0. */
+  percentage: number | null;
+};
+
 export type BudgetCategoryView = {
   categoryId: string;
   name: string;

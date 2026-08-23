@@ -4,7 +4,9 @@ import {
   budgetRemaining,
   budgetSpent,
   budgetUsage,
+  buildBudgetItemView,
   buildMonthBudgetView,
+  calculateBudgetConsumption,
   canMutateBudget,
   isActiveBudget,
   isBudgetNearLimit,
@@ -172,11 +174,215 @@ describe("budgetSpent", () => {
     assert.equal(spent, 250);
   });
 
+  it("does not count a recurring template that was never materialized", () => {
+    assert.equal(budgetSpent(plan, []), 0);
+  });
+
   it("marks over and near-limit from derived spent", () => {
     assert.equal(isBudgetOver(1000, 1001), true);
     assert.equal(isBudgetNearLimit(1000, 800), true);
     assert.equal(isBudgetNearLimit(1000, 790), false);
     assert.equal(isBudgetNearLimit(1000, 1001), false);
+  });
+});
+
+describe("calculateBudgetConsumption", () => {
+  const nido = budget({ amount: 200, categoryId: "spotify" });
+  const personal = budget({
+    id: "b-me",
+    amount: 200,
+    categoryId: "spotify",
+    memberId: "carlos",
+    createdBy: "carlos",
+  });
+
+  it("returns 0% with no expenses", () => {
+    const view = calculateBudgetConsumption(nido, []);
+    assert.deepEqual(view, {
+      budgetAmount: 200,
+      consumed: 0,
+      remaining: 200,
+      percentage: 0,
+    });
+  });
+
+  it("returns a partial percentage", () => {
+    const view = calculateBudgetConsumption(nido, [
+      expense({ amount: 120, categoryId: "spotify" }),
+    ]);
+    assert.equal(view.consumed, 120);
+    assert.equal(view.remaining, 80);
+    assert.equal(view.percentage, 60);
+  });
+
+  it("returns 100% when consumed equals the budget", () => {
+    const view = calculateBudgetConsumption(nido, [
+      expense({ amount: 200, categoryId: "spotify" }),
+    ]);
+    assert.equal(view.consumed, 200);
+    assert.equal(view.remaining, 0);
+    assert.equal(view.percentage, 100);
+  });
+
+  it("allows over-budget consumption above 100% with negative remaining", () => {
+    const view = calculateBudgetConsumption(nido, [
+      expense({ amount: 250, categoryId: "spotify" }),
+    ]);
+    assert.equal(view.consumed, 250);
+    assert.equal(view.remaining, -50);
+    assert.equal(view.percentage, 125);
+    assert.equal(isBudgetOver(view.budgetAmount, view.consumed), true);
+  });
+
+  it("avoids dividing by zero when amount is not positive", () => {
+    const zero = budget({ amount: 0, categoryId: "spotify" });
+    const view = calculateBudgetConsumption(zero, [
+      expense({ amount: 10, categoryId: "spotify" }),
+    ]);
+    assert.equal(view.percentage, null);
+    assert.equal(view.remaining, -10);
+  });
+
+  it("counts the same category_id and ignores a different category", () => {
+    const spent = budgetSpent(nido, [
+      expense({ id: "e-spot", amount: 80, categoryId: "spotify" }),
+      expense({ id: "e-rent", amount: 900, categoryId: "rent" }),
+    ]);
+    assert.equal(spent, 80);
+  });
+
+  it("still counts historical spend after the category is archived", () => {
+    const archivedCategoryExpense = expense({
+      amount: 40,
+      categoryId: "spotify",
+      category: { id: "spotify", name: "Spotify", icon: "🎵" },
+    });
+    assert.equal(budgetSpent(nido, [archivedCategoryExpense]), 40);
+  });
+
+  it("counts a date inside the month and rejects dates outside, including month edges", () => {
+    const spent = budgetSpent(nido, [
+      expense({ id: "e-jul", amount: 10, categoryId: "spotify", occurredAt: "2026-07-31" }),
+      expense({ id: "e-first", amount: 20, categoryId: "spotify", occurredAt: "2026-08-01" }),
+      expense({ id: "e-last", amount: 30, categoryId: "spotify", occurredAt: "2026-08-31" }),
+      expense({ id: "e-sep", amount: 40, categoryId: "spotify", occurredAt: "2026-09-01" }),
+    ]);
+    assert.equal(spent, 50);
+  });
+
+  it("lets a Nido budget consume visible shared and personal expenses (D5)", () => {
+    const spent = budgetSpent(nido, [
+      expense({ id: "e-shared", amount: 80, categoryId: "spotify", scope: "shared" }),
+      expense({
+        id: "e-personal",
+        amount: 40,
+        categoryId: "spotify",
+        scope: "personal",
+        createdBy: "carlos",
+        payerId: "carlos",
+        distributionMethod: "fixed",
+      }),
+    ]);
+    assert.equal(spent, 120);
+  });
+
+  it("lets a personal budget consume only the owner's personal expenses", () => {
+    const spent = budgetSpent(personal, [
+      expense({
+        id: "e-me",
+        amount: 90,
+        categoryId: "spotify",
+        scope: "personal",
+        createdBy: "carlos",
+        payerId: "carlos",
+        distributionMethod: "fixed",
+      }),
+      expense({
+        id: "e-other",
+        amount: 70,
+        categoryId: "spotify",
+        scope: "personal",
+        createdBy: "diana",
+        payerId: "diana",
+        distributionMethod: "fixed",
+      }),
+      expense({ id: "e-shared", amount: 50, categoryId: "spotify", scope: "shared" }),
+    ]);
+    assert.equal(spent, 90);
+  });
+
+  it("does not let a shared expense consume a personal budget", () => {
+    assert.equal(
+      budgetSpent(personal, [expense({ amount: 200, categoryId: "spotify", scope: "shared" })]),
+      0,
+    );
+  });
+
+  it("does not count a soft-deleted expense", () => {
+    const spent = budgetSpent(nido, [
+      expense({ amount: 40, categoryId: "spotify" }),
+      expense({
+        id: "e-del",
+        amount: 90,
+        categoryId: "spotify",
+        deletedAt: "2026-08-12T00:00:00.000Z",
+      }),
+    ]);
+    assert.equal(spent, 40);
+  });
+
+  it("does not invent private personal spend that RLS omitted from the snapshot", () => {
+    const hiddenFromPeer = calculateBudgetConsumption(nido, [
+      expense({ id: "e-shared", amount: 80, categoryId: "spotify", scope: "shared" }),
+    ]);
+    const ownerView = calculateBudgetConsumption(nido, [
+      expense({ id: "e-shared", amount: 80, categoryId: "spotify", scope: "shared" }),
+      expense({
+        id: "e-private",
+        amount: 40,
+        categoryId: "spotify",
+        scope: "personal",
+        createdBy: "carlos",
+        payerId: "carlos",
+        distributionMethod: "fixed",
+      }),
+    ]);
+    assert.equal(hiddenFromPeer.consumed, 80);
+    assert.equal(ownerView.consumed, 120);
+    assert.equal(
+      calculateBudgetConsumption(personal, [
+        expense({ id: "e-shared", amount: 80, categoryId: "spotify", scope: "shared" }),
+      ]).consumed,
+      0,
+    );
+  });
+
+  it("builds a list item from the same consumption", () => {
+    const item = buildBudgetItemView(
+      personal,
+      [
+        expense({
+          amount: 120,
+          categoryId: "spotify",
+          scope: "personal",
+          createdBy: "carlos",
+          payerId: "carlos",
+        }),
+      ],
+      [
+        {
+          userId: "carlos",
+          role: "member",
+          joinedAt: "2026-01-01T00:00:00.000Z",
+          displayName: "Carlos Pérez",
+          avatarUrl: null,
+        },
+      ],
+    );
+    assert.equal(item.spent, 120);
+    assert.equal(item.remaining, 80);
+    assert.equal(item.usagePercent, 60);
+    assert.equal(item.memberName, "Carlos Pérez");
   });
 });
 

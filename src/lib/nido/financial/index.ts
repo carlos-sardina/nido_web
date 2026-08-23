@@ -10,6 +10,8 @@ export {
   budgetRemaining,
   budgetSpent,
   budgetUsage,
+  calculateBudgetConsumption,
+  expenseConsumesBudget,
   buildBudgetItemView,
   buildMonthBudgetView,
   canMutateBudget,
@@ -174,6 +176,7 @@ export {
 export type {
   ActivityItem,
   ActivitySource,
+  BudgetConsumption,
   BudgetItemView,
   BudgetRow,
   DashboardSnapshot,

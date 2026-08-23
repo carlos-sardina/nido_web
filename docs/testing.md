@@ -629,4 +629,16 @@ Phase 9.4.3 (personal budgets UI + global visibility) against the repo on 2026-0
 - Manual Perfil / Presupuestos UI smoke is **BLOCKED**. This environment cannot operate the app with a real browser session. Do not treat unit/build success as a UI pass.
 - Verdict: **CASI CERRADA**. Implementation and unit/build checks are complete; UI smoke and the live RLS matrix remain open.
 
+Phase 9.4.4 (budget consumption: personal vs Nido, derived from live expenses) against the repo on 2026-08-22:
+
+- No new migration, table, column, or RPC. Spent stays derived. `calculateBudgetConsumption()` / `budgetSpent()` run on the RLS-filtered dashboard snapshot. Amounts are **gross**; 9.4.5 will subtract refunds.
+- Decision D5: a Nido budget consumes every visible expense in the same `category_id` and `America/Mexico_City` month (`deleted_at IS NULL`), including personal rows the viewer may SELECT. A personal budget consumes only that owner’s `scope = personal` expenses. Shared expenses do not consume a personal budget. Home / health formulas were not changed.
+- UI: Presupuestos list and detail show budgeted, consumed, unbounded %, remaining (may be negative), and the existing progress bar.
+- Unit tests 757 passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 15 tables.
+- Local Docker / `supabase start` is not available in this environment. `supabase` / `psql` are not on PATH. `supabase db push` was **not** run. Local still has 17 migrations; remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) still has the previous 14 until the team applies 9.4.1–9.4.3.
+- RLS matrix cases `C01`–`C06` are in `rls_security_matrix.sql` (ROLLBACK). They were **not** executed. Do not treat them as a live pass.
+- **Departamento** and **Nido Smoke 924** were not modified. No temporary users, invitations, or permanent seeds.
+- Manual Presupuestos / Home UI smoke is **BLOCKED**. This environment has no browser automation. Do not treat unit/build success as a UI pass.
+- Verdict: **CASI CERRADA**. Implementation and unit/build checks are complete; UI smoke and the live RLS matrix remain open.
+
 Do not record production results here unless they were performed.
