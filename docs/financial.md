@@ -2,7 +2,7 @@
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
-Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1–9.4.9** are implemented. 9.4.9 is documentation and closure only; it did not change the financial model. The phase is **IMPLEMENTADA — PENDIENTE DE VALIDACIÓN OPERATIVA**. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
+Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1–9.4.9** are implemented. 9.4.10 applied migrations 15–18 to `nido_dev` and executed the live RLS matrix. The phase is **IMPLEMENTADA — VALIDACIÓN OPERATIVA PARCIAL (SMOKE UI PENDIENTE)**. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
 
 Phase 9.2.3 is the QA close of this integration. It does not add tables, columns, or product surfaces. The source of truth is the current code, the applied migrations on `nido_dev`, the RLS matrix, and the unit tests — not earlier “pending” notes in this file.
 
@@ -535,7 +535,7 @@ SELECT policies require historical membership (`is_household_member`). INSERT st
 
 `create_expense`, `update_expense`, `soft_delete_expense`, `create_expense_refund`, `create_income`, `update_income`, `soft_delete_income`, `create_budget`, `update_budget`, `soft_delete_budget`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, `soft_delete_goal_contribution`, `create_recurring_income`, `update_recurring_income`, `set_recurring_income_active`, `materialize_recurring_income`, `create_recurring_expense`, `update_recurring_expense`, `set_recurring_expense_active`, `materialize_recurring_expense`, `update_household_name`, `update_household_default_split_method`, `create_category`, `rename_category`, and `archive_category` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Recurring split writes follow `can_mutate_recurring_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
 
-SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y20`, `Z01`–`Z22`, `I01`–`I13`, `K01`–`K16`, `RE01`–`RE16`, `OB01`–`OB28`, `V01`–`V22`, `C01`–`C06`, `RF01`–`RF12`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
+SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y12`, `HS01`–`HS20`, `Z01`–`Z22`, `I01`–`I13`, `K01`–`K16`, `RE01`–`RE16`, `OB01`–`OB28`, `V01`–`V22`, `C01`–`C17`, `BC01`–`BC06`, `RF01`–`RF12`). 9.4.10 executed that matrix against `nido_dev` (317 passed, `ROLLBACK`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
 
 ---
 

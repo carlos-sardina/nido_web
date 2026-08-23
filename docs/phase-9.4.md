@@ -1,6 +1,6 @@
 # Phase 9.4 — Technical contract
 
-Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1–9.4.9 are implemented.** 9.4.9 is documentation and closure only: it did not add schema, RPCs, RLS, financial logic, or UI. Smoke UI and the live RLS matrix were **not** executed in this environment — see [testing.md](./testing.md). Phase status: **IMPLEMENTADA — PENDIENTE DE VALIDACIÓN OPERATIVA**.
+Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1–9.4.9 are implemented.** 9.4.10 applied migrations 15–18 to `nido_dev` and executed the live RLS matrix (317 passed). Accumulated smoke UI is still **BLOCKED**. Phase status: **IMPLEMENTADA — VALIDACIÓN OPERATIVA PARCIAL (SMOKE UI PENDIENTE)**.
 
 Source of confirmed product decisions: the 9.4.0 brief. Discarded items live in [future.md](./future.md). Do not re-interpret those as pending 9.4 work.
 
@@ -10,7 +10,7 @@ Source of confirmed product decisions: the 9.4.0 brief. Discarded items live in 
 
 ### 1.1 Migrations
 
-Exactly **18** local migrations. Remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) still has the previous **14** until 9.4.1–9.4.5 are applied. This phase must not run `supabase db push`.
+Exactly **18** local migrations. Remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) has the same **18** after the 9.4.10 `db push`. 9.4.0–9.4.9 did not push.
 
 | # | Migration |
 | --- | --- |
@@ -469,7 +469,7 @@ No indispensable product decision is missing for **LISTA PARA IMPLEMENTACIÓN** 
 | [financial.md](./financial.md) | Live financial layer, including 9.4 persist, consumption, refunds, and derived balance. |
 | [security.md](./security.md) | Auth/OAuth wording; remove “prototype UI” as authority. |
 | [supabase.md](./supabase.md) | Google OAuth → future, not “this iteration”. |
-| [testing.md](./testing.md) | 9.4.0–9.4.9 validation records. |
+| [testing.md](./testing.md) | 9.4.0–9.4.10 validation records. |
 
 ---
 
@@ -485,16 +485,17 @@ No indispensable product decision is missing for **LISTA PARA IMPLEMENTACIÓN** 
 9.4.7  IMPLEMENTED
 9.4.8  IMPLEMENTED
 9.4.9  IMPLEMENTED
+9.4.10 OPERATIONAL VALIDATION (partial)
 
 Automated validation = PASS
-RLS runtime          = BLOCKED
+RLS runtime          = PASS (317 assertions, 0 failed, ROLLBACK)
 Smoke UI             = BLOCKED
-Remote migration     = 14 applied; 15–18 local only (no db push)
+Remote migration     = 18 applied
 
-FASE 9.4 IMPLEMENTADA — PENDIENTE DE VALIDACIÓN OPERATIVA
+FASE 9.4 IMPLEMENTADA — VALIDACIÓN OPERATIVA PARCIAL (SMOKE UI PENDIENTE)
 ```
 
-Do not declare the phase 100% verified. Operational work remains: apply migrations 15–18 to `nido_dev`, run the live RLS matrix after those migrations (and after resolving duplicate `Y01`–`Y12` / `C01`–`C06` ids — see [testing.md](./testing.md)), and execute the accumulated smoke UI.
+Do not declare the phase 100% verified or cerrada. Migrations 15–18 and the live RLS matrix are done. The accumulated smoke UI of 9.4.1–9.4.8 remains open — see [testing.md](./testing.md).
 
 ---
 
@@ -517,3 +518,27 @@ Audited 2026-08-22. No product code, schema, RPC, RLS, or migration was changed 
 | Departamento / Nido Smoke 924 | untouched (no remote writes) |
 
 Out of 9.4 and still absent: Google OAuth, image avatars, notifications, Realtime, insights, persistent Activity, multi-currency, receipts, email invitations, recurring budgets, push, persisted settlements / “marcar como pagado”.
+
+---
+
+## 14. 9.4.10 operational validation
+
+Executed 2026-08-22 against linked `nido_dev` (`pxfdvhavcddqmhuljxlf`). No new product feature, schema decision, or 9.5 work.
+
+| Check | Result |
+| --- | --- |
+| Matrix ID collisions | **Fixed.** 9.4.1 `Y01`–`Y20` → `HS01`–`HS20` (goals keep `Y01`–`Y12`). 9.4.4 `C01`–`C06` → `BC01`–`BC06` (historical members keep `C01`–`C06`). **317** unique `record_result` ids. |
+| Harness (matrix only) | Restored Carlos to Nido A after T26/D before HS/V/BC/RF. HS06 reads A as table owner. HS18 asserts current-month income basis, not a hardcoded 75/25. RF09/RF10 use `SET LOCAL ROLE authenticated` after `clear_auth()`. |
+| `supabase db push --linked` | Applied 15–18 after dry-run. Additive only (`ADD COLUMN` defaults, new tables/RPCs/policies). |
+| Remote migrations | **18** / **18** |
+| RLS runtime | **317** passed, **0** failed, script ended in `ROLLBACK` |
+| Unit tests | 832 passed, 0 failed |
+| `tsc --noEmit` | pass |
+| `npm run build` | pass |
+| `validate_rls_coverage.mjs` | 17 tables (static) |
+| Smoke UI | **BLOCKED** — no browser session / automation in this environment |
+| Departamento | untouched (1 member, 0 financial rows, `default_split_method = equal`) |
+| Nido Smoke 924 | untouched (2 members, 5 expenses, 3 incomes, 1 budget, 4 goals) |
+| Matrix leftovers | none (`%rls%` / `%example.test` auth users, seed household UUIDs) |
+
+Do not treat this as phase closure. The only required 9.4.10 check still open is the accumulated smoke UI.

@@ -4741,7 +4741,8 @@ END;
 $$;
 
 -- -----------------------------------------------------------------------------
--- Phase 9.4.1 — household name, categories, default_split_method, create_expense
+-- Phase 9.4.1 — household name, categories, default_split_method, create_expense (HS01–HS20)
+-- Prefix HS: Y01–Y12 are already goal cases.
 -- Temporary rows only. ROLLBACK at the end. Does not touch Departamento / Smoke 924.
 -- -----------------------------------------------------------------------------
 
@@ -4766,6 +4767,10 @@ DECLARE
   v_dist public.distribution_method;
   v_carlos_amt numeric;
   v_diana_amt numeric;
+  v_carlos_income numeric;
+  v_diana_income numeric;
+  v_month_start date;
+  v_month_end date;
   v_pers_dist public.distribution_method;
   v_eq_dist public.distribution_method;
 BEGIN
@@ -4777,13 +4782,23 @@ BEGIN
   SELECT id INTO v_cat_expense_a FROM rls_ids WHERE key = 'cat_expense_a';
   SELECT id INTO v_cat_income_a FROM rls_ids WHERE key = 'cat_income_a';
 
+  -- T26 left Carlos historical on A; D then made him active on B.
+  -- HS/V/BC/RF need him active on A again. Close B first (one-active-Nido).
+  PERFORM pg_temp.clear_auth();
+  UPDATE public.household_members
+    SET left_at = timestamptz '2026-08-22 00:00:00+00'
+    WHERE household_id = v_nido_b AND user_id = v_carlos AND left_at IS NULL;
+  UPDATE public.household_members
+    SET left_at = NULL
+    WHERE household_id = v_nido_a AND user_id = v_carlos;
+
   PERFORM pg_temp.set_auth(v_carlos);
 
   SELECT default_split_method INTO v_method
   FROM public.households WHERE id = v_nido_a;
 
   PERFORM pg_temp.record_result(
-    'Y01', 'Carlos', 'A', 'active', 'default_split_method is equal',
+    'HS01', 'Carlos', 'A', 'active', 'default_split_method is equal',
     'allow',
     CASE WHEN v_method = 'equal' THEN 'allow' ELSE 'deny' END
   );
@@ -4791,7 +4806,7 @@ BEGIN
   SELECT created_by INTO v_created_by FROM public.households WHERE id = v_nido_a;
 
   PERFORM pg_temp.record_result(
-    'Y02', 'Carlos', 'A', 'active', 'update_household_name trims and writes name only',
+    'HS02', 'Carlos', 'A', 'active', 'update_household_name trims and writes name only',
     'allow',
     pg_temp.expect_allow(format(
       $sql$ SELECT public.update_household_name(%L) $sql$,
@@ -4803,7 +4818,7 @@ BEGIN
   FROM public.households WHERE id = v_nido_a;
 
   PERFORM pg_temp.record_result(
-    'Y03', 'Carlos', 'A', 'active', 'household name changed and created_by intact',
+    'HS03', 'Carlos', 'A', 'active', 'household name changed and created_by intact',
     'allow',
     CASE
       WHEN v_name = 'Nido A 941' AND v_updated_by = v_created_by THEN 'allow'
@@ -4812,31 +4827,33 @@ BEGIN
   );
 
   PERFORM pg_temp.record_result(
-    'Y04', 'Carlos', 'A', 'active', 'empty household name rejected',
+    'HS04', 'Carlos', 'A', 'active', 'empty household name rejected',
     'deny',
     pg_temp.expect_allow($sql$ SELECT public.update_household_name('   ') $sql$)
   );
 
   PERFORM pg_temp.set_auth(v_diana);
   PERFORM pg_temp.record_result(
-    'Y05', 'Diana', 'A', 'active', 'active member can update household name',
+    'HS05', 'Diana', 'A', 'active', 'active member can update household name',
     'allow',
     pg_temp.expect_allow($sql$ SELECT public.update_household_name('Nido A') $sql$)
   );
 
   PERFORM pg_temp.set_auth(v_luis);
   PERFORM public.update_household_name('Nido B touched');
+  PERFORM pg_temp.clear_auth();
   SELECT name INTO v_name FROM public.households WHERE id = v_nido_a;
   PERFORM pg_temp.record_result(
-    'Y06', 'Luis', 'A', 'never member', 'name RPC cannot change another Nido',
+    'HS06', 'Luis', 'A', 'never member', 'name RPC cannot change another Nido',
     'allow',
     CASE WHEN v_name = 'Nido A' THEN 'allow' ELSE 'deny' END
   );
+  PERFORM pg_temp.set_auth(v_luis);
   PERFORM public.update_household_name('Nido B');
 
   PERFORM pg_temp.set_auth(v_carlos);
   PERFORM pg_temp.record_result(
-    'Y07', 'Carlos', 'A', 'active', 'persist proportional split preference',
+    'HS07', 'Carlos', 'A', 'active', 'persist proportional split preference',
     'allow',
     pg_temp.expect_allow(
       $sql$ SELECT public.update_household_default_split_method('proportional') $sql$
@@ -4844,7 +4861,7 @@ BEGIN
   );
 
   PERFORM pg_temp.record_result(
-    'Y08', 'Carlos', 'A', 'active', 'capacity is not a valid household split method',
+    'HS08', 'Carlos', 'A', 'active', 'capacity is not a valid household split method',
     'deny',
     pg_temp.expect_allow(
       $sql$ SELECT public.update_household_default_split_method('capacity'::text::public.household_split_method) $sql$
@@ -4852,7 +4869,7 @@ BEGIN
   );
 
   PERFORM pg_temp.record_result(
-    'Y09', 'Carlos', 'A', 'active', 'create custom category',
+    'HS09', 'Carlos', 'A', 'active', 'create custom category',
     'allow',
     pg_temp.expect_allow(
       $sql$ SELECT public.create_category('Spotify', 'expense', NULL) $sql$
@@ -4864,7 +4881,7 @@ BEGIN
   WHERE household_id = v_nido_a AND name = 'Spotify' AND archived_at IS NULL;
 
   PERFORM pg_temp.record_result(
-    'Y10', 'Carlos', 'A', 'active', 'duplicate active category name rejected',
+    'HS10', 'Carlos', 'A', 'active', 'duplicate active category name rejected',
     'deny',
     pg_temp.expect_allow(
       $sql$ SELECT public.create_category('spotify', 'expense', NULL) $sql$
@@ -4872,7 +4889,7 @@ BEGIN
   );
 
   PERFORM pg_temp.record_result(
-    'Y11', 'Carlos', 'A', 'active', 'rename category',
+    'HS11', 'Carlos', 'A', 'active', 'rename category',
     'allow',
     pg_temp.expect_allow(format(
       $sql$ SELECT public.rename_category(%L::uuid, 'Musica') $sql$,
@@ -4881,7 +4898,7 @@ BEGIN
   );
 
   PERFORM pg_temp.record_result(
-    'Y12', 'Carlos', 'A', 'active', 'rename conflict with active name',
+    'HS12', 'Carlos', 'A', 'active', 'rename conflict with active name',
     'deny',
     pg_temp.expect_allow(format(
       $sql$ SELECT public.rename_category(%L::uuid, 'Groceries') $sql$,
@@ -4891,7 +4908,7 @@ BEGIN
 
   PERFORM pg_temp.set_auth(v_luis);
   PERFORM pg_temp.record_result(
-    'Y13', 'Luis', 'A', 'never member', 'cannot rename other Nido category',
+    'HS13', 'Luis', 'A', 'never member', 'cannot rename other Nido category',
     'deny',
     pg_temp.expect_allow(format(
       $sql$ SELECT public.rename_category(%L::uuid, 'Hack') $sql$,
@@ -4899,7 +4916,7 @@ BEGIN
     ))
   );
   PERFORM pg_temp.record_result(
-    'Y14', 'Luis', 'A', 'never member', 'cannot archive other Nido category',
+    'HS14', 'Luis', 'A', 'never member', 'cannot archive other Nido category',
     'deny',
     pg_temp.expect_allow(format(
       $sql$ SELECT public.archive_category(%L::uuid) $sql$,
@@ -4909,7 +4926,7 @@ BEGIN
 
   PERFORM pg_temp.set_auth(v_carlos);
   PERFORM pg_temp.record_result(
-    'Y15', 'Carlos', 'A', 'active', 'archive category',
+    'HS15', 'Carlos', 'A', 'active', 'archive category',
     'allow',
     pg_temp.expect_allow(format(
       $sql$ SELECT public.archive_category(%L::uuid) $sql$,
@@ -4921,7 +4938,7 @@ BEGIN
   FROM public.categories WHERE id = v_new_cat;
 
   PERFORM pg_temp.record_result(
-    'Y16', 'Carlos', 'A', 'active', 'archived category still readable',
+    'HS16', 'Carlos', 'A', 'active', 'archived category still readable',
     'allow',
     CASE
       WHEN v_archived_at IS NOT NULL
@@ -4942,7 +4959,7 @@ BEGIN
   END;
 
   PERFORM pg_temp.record_result(
-    'Y17', 'Carlos', 'A', 'active', 'hard delete category denied',
+    'HS17', 'Carlos', 'A', 'active', 'hard delete category denied',
     'allow',
     CASE
       WHEN v_delete_ok = false
@@ -4960,6 +4977,20 @@ BEGIN
   ) VALUES
     (v_nido_a, v_carlos, v_cat_income_a, 30000, v_today, v_carlos, 'RLS 941 Carlos'),
     (v_nido_a, v_diana, v_cat_income_a, 10000, v_today, v_diana, 'RLS 941 Diana');
+
+  v_month_start := date_trunc('month', v_today)::date;
+  v_month_end := (v_month_start + interval '1 month' - interval '1 day')::date;
+  SELECT coalesce(sum(amount), 0) INTO v_carlos_income
+  FROM public.incomes
+  WHERE household_id = v_nido_a AND member_id = v_carlos
+    AND deleted_at IS NULL
+    AND occurred_at >= v_month_start AND occurred_at <= v_month_end;
+  SELECT coalesce(sum(amount), 0) INTO v_diana_income
+  FROM public.incomes
+  WHERE household_id = v_nido_a AND member_id = v_diana
+    AND deleted_at IS NULL
+    AND occurred_at >= v_month_start AND occurred_at <= v_month_end;
+
   PERFORM pg_temp.set_auth(v_carlos);
 
   SELECT public.create_expense(
@@ -4984,10 +5015,16 @@ BEGIN
   FROM public.expense_splits WHERE expense_id = v_expense_id AND member_id = v_diana;
 
   PERFORM pg_temp.record_result(
-    'Y18', 'Carlos', 'A', 'active', 'shared proportional uses current-month incomes',
+    'HS18', 'Carlos', 'A', 'active', 'shared proportional uses current-month incomes',
     'allow',
     CASE
-      WHEN v_dist = 'income_based' AND v_carlos_amt = 75 AND v_diana_amt = 25
+      WHEN v_dist = 'income_based'
+        AND v_carlos_income > 0 AND v_diana_income > 0
+        AND v_carlos_amt + v_diana_amt = 100
+        AND abs(
+          v_carlos_amt
+          - round(100 * v_carlos_income / (v_carlos_income + v_diana_income), 2)
+        ) <= 0.01
       THEN 'allow'
       ELSE 'deny'
     END
@@ -5010,7 +5047,7 @@ BEGIN
   FROM public.expenses WHERE id = v_expense_id;
 
   PERFORM pg_temp.record_result(
-    'Y19', 'Carlos', 'A', 'active', 'personal ignores household split preference',
+    'HS19', 'Carlos', 'A', 'active', 'personal ignores household split preference',
     'allow',
     CASE WHEN v_pers_dist = 'fixed' THEN 'allow' ELSE 'deny' END
   );
@@ -5035,7 +5072,7 @@ BEGIN
   FROM public.expenses WHERE id = v_expense_id;
 
   PERFORM pg_temp.record_result(
-    'Y20', 'Carlos', 'A', 'active', 'shared equal keeps equal distribution',
+    'HS20', 'Carlos', 'A', 'active', 'shared equal keeps equal distribution',
     'allow',
     CASE WHEN v_eq_dist = 'equal' THEN 'allow' ELSE 'deny' END
   );
@@ -5719,7 +5756,8 @@ END;
 $$;
 
 -- -----------------------------------------------------------------------------
--- Phase 9.4.4 — budget consumption visibility (C01–C06)
+-- Phase 9.4.4 — budget consumption visibility (BC01–BC06)
+-- Prefix BC: C01–C06 are already historical-member cases.
 -- No new RPC. Aggregates must only see rows RLS already allows.
 -- Nido consumption includes visible personal expenses (D5).
 -- A private personal expense must not enter a peer's SUM.
@@ -5757,13 +5795,13 @@ BEGIN
     AND deleted_at IS NULL;
 
   PERFORM pg_temp.record_result(
-    'C01', 'Diana', 'A', 'active', 'private personal expense omitted from peer Nido consumption SUM',
+    'BC01', 'Diana', 'A', 'active', 'private personal expense omitted from peer Nido consumption SUM',
     'deny',
     CASE WHEN v_peer_sum = 120 THEN 'deny' ELSE 'allow' END
   );
 
   PERFORM pg_temp.record_result(
-    'C02', 'Diana', 'A', 'active', 'peer cannot read private personal budget consumption',
+    'BC02', 'Diana', 'A', 'active', 'peer cannot read private personal budget consumption',
     'deny',
     CASE WHEN pg_temp.expect_count(format(
       'SELECT count(*) FROM public.budgets WHERE id = %L', v_personal_budget
@@ -5779,13 +5817,13 @@ BEGIN
     AND deleted_at IS NULL;
 
   PERFORM pg_temp.record_result(
-    'C03', 'Carlos', 'A', 'active', 'owner SUM includes own private personal expense',
+    'BC03', 'Carlos', 'A', 'active', 'owner SUM includes own private personal expense',
     'allow',
     CASE WHEN v_owner_sum = 200 THEN 'allow' ELSE 'deny' END
   );
 
   PERFORM pg_temp.record_result(
-    'C04', 'Carlos', 'A', 'active', 'owner still reads own personal budget',
+    'BC04', 'Carlos', 'A', 'active', 'owner still reads own personal budget',
     'allow',
     CASE WHEN pg_temp.expect_count(format(
       'SELECT count(*) FROM public.budgets WHERE id = %L', v_personal_budget
@@ -5807,13 +5845,13 @@ BEGIN
     AND deleted_at IS NULL;
 
   PERFORM pg_temp.record_result(
-    'C05', 'Diana', 'A', 'active', 'visible personal expense enters peer Nido consumption SUM',
+    'BC05', 'Diana', 'A', 'active', 'visible personal expense enters peer Nido consumption SUM',
     'allow',
     CASE WHEN v_peer_sum = 200 THEN 'allow' ELSE 'deny' END
   );
 
   PERFORM pg_temp.record_result(
-    'C06', 'Diana', 'A', 'active', 'peer can read personal budget when nido',
+    'BC06', 'Diana', 'A', 'active', 'peer can read personal budget when nido',
     'allow',
     CASE WHEN pg_temp.expect_count(format(
       'SELECT count(*) FROM public.budgets WHERE id = %L', v_personal_budget
@@ -5936,6 +5974,7 @@ BEGIN
   );
 
   PERFORM pg_temp.clear_auth();
+  SET LOCAL ROLE authenticated;
   PERFORM pg_temp.record_result(
     'RF09', 'none', '-', 'none', 'anonymous cannot read',
     'deny',

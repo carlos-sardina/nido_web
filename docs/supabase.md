@@ -61,7 +61,7 @@ Repository migrations on that project, in order:
 13. `20260822300000_nido_onboarding_financial.sql` (apply on nido_dev; do not edit earlier files)
 14. `20260822400000_nido_expense_payer_identity.sql` (apply on nido_dev; do not edit earlier files)
 
-Local-only (9.4.1–9.4.5). Present in the repo, **not** applied to `nido_dev` as of 9.4.9. Do not run `db push` from a documentation phase:
+Applied to `nido_dev` in 9.4.10 (`supabase db push --linked` after dry-run):
 
 15. `20260822500000_nido_household_categories_split.sql`
 16. `20260822600000_nido_onboarding_savings_budgets.sql`
@@ -70,11 +70,11 @@ Local-only (9.4.1–9.4.5). Present in the repo, **not** applied to `nido_dev` a
 
 ```text
 local  = 18
-remote = 14
-db push = NO
+remote = 18
+db push = YES (9.4.10)
 ```
 
-9.4.6–9.4.9 added no SQL. Applying 15–18 is operational work, not a missing implementation.
+9.4.6–9.4.9 added no SQL. 9.4.0–9.4.9 did not push.
 
 Do not put the database password, service-role key, or anon key in this document.
 

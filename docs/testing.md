@@ -4,7 +4,7 @@ Use this against a real Vercel + Supabase + SMTP environment. Automated unit tes
 
 Confirm email stays enabled. Google OAuth stays disabled and is not a pending 9.4 item ([future.md](./future.md)). Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
 
-Phase 9.4 scope: [phase-9.4.md](./phase-9.4.md). 9.4.1–9.4.9 are implemented. 9.4.9 is documentation and closure only. Phase status: **IMPLEMENTADA — PENDIENTE DE VALIDACIÓN OPERATIVA**.
+Phase 9.4 scope: [phase-9.4.md](./phase-9.4.md). 9.4.1–9.4.9 are implemented. 9.4.10 applied migrations 15–18 and executed the live RLS matrix. Phase status: **IMPLEMENTADA — VALIDACIÓN OPERATIVA PARCIAL (SMOKE UI PENDIENTE)**.
 
 Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Phase 9.1.3A connects Metas (list, create, edit, archive). Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (edit / soft-delete). Phase 9.1.3C connects **Ingresos**. Phase 9.1.4 connects **Presupuestos**. Phase 9.2.1 connects **Actividad** to the live snapshot (no `FEED` mock) and still does not invent budget events. Phase 9.2.2 persists the onboarding monthly income with the Nido. See [financial.md](./financial.md).
 
@@ -699,5 +699,16 @@ Phase 9.4.9 (final documentation and phase closure) against the repo on 2026-08-
 - Out of 9.4 and still absent: Google OAuth, image avatars, notifications, Realtime, insights, persistent Activity, multi-currency, receipts, email invitations, recurring budgets, push, persisted settlements / “marcar como pagado”.
 - **Departamento** and **Nido Smoke 924** were not modified. No temporary users, invitations, or permanent seeds. No `service_role`.
 - Verdict: **FASE 9.4 IMPLEMENTADA — PENDIENTE DE VALIDACIÓN OPERATIVA**. Do not record this as 100% verified or as “cerrada”.
+
+Phase 9.4.10 (operational validation) against the repo + linked `nido_dev` (`pxfdvhavcddqmhuljxlf`) on 2026-08-22:
+
+- Matrix collisions fixed: 9.4.1 cases renamed `Y01`–`Y20` → `HS01`–`HS20`; 9.4.4 cases renamed `C01`–`C06` → `BC01`–`BC06`. Goal `Y01`–`Y12` and historical-member `C01`–`C06` kept. **317** unique ids.
+- Harness-only matrix fixes so the already-contracted cases can run after T26/D: restore Carlos to Nido A before HS; HS06 reads household A as table owner; HS18 uses the live current-month income basis; RF09/RF10 impersonate `authenticated` without a JWT. No product RPC, RLS, or UI change.
+- `supabase db push --linked --yes` after dry-run applied exactly `20260822500000`, `20260822600000`, `20260822700000`, `20260822800000`. Local and remote now both have **18** migrations.
+- RLS matrix: **317** passed, **0** failed, script ended in `ROLLBACK`. Includes `HS01`–`HS20`, `OB12`–`OB28`, `V01`–`V22`, `BC01`–`BC06`, `RF01`–`RF12`.
+- Unit tests **832** passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` **17 tables**.
+- **Departamento** (1 member, 0 financial rows) and **Nido Smoke 924** (2 members, 5 expenses, 3 incomes, 1 budget, 4 goals) unchanged. Both received `default_split_method = equal` by column default. No leftover `*rls*` / `*example.test` auth users or matrix households.
+- Manual smoke UI of 9.4.1–9.4.8 is **BLOCKED**. This environment has no browser session or automation. Do not treat RLS/build success as a UI pass. Accumulated pending smoke is unchanged from 9.4.9.
+- Verdict: **FASE 9.4 IMPLEMENTADA — VALIDACIÓN OPERATIVA PARCIAL (SMOKE UI PENDIENTE)**. Do not record this as 100% verified or as “cerrada”.
 
 Do not record production results here unless they were performed.
