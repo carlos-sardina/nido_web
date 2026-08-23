@@ -4,7 +4,7 @@ Use this against a real Vercel + Supabase + SMTP environment. Automated unit tes
 
 Confirm email stays enabled. Google OAuth stays disabled and is not a pending 9.4 item ([future.md](./future.md)). Do not use the service-role key in the browser. Do not treat this checklist as executed in production unless the run is recorded below.
 
-Phase 9.4 scope: [phase-9.4.md](./phase-9.4.md). 9.4.0 is documentation only.
+Phase 9.4 scope: [phase-9.4.md](./phase-9.4.md). 9.4.1–9.4.9 are implemented. 9.4.9 is documentation and closure only. Phase status: **IMPLEMENTADA — PENDIENTE DE VALIDACIÓN OPERATIVA**.
 
 Phase 9.1.1 connects Home to live Supabase reads. Phase 9.1.2A adds **Registrar un gasto**. Phase 9.1.2B closes Gastos (list, detail, edit, soft-delete). Phase 9.1.3A connects Metas (list, create, edit, archive). Phase 9.1.3B connects **Registrar una aportación**. Phase 9.1.3D closes aportaciones (edit / soft-delete). Phase 9.1.3C connects **Ingresos**. Phase 9.1.4 connects **Presupuestos**. Phase 9.2.1 connects **Actividad** to the live snapshot (no `FEED` mock) and still does not invent budget events. Phase 9.2.2 persists the onboarding monthly income with the Nido. See [financial.md](./financial.md).
 
@@ -674,5 +674,30 @@ Phase 9.4.7 (pull-to-refresh) against the repo on 2026-08-22:
 - **Departamento** and **Nido Smoke 924** were not modified. No temporary users, invitations, or permanent seeds.
 - Manual pull-to-refresh UI smoke is **BLOCKED**. This environment has no browser automation and no real session. Do not treat unit/build success as a UI pass. Pending cases: (A) Home refresh, (B) external change visible after pull, (C) refresh error keeps data, (D) double pull ignored, (E) mid-scroll does not refresh, (F) empty state still pullable, (G) overlay does not trap the gesture.
 - Verdict: **CASI CERRADA**. Implementation and automated checks are complete; UI smoke remains open.
+
+Phase 9.4.8 (leftover cleanup of prototype remnants) against the repo on 2026-08-22:
+
+- No new migration, table, column, RPC, or RLS change. Cleanup only: unused prototype constants, orphaned components, unused onboarding draft fields (`freelance`, `savingsType`, `nestEmoji`), and stale nest-ready demo copy.
+- Kept live catalogs (`EXP_SUGG`, `NIDO_NAMES`, `NEST_TYPES`, `QUICK_AMOUNTS`), the `c-type` step, the sessionStorage draft until finalize, and `capacity` rejection tests.
+- Unit tests 832 passed, 0 failed (delta 0). One freelance-skip assertion was dropped because the leftover field no longer exists; the surrounding persist tests remain. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 17 tables (unchanged).
+- Local Docker / `supabase start` is not available. `supabase` / `psql` are not on PATH. `supabase db push` was **not** run. Local still has 18 migrations; remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) still has the previous 14 until the team applies 9.4.1–9.4.5.
+- RLS matrix was **not** re-run: no policy or table change.
+- **Departamento** and **Nido Smoke 924** were not modified. No temporary users, invitations, or permanent seeds.
+- Manual UI smoke is **BLOCKED**. This environment has no browser automation and no real session. Do not treat unit/build success as a UI pass.
+- Verdict: **CASI CERRADA**. Cleanup and automated checks are complete; UI smoke remains open.
+
+Phase 9.4.9 (final documentation and phase closure) against the repo on 2026-08-22:
+
+- No new migration, table, column, RPC, RLS, financial logic, or UI. Documentation only. `supabase db push` was **not** run. This session did not query or write `nido_dev`.
+- Code evidence confirmed 9.4.1–9.4.8 (name/initials/categories/split, onboarding persist, personal visibility + personal budgets, derived consumption, refunds, derived monthly balance, pull-to-refresh, leftover cleanup). 9.4.9 closes the phase on paper.
+- Automated validation: unit tests **832 passed, 0 failed**. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` **17 tables**.
+- Local migrations **18**. Remote known state **14**. Last 9.4 SQL is `20260822800000_nido_expense_refunds.sql` (9.4.5). Migrations 15–18 remain pending `db push` — operational, not a missing implementation.
+- RLS matrix exists with accumulated 9.4 cases `Y01`–`Y20`, `OB12`–`OB28`, `V01`–`V22`, `C01`–`C06`, `RF01`–`RF12` plus historical cases. **317** `record_result` calls, **299** unique ids. Runtime = **BLOCKED**: no local Postgres / Docker / `psql`; not executed against `nido_dev`. Last live pass remains the 9.3.1 run (239 assertions).
+- Discrepancy (not fixed): 9.4.1 reused `Y01`–`Y12` (already goal cases) and 9.4.4 reused `C01`–`C06` (already historical-member cases). `test_id` is a primary key, so a future runtime run will fail on those collisions until the 9.4 prefixes are renamed.
+- Smoke UI = **BLOCKED**. This environment has no browser session. Accumulated pending smoke: 9.4.1 (name, initials, categories, equal/proportional, shared expense uses preference); 9.4.2 (onboarding savings, estimates → budgets, custom categories, split persist, retry); 9.4.3 (visibility nido/private, personal budget, peer cannot see private); 9.4.4 (consumption 0 / partial / 100 / >100, negative remaining, personal vs Nido, soft-delete, visibility); 9.4.5 (create refund, partial/total, frozen splits, net, edit lock, Activity, privacy); 9.4.6 (current/previous month, multiple members, payer, proportional, refunds, personal excluded, soft-delete, derived settlements); 9.4.7 (pull-to-refresh, no skeleton, double gesture, error keeps snapshot); 9.4.8 (navigation after cleanup, no broken imports).
+- Leftovers confirmed removed from `src/`: `CATS`, `TOT_S`, `GOALS`, `FEED`, `LIFE_EVENTS`, `EXP_CATS`, `GOAL_TYPES`, `FREQUENCIES`, `SAVE_METHODS`, `$k`, `pct`, `ComingSoon`, `FlowHeader`, `OBtn2`, `PBtn`, `showCarlos`, `ImageWithFallback`, `extract-components.mjs`. Kept: `EXP_SUGG`, `NIDO_NAMES`, `NEST_TYPES`, `QUICK_AMOUNTS`, `DEFAULT_QUICK`, `nestType`, sessionStorage draft, `capacity` rejection tests, test fixtures.
+- Out of 9.4 and still absent: Google OAuth, image avatars, notifications, Realtime, insights, persistent Activity, multi-currency, receipts, email invitations, recurring budgets, push, persisted settlements / “marcar como pagado”.
+- **Departamento** and **Nido Smoke 924** were not modified. No temporary users, invitations, or permanent seeds. No `service_role`.
+- Verdict: **FASE 9.4 IMPLEMENTADA — PENDIENTE DE VALIDACIÓN OPERATIVA**. Do not record this as 100% verified or as “cerrada”.
 
 Do not record production results here unless they were performed.

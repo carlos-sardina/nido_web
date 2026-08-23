@@ -61,6 +61,21 @@ Repository migrations on that project, in order:
 13. `20260822300000_nido_onboarding_financial.sql` (apply on nido_dev; do not edit earlier files)
 14. `20260822400000_nido_expense_payer_identity.sql` (apply on nido_dev; do not edit earlier files)
 
+Local-only (9.4.1–9.4.5). Present in the repo, **not** applied to `nido_dev` as of 9.4.9. Do not run `db push` from a documentation phase:
+
+15. `20260822500000_nido_household_categories_split.sql`
+16. `20260822600000_nido_onboarding_savings_budgets.sql`
+17. `20260822700000_nido_personal_visibility.sql`
+18. `20260822800000_nido_expense_refunds.sql`
+
+```text
+local  = 18
+remote = 14
+db push = NO
+```
+
+9.4.6–9.4.9 added no SQL. Applying 15–18 is operational work, not a missing implementation.
+
 Do not put the database password, service-role key, or anon key in this document.
 
 Local CLI config lives in `supabase/config.toml`. Link metadata under `supabase/.temp/` is gitignored.
@@ -369,15 +384,18 @@ Database types live in `src/lib/supabase/types.ts`.
 
 They follow the official Supabase `Database` shape (`Tables`, `Insert`, `Update`, `Enums`, `Functions`, plus the generated helper types `Tables`, `TablesInsert`, `TablesUpdate`, and `Enums`).
 
-They represent the current migrations, including:
+They represent the current **local** migrations (18 files), including:
 
 - `profiles`, `households`, `household_members`, `household_invitations`
 - `categories`
 - `recurring_incomes`, `incomes`
 - `recurring_expenses`, `recurring_expense_splits`, `expenses`, `expense_splits`
-- `budgets`, `goals`, `goal_contributions`
-- the public enums
+- `expense_refunds`, `expense_refund_splits`
+- `budgets`, `savings_balances`, `goals`, `goal_contributions`
+- the public enums (`household_split_method`, `personal_visibility`, and the foundation set)
 - the public SQL helpers used by integrity triggers and RLS
+
+Regenerating from `--linked` while remote still has 14 migrations will drop the 9.4 types. Do not overwrite this file from remote until 15–18 are applied.
 
 Do not add parallel domain interfaces that only repeat a table row. Feature-specific types can be added later when a screen needs them.
 

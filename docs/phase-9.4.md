@@ -1,6 +1,6 @@
 # Phase 9.4 — Technical contract
 
-Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1 is implemented** (household name, initials contract, category RPCs + Hogar UI, `households.default_split_method`, `create_expense` uses that preference for new shared expenses). **9.4.2 is implemented** (onboarding persists savings stock, estimates as initial monthly budgets, and `contrib` → `households.default_split_method`). **9.4.3 is implemented** (personal budgets UI + global `profiles.personal_visibility` with RLS). **9.4.4 is implemented** (derived budget consumption; personal vs Nido; live expenses; no persisted spent). **9.4.5 is implemented** (refunds linked to the original expense, frozen refund splits, atomic `create_expense_refund`, net budget consumption). **9.4.6 is implemented** (derived monthly balance + derived settlements; no `balances` / `settlements` tables). **9.4.7 is implemented** (pull-to-refresh on the real tab/overlay scroll roots; reuses `dashboard.refresh()` / existing loaders; no Realtime). **9.4.8 is implemented** (leftover cleanup of proven-unused prototype constants, orphaned components, unused onboarding draft fields, and stale demo copy). **9.4.9 is not** implemented. Smoke UI and the live RLS matrix were not executed in the implementation environment — see [testing.md](./testing.md).
+Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1–9.4.9 are implemented.** 9.4.9 is documentation and closure only: it did not add schema, RPCs, RLS, financial logic, or UI. Smoke UI and the live RLS matrix were **not** executed in this environment — see [testing.md](./testing.md). Phase status: **IMPLEMENTADA — PENDIENTE DE VALIDACIÓN OPERATIVA**.
 
 Source of confirmed product decisions: the 9.4.0 brief. Discarded items live in [future.md](./future.md). Do not re-interpret those as pending 9.4 work.
 
@@ -322,7 +322,7 @@ The brief’s order is kept except one dependency: **refunds before monthly bala
 9.4.6  Monthly balance + derived settlements  **implemented**
 9.4.7  Pull-to-refresh  **implemented**
 9.4.8  Leftover cleanup (proven unused only)  **implemented**
-9.4.9  Final documentation
+9.4.9  Final documentation  **implemented**
 ```
 
 **Why 9.4.2 after 9.4.1:** finalize needs category create + personal budget write + household split column.
@@ -466,19 +466,54 @@ No indispensable product decision is missing for **LISTA PARA IMPLEMENTACIÓN** 
 | [phase-9.4.md](./phase-9.4.md) | This contract. |
 | [nido.md](./nido.md) | Stop listing discarded items as “what remains”. |
 | [database.md](./database.md) | Frontend is live, not a disposable prototype. Deferred list aligned. |
-| [financial.md](./financial.md) | Pointer to 9.4; onboarding still draft-only until 9.4.2. |
+| [financial.md](./financial.md) | Live financial layer, including 9.4 persist, consumption, refunds, and derived balance. |
 | [security.md](./security.md) | Auth/OAuth wording; remove “prototype UI” as authority. |
 | [supabase.md](./supabase.md) | Google OAuth → future, not “this iteration”. |
-| [testing.md](./testing.md) | 9.4.0 validation record. |
+| [testing.md](./testing.md) | 9.4.0–9.4.9 validation records. |
 
 ---
 
 ## 12. Verdict
 
 ```text
-9.4.8 IMPLEMENTADA (CASI CERRADA) — veredicto de cierre en testing.md
+9.4.1  IMPLEMENTED
+9.4.2  IMPLEMENTED
+9.4.3  IMPLEMENTED
+9.4.4  IMPLEMENTED
+9.4.5  IMPLEMENTED
+9.4.6  IMPLEMENTED
+9.4.7  IMPLEMENTED
+9.4.8  IMPLEMENTED
+9.4.9  IMPLEMENTED
+
+Automated validation = PASS
+RLS runtime          = BLOCKED
+Smoke UI             = BLOCKED
+Remote migration     = 14 applied; 15–18 local only (no db push)
+
+FASE 9.4 IMPLEMENTADA — PENDIENTE DE VALIDACIÓN OPERATIVA
 ```
 
-Next subphase: **9.4.9** — final documentation.
+Do not declare the phase 100% verified. Operational work remains: apply migrations 15–18 to `nido_dev`, run the live RLS matrix after those migrations (and after resolving duplicate `Y01`–`Y12` / `C01`–`C06` ids — see [testing.md](./testing.md)), and execute the accumulated smoke UI.
 
-Do not declare 9.4.9 or phase 9.4 complete.
+---
+
+## 13. 9.4.9 closure (documentation only)
+
+Audited 2026-08-22. No product code, schema, RPC, RLS, or migration was changed in this subphase.
+
+| Check | Result |
+| --- | --- |
+| Local migrations | **18** |
+| Remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) | **14** (known; this session did not query or write the remote) |
+| Last 9.4 migration | `20260822800000_nido_expense_refunds.sql` (9.4.5). 9.4.6–9.4.9 added no SQL. |
+| `supabase db push` | **Not run** |
+| Unit tests | 832 passed, 0 failed |
+| `tsc --noEmit` | pass |
+| `npm run build` | pass |
+| `validate_rls_coverage.mjs` | 17 tables (static; not runtime) |
+| RLS runtime | **BLOCKED** — no local Postgres / Docker / `psql`; matrix not executed against `nido_dev` |
+| Smoke UI | **BLOCKED** — no browser session in this environment |
+| Departamento / Nido Smoke 924 | untouched (no remote writes) |
+
+Out of 9.4 and still absent: Google OAuth, image avatars, notifications, Realtime, insights, persistent Activity, multi-currency, receipts, email invitations, recurring budgets, push, persisted settlements / “marcar como pagado”.

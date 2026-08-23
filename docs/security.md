@@ -487,11 +487,21 @@ The static check that **was executed** and passed:
 node supabase/tests/validate_rls_coverage.mjs
 ```
 
-Result: RLS coverage validation passed for 14 tables at the 9.3/9.4.1 baseline. After 9.4.2 the same static script reports **15 tables** (adds `savings_balances`). After 9.4.5 it reports **17 tables** (adds `expense_refunds` and `expense_refund_splits`). 9.4.3 does not add a table; it adds `personal_finance_visible` and rewrites SELECT policies. The script confirmed RLS is enabled, expected policies exist, helpers exist, `SECURITY DEFINER` functions set `search_path`, and no policy uses `USING (true)`. It does **not** prove runtime authorization.
+Result: after 9.4.5 the static script reports **17 tables** (adds `savings_balances`, `expense_refunds`, and `expense_refund_splits` to the 9.3/9.4.1 baseline of 14). 9.4.3 does not add a table; it adds `personal_finance_visible` and rewrites SELECT policies. 9.4.6–9.4.9 add no SQL. The 9.4.9 run confirmed RLS is enabled, expected policies exist, helpers exist, `SECURITY DEFINER` functions set `search_path`, and no policy uses `USING (true)`. It does **not** prove runtime authorization.
 
 ### Behavioral matrix against the linked project
 
-`supabase/tests/rls_security_matrix.sql` was re-executed against linked `nido_dev` in the Phase 9.3.1 closure audit (239 assertions, 0 failed), including the previous 207 cases plus invitation product `J01`–`J30` (lookup, accept, cancel/DELETE). The script ends in `ROLLBACK` and does not persist seeded users. Existing **Departamento** and **Nido Smoke 924** rows were unchanged after the run.
+`supabase/tests/rls_security_matrix.sql` was last **executed** against linked `nido_dev` in the Phase 9.3.1 closure audit (239 assertions, 0 failed), including the previous 207 cases plus invitation product `J01`–`J30` (lookup, accept, cancel/DELETE). The script ends in `ROLLBACK` and does not persist seeded users. Existing **Departamento** and **Nido Smoke 924** rows were unchanged after that run.
+
+Phase 9.4 added cases `Y01`–`Y20` (household name / categories / split; 9.4.1), `OB12`–`OB28` (onboarding stock; 9.4.2), `V01`–`V22` (visibility; 9.4.3), `C01`–`C06` (consumption aggregates; 9.4.4), and `RF01`–`RF12` (refunds; 9.4.5). Those cases exist in the script. They were **not** executed in 9.4.1–9.4.9.
+
+```text
+RLS runtime = BLOCKED
+```
+
+This environment has no local Postgres / Docker / `psql`. The matrix was not run against `nido_dev` (no writes, no impersonation). Do not treat the static coverage pass or the 9.3.1 run as a 9.4 live pass.
+
+Discrepancy (not fixed in 9.4.9): `rls_test_results.test_id` is a primary key, but 9.4.1 reused `Y01`–`Y12` (already goal cases) and 9.4.4 reused `C01`–`C06` (already historical-member cases). The script currently has **317** `record_result` calls and **299** unique ids. A future runtime run will fail on those collisions until the 9.4 prefixes are renamed. Report only; this phase does not edit the matrix.
 
 Phase 9.3.2 did not add a migration, RPC, or RLS policy. Join writes `profiles.display_name` with the existing `profiles_update_self` policy (`id = auth.uid()`) and still accepts through `accept_invitation`. The matrix was not re-run; coverage remains 14 tables.
 

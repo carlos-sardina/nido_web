@@ -365,7 +365,7 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## What remains after owner transfer
 
-Phase 9.4 work is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1–9.4.8** are implemented. 9.4.9 remains. 9.4.8 is leftover cleanup, not a new product surface.
+Phase 9.4 work is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1–9.4.9** are implemented. 9.4.9 is documentation and closure only. The phase is **IMPLEMENTADA — PENDIENTE DE VALIDACIÓN OPERATIVA** (smoke UI, RLS runtime, and remote `db push` of migrations 15–18). 9.4.8 is leftover cleanup, not a new product surface.
 
 Do **not** treat these as pending 9.4: Google OAuth, image avatars, notifications, Realtime, insights, persistent Activity, multi-currency, receipts, email invitations, recurring budgets, push. See [future.md](./future.md).
 

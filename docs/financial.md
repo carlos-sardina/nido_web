@@ -2,7 +2,7 @@
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
-Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1**, **9.4.2**, **9.4.3**, **9.4.4**, **9.4.5**, **9.4.6**, **9.4.7**, and **9.4.8** are implemented. 9.4.9 is not. 9.4.8 is leftover cleanup of unused prototype constants and draft fields; it did not change the financial model. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
+Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1–9.4.9** are implemented. 9.4.9 is documentation and closure only; it did not change the financial model. The phase is **IMPLEMENTADA — PENDIENTE DE VALIDACIÓN OPERATIVA**. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
 
 Phase 9.2.3 is the QA close of this integration. It does not add tables, columns, or product surfaces. The source of truth is the current code, the applied migrations on `nido_dev`, the RLS matrix, and the unit tests — not earlier “pending” notes in this file.
 
@@ -180,7 +180,7 @@ Home `+` → **Crear un presupuesto**, or Home **Presupuesto del mes** → Presu
 | Limit | `budgets.amount` `numeric(12,2)`, must be `> 0` |
 | Category | `category_id` of an active **expense** category in the same household |
 | Period | monthly only: `start_date` = first calendar day, `end_date` = last calendar day |
-| Scope | `member_id` NULL (Nido-level). This phase does not create personal budgets |
+| Scope | Nido (`member_id` NULL) or personal (`member_id = auth.uid()` when `p_personal`). The client never sends another member’s id. |
 | created_by | `auth.uid()` |
 
 There is no name/description column. Spent, remaining, percent (unbounded), exceeded, and near-limit (80%, presentation only, terracotta attention) are derived in the view model. Remaining may be negative.
@@ -531,7 +531,7 @@ A newly created Nido has default **expense and income categories**. If the user 
 
 ## RLS
 
-SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense, income, contribution, and budget **UPDATE** (including soft-delete) and goal **UPDATE** (including archive) require the same plus `created_by = auth.uid()` and a live row (`deleted_at IS NULL` / `status <> archived`). Income INSERT also requires `member_id = auth.uid()`. Budget create writes `member_id` NULL. Contribution **UPDATE** also requires parent goal `status = active`. Physical DELETE remains denied on incomes/expenses/goals/budgets and is revoked on `goal_contributions` for `authenticated`.
+SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense, income, contribution, and budget **UPDATE** (including soft-delete) and goal **UPDATE** (including archive) require the same plus `created_by = auth.uid()` and a live row (`deleted_at IS NULL` / `status <> archived`). Income INSERT also requires `member_id = auth.uid()`. Budget create writes `member_id` NULL (Nido) or `auth.uid()` when `p_personal`. Contribution **UPDATE** also requires parent goal `status = active`. Physical DELETE remains denied on incomes/expenses/goals/budgets and is revoked on `goal_contributions` for `authenticated`.
 
 `create_expense`, `update_expense`, `soft_delete_expense`, `create_expense_refund`, `create_income`, `update_income`, `soft_delete_income`, `create_budget`, `update_budget`, `soft_delete_budget`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, `soft_delete_goal_contribution`, `create_recurring_income`, `update_recurring_income`, `set_recurring_income_active`, `materialize_recurring_income`, `create_recurring_expense`, `update_recurring_expense`, `set_recurring_expense_active`, `materialize_recurring_expense`, `update_household_name`, `update_household_default_split_method`, `create_category`, `rename_category`, and `archive_category` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Recurring split writes follow `can_mutate_recurring_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
 

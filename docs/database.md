@@ -976,7 +976,7 @@ Still deferred (not 9.4 unless [phase-9.4.md](./phase-9.4.md) says otherwise):
 9. **Stored `requires_review` flag** — derived at materialize time instead.
 10. **Separate pause vs archive on recurring rules** — `is_active` covers both for now.
 
-Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): 9.4.1–9.4.8 (name, initials, categories, split column, onboarding persist, personal budgets + visibility, derived budget consumption, refunds, derived monthly balance / settlements, pull-to-refresh, leftover cleanup) are implemented. There is still no `balances` or `settlements` table. 9.4.9 final documentation remains.
+Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): 9.4.1–9.4.9 (name, initials, categories, split column, onboarding persist, personal budgets + visibility, derived budget consumption, refunds, derived monthly balance / settlements, pull-to-refresh, leftover cleanup, final documentation) are implemented. There is still no `balances` or `settlements` table. Smoke UI, RLS runtime, and remote `db push` of migrations 15–18 remain operational, not implementation, work.
 
 Moved to **[future.md](./future.md)** (not pending 9.4): multi-currency, notifications, activity-feed persistence, insights, Google OAuth, image avatars, Realtime, receipts, email invitations, recurring budgets, push.
 
@@ -995,8 +995,8 @@ Moved to **[future.md](./future.md)** (not pending 9.4): multi-currency, notific
 - Onboarding savings + estimates → budgets: `supabase/migrations/20260822600000_nido_onboarding_savings_budgets.sql` (`savings_balances`; extends the onboarding RPC)
 - Personal visibility + personal budgets: `supabase/migrations/20260822700000_nido_personal_visibility.sql` (`profiles.personal_visibility`, `personal_finance_visible`, `update_personal_visibility`, `create_budget` personal path)
 - Expense refunds: `supabase/migrations/20260822800000_nido_expense_refunds.sql` (`expense_refunds`, `expense_refund_splits`, `create_expense_refund`)
-- 9.4.1–9.4.5 are local migrations. They were **not** applied to remote by this phase.
+- 9.4.1–9.4.5 are local migrations 15–18. They were **not** applied to remote (`nido_dev` still has the previous 14). That is an operational `db push`, not a missing implementation.
 - Security model: [docs/security.md](./security.md)
 - Application clients: [docs/supabase.md](./supabase.md)
-- These migrations are applied on the linked hosted project. See [docs/supabase.md](./supabase.md).
+- Foundation through 9.2.4 (migrations 1–14) are applied on the linked hosted project. See [docs/supabase.md](./supabase.md).
 - Do not put seed data in the foundation migration. If seed SQL is added later, keep it in a clearly labeled separate file.
