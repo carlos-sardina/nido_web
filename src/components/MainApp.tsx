@@ -5,6 +5,7 @@ import {
   BarChart2, Clock, Home, Plus, Target, Users, Wallet,
 } from "lucide-react";
 import { ActivityScreen } from "@/components/activity/ActivityScreen";
+import { BalanceScreen } from "@/components/balance/BalanceScreen";
 import { BudgetDetail } from "@/components/budget/BudgetDetail";
 import { BudgetScreen } from "@/components/budget/BudgetScreen";
 import { ExpenseDetail } from "@/components/expenses/ExpenseDetail";
@@ -83,6 +84,7 @@ export function MainApp({
   const [editingGoal, setEditingGoal] = useState<GoalRow | null>(null);
   const [editingContribution, setEditingContribution] = useState<GoalContributionRow | null>(null);
   const [showBudgets, setShowBudgets] = useState(false);
+  const [showBalance, setShowBalance] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<BudgetItemView | null>(null);
   const [editingBudget, setEditingBudget] = useState<BudgetItemView | null>(null);
   const [showRecurringExpenses, setShowRecurringExpenses] = useState(false);
@@ -193,6 +195,8 @@ export function MainApp({
               onNavigate={t => { setTab(t); setShowSheet(false); }}
               onOpenBudgets={() => setShowBudgets(true)}
               onCreateBudget={openBudgetCreate}
+              onOpenBalance={() => setShowBalance(true)}
+              currentUserId={user?.id ?? null}
             />
           )}
           {tab === "incomes"   && (
@@ -331,6 +335,14 @@ export function MainApp({
             onContributionChanged={() => {
               void dashboard.refresh();
             }}
+          />
+        )}
+
+        {showBalance && (
+          <BalanceScreen
+            householdId={liveHousehold.id}
+            members={members}
+            onClose={() => setShowBalance(false)}
           />
         )}
 

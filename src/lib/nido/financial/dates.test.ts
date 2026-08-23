@@ -5,6 +5,8 @@ import {
   getCurrentMonthRange,
   getMonthRange,
   greetingForNow,
+  isSameMonth,
+  shiftMonth,
   isCalendarDate,
   isCalendarMonthRange,
   isDateInRange,
@@ -35,6 +37,24 @@ describe("getMonthRange", () => {
   it("handles February in a leap year", () => {
     const range = getMonthRange(2024, 2);
     assert.equal(range.end, "2024-02-29");
+  });
+});
+
+describe("shiftMonth", () => {
+  it("moves backward and forward across a year boundary", () => {
+    const august = getMonthRange(2026, 8);
+    const july = shiftMonth(august, -1);
+    assert.equal(july.start, "2026-07-01");
+    assert.equal(july.end, "2026-07-31");
+    assert.equal(isSameMonth(shiftMonth(august, 0), august), true);
+
+    const january = getMonthRange(2026, 1);
+    const december = shiftMonth(january, -1);
+    assert.equal(december.start, "2025-12-01");
+    assert.equal(december.end, "2025-12-31");
+
+    const nextJanuary = shiftMonth(getMonthRange(2026, 12), 1);
+    assert.equal(nextJanuary.start, "2027-01-01");
   });
 });
 

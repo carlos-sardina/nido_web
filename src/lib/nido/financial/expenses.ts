@@ -80,13 +80,28 @@ export function memberPaid(expenses: ExpenseRow[], memberId: string): number {
   return sumMoney(
     expenses
       .filter((expense) => isActiveExpense(expense) && expense.payerId === memberId)
-      .map((expense) => expense.amount),
+      .map((expense) => netExpense(expense.amount, expense.refunds)),
+  );
+}
+
+/** Refund share already attributed to this member via expense_refund_splits. */
+export function memberRefundShare(expenses: ExpenseRow[], memberId: string): number {
+  return sumMoney(
+    expenses
+      .filter(isActiveExpense)
+      .flatMap((expense) => expense.refunds ?? [])
+      .flatMap((refund) => refund.splits)
+      .filter((split) => split.memberId === memberId)
+      .map((split) => split.amount),
   );
 }
 
 export function memberBalance(expenses: ExpenseRow[], memberId: string): number {
-  const splits = expenses.flatMap((expense) => (isActiveExpense(expense) ? expense.splits : []));
-  return roundMoney(memberPaid(expenses, memberId) - memberOwed(splits, memberId));
+  const live = expenses.filter(isActiveExpense);
+  const splits = live.flatMap((expense) => expense.splits);
+  return roundMoney(
+    memberPaid(live, memberId) - memberOwed(splits, memberId) + memberRefundShare(live, memberId),
+  );
 }
 
 export function spentByCategory(expenses: ExpenseRow[], categoryId: string): number {
@@ -103,4 +118,8 @@ export function isRecurringExpense(expense: Pick<ExpenseRow, "recurringId">): bo
 
 export function isPersonalExpense(expense: Pick<ExpenseRow, "scope">): boolean {
   return expense.scope === "personal";
+}
+
+export function isSharedExpense(expense: Pick<ExpenseRow, "scope">): boolean {
+  return expense.scope === "shared";
 }

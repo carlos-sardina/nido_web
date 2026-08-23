@@ -365,7 +365,7 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## What remains after owner transfer
 
-Phase 9.4 work is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1–9.4.5** are implemented. 9.4.6–9.4.9 remain.
+Phase 9.4 work is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1–9.4.6** are implemented. 9.4.7–9.4.9 remain.
 
 Do **not** treat these as pending 9.4: Google OAuth, image avatars, notifications, Realtime, insights, persistent Activity, multi-currency, receipts, email invitations, recurring budgets, push. See [future.md](./future.md).
 

@@ -99,6 +99,19 @@ export function getCurrentMonthRange(
   return getMonthRange(year, month, timeZone);
 }
 
+/** Shift a calendar month by `delta` months. Uses UTC year/month math, not local `Date`. */
+export function shiftMonth(range: MonthRange, delta: number): MonthRange {
+  const shifted = new Date(Date.UTC(range.year, range.month - 1 + delta, 1));
+  return getMonthRange(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, range.timeZone);
+}
+
+export function isSameMonth(
+  a: Pick<MonthRange, "year" | "month">,
+  b: Pick<MonthRange, "year" | "month">,
+): boolean {
+  return a.year === b.year && a.month === b.month;
+}
+
 export function isDateInRange(iso: string, range: Pick<MonthRange, "start" | "end">): boolean {
   return iso >= range.start && iso <= range.end;
 }

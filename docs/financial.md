@@ -2,7 +2,7 @@
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
-Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1**, **9.4.2**, **9.4.3**, **9.4.4**, and **9.4.5** are implemented. 9.4.6–9.4.9 are not. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
+Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1**, **9.4.2**, **9.4.3**, **9.4.4**, **9.4.5**, and **9.4.6** are implemented. 9.4.7–9.4.9 are not. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
 
 Phase 9.2.3 is the QA close of this integration. It does not add tables, columns, or product surfaces. The source of truth is the current code, the applied migrations on `nido_dev`, the RLS matrix, and the unit tests — not earlier “pending” notes in this file.
 
@@ -94,15 +94,29 @@ There is no product rule that rejects future expense dates. The form defaults to
 | --- | --- |
 | Period income | `SUM(incomes.amount)` where `deleted_at IS NULL` and `occurred_at` in range |
 | Period spent | `SUM(netExpense)` for the same filter |
-| Member owed | `SUM(expense_splits.amount)` for that member on non-deleted expenses |
-| Member balance | amount paid − amount owed |
+| Member owed | `SUM(expense_splits.amount)` for that member on non-deleted **shared** expenses, minus that member’s `expense_refund_splits` |
+| Member paid | `SUM(netExpense)` of live **shared** expenses where `payer_id` is the member |
+| Member balance | paid − owed. Personal expenses do not participate |
+| Settlements | Derived from member balances (`deriveSettlements`). Not persisted. Not a payment. |
 | Goal progress | `SUM(goal_contributions.amount) WHERE deleted_at IS NULL / goals.target_amount` (0 if target ≤ 0) |
 | Budget spent | `calculateBudgetConsumption()` / `budgetSpent()`: `SUM(netExpense)` of live expenses in the same household, `category_id`, and month. Nido: all visible rows (personal + shared). Personal: `scope = personal` and `created_by = budgets.member_id`. `netExpense = amount − SUM(refunds of that expense)` |
 | Budget remaining | `budgets.amount − spent` (view model only; may be negative) |
 | Budget usage | `spent / budgets.amount * 100` (view model only; unbounded, may exceed 100; null if amount ≤ 0) |
 | Activity | union of expenses, incomes, goal contributions, and refunds, newest first |
 
-There is no `balances` table, no `current_amount` on goals, and no `current_spent` on budgets.
+There is no `balances` table, no `settlements` table, no `current_amount` on goals, and no `current_spent` on budgets.
+
+### Monthly balance (Phase 9.4.6)
+
+`calculateMonthlyBalance()` in `src/lib/nido/financial/balance.ts` rebuilds the calendar-month statement from the RLS-filtered snapshot. Period is `America/Mexico_City` via `getMonthRange` (inclusive `YYYY-MM-DD`).
+
+- **Ingresos:** confirmed `incomes` in the month. Recurring templates do not count. `savings_balances` and `budgets` are not income.
+- **Gastos / gastos netos:** live **shared** expenses in the month, gross and net of those expenses’ refunds. Personal expenses stay out of settlements even when visible to the Nido.
+- **Payer:** `expenses.payer_id`. Splits are `expense_splits.amount` (already stored). Do not recompute percentages.
+- **Refunds:** reduce the original expense’s paid and each participant’s owed. They are not a new income. A refund dated in a later month still belongs to the **expense month**. Soft-deleted expenses (and their refunds) are omitted.
+- **Settlements:** obligations derived from `balance = paid − owed`. There is no “marcar como pagado” and no Activity event.
+
+Home shows a compact card (`Diana te debe $1,500` / `Todo está equilibrado` / `Sin gastos compartidos este mes`). The **Balance** overlay (from Home, not a new tab) has a month selector for the current and previous months. Health is unchanged.
 
 ### Incomes: do not double-count recurrence
 
@@ -442,12 +456,13 @@ Double submit: **Guardando…** (`aria-busy`). After create, edit, or delete, Ho
 | `budgets.ts` | `createBudget` / `updateBudget` / `deleteBudget` |
 | `goals.ts` | `createGoal` / `updateGoal` / `archiveGoal` |
 | `contributions.ts` | `createContribution` / `updateContribution` / `deleteContribution` |
-| `financial/` | dates, money, splits, validation, activity, dashboard view model |
+| `financial/` | dates, money, splits, validation, activity, dashboard view model, monthly balance |
 | `recurring-incomes.ts` | `createRecurringIncome` / `updateRecurringIncome` / `setRecurringIncomeActive` / `materializeRecurringIncome` |
 | `recurring-expenses.ts` | `createRecurringExpense` / `updateRecurringExpense` / `setRecurringExpenseActive` / `materializeRecurringExpense` |
 | `use-dashboard.ts` | shared snapshot; `refresh()` after create/edit/delete/archive/materialize |
+| `use-monthly-balance.ts` | selected calendar month for the Balance overlay; reuses `fetchDashboardSnapshot` |
 
-Visual components do not query Supabase tables directly. Home, Ingresos, Gastos, Presupuestos, Metas, and Actividad do not keep a parallel financial store.
+Visual components do not query Supabase tables directly. Home, Ingresos, Gastos, Presupuestos, Metas, Actividad, and Balance do not keep a parallel financial store. Balance for a past month reuses `fetchDashboardSnapshot(householdId, range)` and `calculateMonthlyBalance()`.
 
 ---
 

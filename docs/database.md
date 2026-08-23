@@ -634,18 +634,21 @@ Do not persist these values.
 For a member inside a Nido, using non-deleted expenses:
 
 ```
-member_paid = SUM(expenses.amount)
+member_paid = SUM(expenses.amount − live refunds of that expense)
               WHERE payer_id = member
+                AND scope = shared
                 AND household_id = nido
                 AND deleted_at IS NULL
+                AND occurred_at in the calendar month
 
-member_owed = SUM(expense_splits.amount)
+member_owed = SUM(expense_splits.amount) − SUM(expense_refund_splits.amount)
               WHERE member_id = member
-                AND expense is in that nido
-                AND expense.deleted_at IS NULL
+                AND parent expense is live, shared, same Nido and month
 
 member_balance = member_paid - member_owed
 ```
+
+Personal expenses do not enter paid, owed, or settlements. A refund uses the **expense month**, not the refund date. Soft-deleted expenses and their refunds are omitted.
 
 Example: Carlos pays `$1,000`, Diana owes `$500`, Luis owes `$500`.
 
@@ -658,9 +661,7 @@ If Carlos also participates (equal split with Diana on `$1,000` that Carlos paid
 - Carlos: paid `1000`, owed `500` → balance `+500`
 - Diana: paid `0`, owed `500` → balance `-500`
 
-Positive balance means others owe that person. Negative means that person owes others.
-
-Pairwise settlement between A and B can be derived from the same source rows. No settlement ledger is stored in this phase.
+Positive balance means the Nido owes that person. Negative means that person owes others. `deriveSettlements()` turns those nets into concrete transfers (Diana → Carlos $500). There is no `balances` table, no `settlements` table, and no “marcar como pagado”.
 
 ### Goal progress
 
@@ -975,7 +976,7 @@ Still deferred (not 9.4 unless [phase-9.4.md](./phase-9.4.md) says otherwise):
 9. **Stored `requires_review` flag** — derived at materialize time instead.
 10. **Separate pause vs archive on recurring rules** — `is_active` covers both for now.
 
-Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): derived monthly balance / settlements, pull-to-refresh. 9.4.1–9.4.5 (name, initials, categories, split column, onboarding persist, personal budgets + visibility, derived budget consumption, refunds) are implemented.
+Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): pull-to-refresh remains. 9.4.1–9.4.6 (name, initials, categories, split column, onboarding persist, personal budgets + visibility, derived budget consumption, refunds, derived monthly balance / settlements) are implemented. There is still no `balances` or `settlements` table.
 
 Moved to **[future.md](./future.md)** (not pending 9.4): multi-currency, notifications, activity-feed persistence, insights, Google OAuth, image avatars, Realtime, receipts, email invitations, recurring budgets, push.
 

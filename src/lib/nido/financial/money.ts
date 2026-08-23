@@ -79,3 +79,23 @@ export function formatWholeMoney(amount: number): string {
   const sign = value < 0 ? "−" : "";
   return `${sign}$${Math.abs(value).toLocaleString("es-MX")}`;
 }
+
+/** Exact pesos to cents: $1,500 or $1,500.50 */
+export function formatExactMoney(amount: number): string {
+  const value = roundMoney(Number.isFinite(amount) ? amount : 0);
+  const sign = value < 0 ? "−" : "";
+  const abs = Math.abs(value);
+  const hasCents = Math.round(abs * MONEY_CENTS) % MONEY_CENTS !== 0;
+  return `${sign}$${abs.toLocaleString("es-MX", {
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/** Signed balance: +$1,500 / −$1,500 / $0 */
+export function formatSignedMoney(amount: number): string {
+  const value = roundMoney(Number.isFinite(amount) ? amount : 0);
+  if (value > 0) return `+${formatExactMoney(value)}`;
+  if (value < 0) return `−${formatExactMoney(Math.abs(value))}`;
+  return formatExactMoney(0);
+}

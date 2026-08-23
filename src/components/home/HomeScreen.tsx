@@ -3,6 +3,7 @@
 import { Shield } from "lucide-react";
 import type { AuthIdentity } from "@/lib/auth/identity";
 import {
+  compactBalanceCopy,
   formatCompactMoney,
   formatRelativeActivityDate,
   formatWholeMoney,
@@ -53,6 +54,8 @@ export function HomeScreen({
   onNavigate,
   onOpenBudgets,
   onCreateBudget,
+  onOpenBalance,
+  currentUserId,
 }: {
   identity: AuthIdentity | null;
   householdName: string;
@@ -61,6 +64,8 @@ export function HomeScreen({
   onNavigate: (tab: Tab) => void;
   onOpenBudgets: () => void;
   onCreateBudget: () => void;
+  onOpenBalance: () => void;
+  currentUserId: string | null;
 }) {
   const { isLoading, error, model, refresh } = dashboard;
 
@@ -120,6 +125,8 @@ export function HomeScreen({
           onNavigate={onNavigate}
           onOpenBudgets={onOpenBudgets}
           onCreateBudget={onCreateBudget}
+          onOpenBalance={onOpenBalance}
+          currentUserId={currentUserId}
         />
       ) : null}
     </div>
@@ -134,6 +141,8 @@ function DashboardBody({
   onNavigate,
   onOpenBudgets,
   onCreateBudget,
+  onOpenBalance,
+  currentUserId,
 }: {
   model: NonNullable<DashboardQuery["model"]>;
   error: DashboardQuery["error"];
@@ -142,8 +151,11 @@ function DashboardBody({
   onNavigate: (tab: Tab) => void;
   onOpenBudgets: () => void;
   onCreateBudget: () => void;
+  onOpenBalance: () => void;
+  currentUserId: string | null;
 }) {
-  const { health, budget, featuredGoal, activeGoals, activity, empty, range } = model;
+  const { health, budget, featuredGoal, activeGoals, activity, empty, range, monthlyBalance } = model;
+  const balanceCopy = compactBalanceCopy(monthlyBalance, currentUserId);
   const diff = Math.abs(budget.remaining);
 
   return (
@@ -375,6 +387,30 @@ function DashboardBody({
             ) : null}
           </button>
         )}
+      </div>
+
+      <div className="mx-6 mb-3">
+      <button
+        type="button"
+        onClick={onOpenBalance}
+        className="w-full rounded-[1.5rem] p-5 shadow-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        style={{ backgroundColor: P.card }}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-semibold" style={{ color: P.text }}>
+            Balance
+          </h3>
+          <span className="text-[10px] font-semibold" style={{ color: P.brnDk }}>
+            Ver balance →
+          </span>
+        </div>
+        <p
+          className="text-sm font-semibold"
+          style={{ color: balanceCopy.hasObligation ? P.text : P.muted }}
+        >
+          {balanceCopy.headline}
+        </p>
+      </button>
       </div>
 
       {featuredGoal ? (

@@ -287,6 +287,45 @@ export type FeaturedGoalView = {
   emergencyMonths: number | null;
 };
 
+/**
+ * Derived monthly balance. Never persisted.
+ * Settlements are obligations, not recorded payments.
+ */
+export type MonthlyBalanceStatus = "empty" | "settled" | "unsettled";
+
+export type MemberIncomeView = {
+  memberId: string;
+  displayName: string;
+  amount: number;
+};
+
+export type MemberBalanceView = {
+  memberId: string;
+  displayName: string;
+  paid: number;
+  owed: number;
+  balance: number;
+};
+
+export type DerivedSettlement = {
+  fromMemberId: string;
+  fromName: string;
+  toMemberId: string;
+  toName: string;
+  amount: number;
+};
+
+export type MonthlyBalance = {
+  range: MonthRange;
+  status: MonthlyBalanceStatus;
+  incomeTotal: number;
+  memberIncomes: MemberIncomeView[];
+  sharedGross: number;
+  sharedNet: number;
+  members: MemberBalanceView[];
+  settlements: DerivedSettlement[];
+};
+
 export type DashboardSnapshot = {
   householdId: string;
   range: MonthRange;
@@ -318,6 +357,7 @@ export type DashboardViewModel = {
   recentExpenses: ExpenseRow[];
   recentIncomes: IncomeRow[];
   periodBudgets: BudgetItemView[];
+  monthlyBalance: MonthlyBalance;
   empty: {
     expenses: boolean;
     incomes: boolean;

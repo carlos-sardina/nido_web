@@ -1,5 +1,6 @@
 import type { HouseholdMemberView } from "../types.ts";
 import { buildActivityItems } from "./activity.ts";
+import { calculateMonthlyBalance } from "./balance.ts";
 import { buildBudgetItemView, buildMonthBudgetView, visiblePeriodBudgets } from "./budgets.ts";
 import { greetingForNow, type MonthRange } from "./dates.ts";
 import { householdSpent, isActiveExpense, visiblePeriodExpenses } from "./expenses.ts";
@@ -117,6 +118,13 @@ export function buildDashboardViewModel(input: {
       buildBudgetItemView(row, periodExpenses, members),
     ),
     activity,
+    monthlyBalance: calculateMonthlyBalance({
+      expenses: periodExpenses,
+      incomes: periodIncomes,
+      members,
+      range,
+      householdId: snapshot.householdId,
+    }),
     empty: {
       expenses: periodExpenses.length === 0 && recentExpenses.length === 0,
       incomes: periodIncomes.length === 0 && recentIncomes.length === 0,

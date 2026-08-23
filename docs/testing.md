@@ -653,4 +653,15 @@ Phase 9.4.5 (expense refunds + frozen splits + net budget consumption) against t
 - Manual Gastos / Activity / Presupuestos / Home UI smoke is **BLOCKED**. This environment has no browser automation. Do not treat unit/build success as a UI pass.
 - Verdict: **CASI CERRADA**. Implementation and unit/build checks are complete; UI smoke and the live RLS matrix remain open.
 
+Phase 9.4.6 (derived monthly balance + derived settlements) against the repo on 2026-08-22:
+
+- No new migration, table, column, or RPC. Balance is `calculateMonthlyBalance()` / `deriveSettlements()` on the RLS-filtered snapshot. Refunds belong to the original expense month. Personal expenses do not create inter-member debt. There is no “marcar como pagado”.
+- UI: Home compact **Balance** card; **Balance** overlay with `< mes >` selector. Not a new tab. Health formula unchanged. Activity unchanged.
+- Unit tests 817 passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 17 tables (unchanged; no new table).
+- Local Docker / `supabase start` is not available. `supabase` / `psql` are not on PATH. `supabase db push` was **not** run. No new SQL objects; remote still has the previous 14 migrations until the team applies 9.4.1–9.4.5.
+- RLS matrix was **not** re-run: no policy or table change. Do not treat a static coverage pass as a live matrix pass.
+- **Departamento** and **Nido Smoke 924** were not modified. No temporary users, invitations, or permanent seeds.
+- Manual Balance / Home UI smoke is **BLOCKED**. This environment has no browser automation. Do not treat unit/build success as a UI pass. Pending cases: (1) open Balance, (2) current month, (3) previous month, (4) summary, (5) per-member balances, (6) who owes whom, (7) 50/50, (8) proportional, (9) refund, (10) personal excluded, (11) soft-deleted excluded, (12) period without movements, (13) balanced period, (14) peer, (15) private personal data, (16) multiple members.
+- Verdict: **CASI CERRADA**. Implementation and unit/build checks are complete; UI smoke and the live RLS matrix remain open.
+
 Do not record production results here unless they were performed.

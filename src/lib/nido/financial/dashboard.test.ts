@@ -57,6 +57,8 @@ describe("dashboard view model", () => {
     assert.deepEqual(model.periodIncomes, []);
     assert.deepEqual(model.periodBudgets, []);
     assert.equal(model.greeting, "Buenos días");
+    assert.equal(model.monthlyBalance.status, "empty");
+    assert.deepEqual(model.monthlyBalance.settlements, []);
   });
 
   it("uses confirmed period totals and derived goal progress", () => {
@@ -181,6 +183,10 @@ describe("dashboard view model", () => {
     if (model.health.available) {
       assert.equal(model.health.savingsRatePercent, 98);
     }
+    assert.equal(model.monthlyBalance.status, "settled");
+    assert.equal(model.monthlyBalance.incomeTotal, 40000);
+    assert.equal(model.monthlyBalance.sharedNet, 700);
+    assert.deepEqual(model.monthlyBalance.settlements, []);
   });
 
   it("uses net period spent after refunds without changing the health formula", () => {
@@ -982,5 +988,53 @@ describe("dashboard view model", () => {
     if (model.health.available) {
       assert.equal(model.health.budgetUsagePercent, 85);
     }
+  });
+
+  it("derives current-month settlements without changing health inputs", () => {
+    const shared: ExpenseRow = {
+      id: "e-shared",
+      householdId: "h1",
+      categoryId: "c1",
+      amount: 1000,
+      description: "Despensa",
+      occurredAt: "2026-08-10",
+      payerId: "carlos",
+      scope: "shared",
+      distributionMethod: "equal",
+      recurringId: null,
+      createdBy: "carlos",
+      createdAt: "2026-08-10T12:00:00.000Z",
+      deletedAt: null,
+      category: { id: "c1", name: "Despensa", icon: "🛒" },
+      payer: { id: "carlos", displayName: "Carlos Pérez" },
+      splits: [
+        { id: "s1", expenseId: "e-shared", memberId: "carlos", amount: 500, percentage: 50 },
+        { id: "s2", expenseId: "e-shared", memberId: "diana", amount: 500, percentage: 50 },
+      ],
+    };
+
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        expenses: [shared],
+        periodExpenses: [shared],
+      }),
+      members: [
+        {
+          userId: "carlos",
+          role: "member",
+          joinedAt: "2026-01-01T00:00:00.000Z",
+          displayName: "Carlos Pérez",
+          avatarUrl: null,
+        },
+        ...members,
+      ],
+      range,
+    });
+
+    assert.equal(model.periodSpent, 1000);
+    assert.equal(model.monthlyBalance.status, "unsettled");
+    assert.equal(model.monthlyBalance.settlements[0]?.fromMemberId, "diana");
+    assert.equal(model.monthlyBalance.settlements[0]?.toMemberId, "carlos");
+    assert.equal(model.monthlyBalance.settlements[0]?.amount, 500);
   });
 });

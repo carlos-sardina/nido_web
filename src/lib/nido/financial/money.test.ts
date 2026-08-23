@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 import {
   clampedPercent,
   formatCompactMoney,
+  formatExactMoney,
+  formatSignedMoney,
   formatWholeMoney,
   goalProgressRatio,
   moneyOrZero,
@@ -85,5 +87,13 @@ describe("money format", () => {
 
   it("formats featured amounts with grouping", () => {
     assert.equal(formatWholeMoney(120000), "$120,000");
+  });
+
+  it("keeps cents on exact amounts and signs balances", () => {
+    assert.equal(formatExactMoney(1500), "$1,500");
+    assert.equal(formatExactMoney(1500.5), "$1,500.50");
+    assert.equal(formatSignedMoney(1500), "+$1,500");
+    assert.equal(formatSignedMoney(-1500), "−$1,500");
+    assert.equal(formatSignedMoney(0), "$0");
   });
 });

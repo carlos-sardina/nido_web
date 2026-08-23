@@ -1,6 +1,6 @@
 # Phase 9.4 — Technical contract
 
-Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1 is implemented** (household name, initials contract, category RPCs + Hogar UI, `households.default_split_method`, `create_expense` uses that preference for new shared expenses). **9.4.2 is implemented** (onboarding persists savings stock, estimates as initial monthly budgets, and `contrib` → `households.default_split_method`). **9.4.3 is implemented** (personal budgets UI + global `profiles.personal_visibility` with RLS). **9.4.4 is implemented** (derived budget consumption; personal vs Nido; live expenses; no persisted spent). **9.4.5 is implemented** (refunds linked to the original expense, frozen refund splits, atomic `create_expense_refund`, net budget consumption). Subphases 9.4.6–9.4.9 are **not** implemented. Smoke UI and the live RLS matrix were not executed in the implementation environment — see [testing.md](./testing.md).
+Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1 is implemented** (household name, initials contract, category RPCs + Hogar UI, `households.default_split_method`, `create_expense` uses that preference for new shared expenses). **9.4.2 is implemented** (onboarding persists savings stock, estimates as initial monthly budgets, and `contrib` → `households.default_split_method`). **9.4.3 is implemented** (personal budgets UI + global `profiles.personal_visibility` with RLS). **9.4.4 is implemented** (derived budget consumption; personal vs Nido; live expenses; no persisted spent). **9.4.5 is implemented** (refunds linked to the original expense, frozen refund splits, atomic `create_expense_refund`, net budget consumption). **9.4.6 is implemented** (derived monthly balance + derived settlements; no `balances` / `settlements` tables). Subphases 9.4.7–9.4.9 are **not** implemented. Smoke UI and the live RLS matrix were not executed in the implementation environment — see [testing.md](./testing.md).
 
 Source of confirmed product decisions: the 9.4.0 brief. Discarded items live in [future.md](./future.md). Do not re-interpret those as pending 9.4 work.
 
@@ -55,7 +55,7 @@ Protected business data (do not touch): **Departamento**, **Nido Smoke 924**.
 | Savings | Onboarding persists personal + shared stock in `savings_balances`. Not income, expense, or a goal. |
 | Estimated onboarding expenses | Become initial monthly `budgets` (shared → `member_id` NULL; personal → creator). Never `expenses`. |
 | Visibility | `profiles.personal_visibility` (`nido` \| `private`, default `nido`). One global setting for personal expenses, personal budgets, and personal savings. RLS helper `personal_finance_visible`. |
-| Settlements / refunds | **Refunds live** (`expense_refunds` + frozen `expense_refund_splits`). Creator-only create via `create_expense_refund`. Immutable after insert. `memberBalance()` still ignores refunds (9.4.6). |
+| Settlements / refunds | **Refunds live** (`expense_refunds` + frozen `expense_refund_splits`). Creator-only create via `create_expense_refund`. Immutable after insert. Monthly balance is derived: shared `paid − owed` net of those refunds, then pairwise obligations. No `balances` or `settlements` table. There is no “marcar como pagado”. |
 | Initials | `initialsFromName`: one word → first **two** letters (`Carlos` → `CA`). Product contract is one letter (`C`). |
 | Avatar image | `profiles.avatar_url` exists. No upload. Auth metadata `picture` may display as URL. |
 | Refresh | `dashboard.refresh()` after mutations and error retry. No pull-to-refresh. MainApp shell does not scroll; **each tab** owns `h-full overflow-y-auto`. |
@@ -233,32 +233,22 @@ Carlos A. Sardina → CS   (first + last token)
 
 No Storage, no upload. Do not treat `profiles.avatar_url` or Auth `picture` as product identity in 9.4 UI. Image avatars: [future.md](./future.md).
 
-### 2.8 Monthly balance + settlements — IMPLEMENT (model first)
+### 2.8 Monthly balance + settlements — IMPLEMENTED (9.4.6)
 
-No `balances` table today. `memberBalance = paid − owed` is derived and unused in UI.
-
-**Minimum representation:** keep source movements authoritative. Do **not** persist running totals.
+No `balances` table. No `settlements` table. Source movements stay authoritative.
 
 | Piece | Representation |
 | --- | --- |
-| Period | Calendar month, `America/Mexico_City` |
-| Summary | Derived: period incomes, period expenses (net of refunds once they exist), relevant movements |
-| Obligations | Derived from **shared** expenses (+ refunds) and their splits: who paid, who owes, pairwise net |
-| Personal rows | Appear in the owner’s statement according to visibility; they do **not** create inter-member debt |
-| History | Any past month is recomputed from live + soft-deleted-excluded source rows |
+| Period | Calendar month, `America/Mexico_City`. Inclusive `YYYY-MM-DD` (`getMonthRange`). Refunds use the **expense** month, not the refund date. |
+| Summary | Derived: period incomes, shared gross, shared net of refunds. Savings and budgets are not flows. |
+| Member row | `paid` = shared expenses paid by the member minus those expenses’ refunds. `owed` = that member’s `expense_splits.amount` minus `expense_refund_splits`. `balance = paid − owed`. |
+| Obligations | `deriveSettlements()` turns net balances into deterministic transfers. Not recorded payments. |
+| Personal rows | Do **not** enter paid / owed / settlements. They remain personal even when `personal_visibility = nido`. |
+| History | Any past month is recomputed from live rows (`deleted_at IS NULL`). Soft-deleted expenses and their refunds are omitted. |
 
-**Pairwise net (two members A, B) for a period:**
+A settlement in this phase is only a derived obligation: who owes whom how much. There is no “marcar como pagado”, no transfer ledger, and no Activity event.
 
-```text
-For each live shared expense (and later each live refund) in the period:
-  A_delta += (amount_paid_by_A − amount_owed_by_A) attributable vs B
-```
-
-Result is one signed number: `Carlos debe $X a Diana` or the reverse, or zero.
-
-**Settlement ledger:** only required if the product records that a debt was **paid**. The brief asks to *determine* who owes whom, not to invent a “marcar pagado” UX. 9.4.5 ships the **derived period statement**. An explicit `settlements` / payment table is **not** in this contract unless a later brief says members can record a transfer. See pending decisions.
-
-Do not invent a final UX in 9.4.0.
+UI: Home compact card + **Balance** overlay (month selector `< Agosto 2026 >`). Not a new tab. Health is unchanged.
 
 ### 2.9 Refunds — IMPLEMENT
 
@@ -277,7 +267,7 @@ Expense
 | Who writes | Same as expense mutation: **creator** of the original expense, active member, live expense |
 | Activity | Derived event (no activity table) |
 | Budgets | `budgetSpent` becomes net: expense amounts − live refunds in range / category (and personal/Nido rules in §2.2) |
-| Balance | Refunds reduce shared obligations in the refund’s period |
+| Balance | Refunds reduce shared obligations in the **original expense month**, not the refund date (same as budget consumption) |
 | Expense edit | Reject `update_expense` while live refunds exist (or require refunds deleted first). Do not rewrite history silently |
 
 ### 2.10 Pull-to-refresh — IMPLEMENT
@@ -318,7 +308,7 @@ The brief’s order is kept except one dependency: **refunds before monthly bala
 9.4.3  Personal budgets UI + global visibility (schema + RLS + UI)
 9.4.4  Budget consumption (personal vs Nido; live expenses; no mocks)
 9.4.5  Refunds + automatic splits + Activity/budget hooks
-9.4.6  Monthly balance + derived settlements
+9.4.6  Monthly balance + derived settlements  **implemented**
 9.4.7  Pull-to-refresh
 9.4.8  Leftover cleanup (proven unused only)
 9.4.9  Final documentation
@@ -400,7 +390,7 @@ UI filters are presentation only.
 | `create_budget` | Personal payload (`memberId` implied by auth, not a free client field). |
 | `budgetSpent` | Net of refunds; personal budgets filter `scope = personal` + member. |
 | Activity types | `refund` derived from embedded `expense_refunds`. Opens the parent expense. |
-| New | `SavingsBalance`, `PersonalVisibility`, `ExpenseRefund`. |
+| New | `SavingsBalance`, `PersonalVisibility`, `ExpenseRefund`, `MonthlyBalance`, `DerivedSettlement`. |
 
 No persistent activity types. No notification types. No OAuth types.
 
@@ -418,7 +408,7 @@ No persistent activity types. No notification types. No OAuth types.
 | Onboarding | Persist savings, estimates, `contrib`. Remove capacity types. Fix `nest-ready` demo copy. |
 | Gastos / Home | Personal vs shared remain; honor RLS (empty for others when private). |
 | Refund | From expense detail, creator only. No split editor. |
-| Balance | Period statement (9.4.6). No invented “cierre de mes” ceremony unless specified later. |
+| Balance | **Implemented (9.4.6).** Period statement + derived who-owes-whom. No “cierre de mes” ceremony. No “marcar como pagado”. |
 | All main tabs | End-of-scroll refresh (9.4.7). |
 
 ---
@@ -475,9 +465,9 @@ No indispensable product decision is missing for **LISTA PARA IMPLEMENTACIÓN** 
 ## 12. Verdict
 
 ```text
-9.4.5 IMPLEMENTADA (CASI CERRADA) — veredicto de cierre en testing.md
+9.4.6 IMPLEMENTADA (CASI CERRADA) — veredicto de cierre en testing.md
 ```
 
-Next subphase: **9.4.6** — monthly balance + derived settlements.
+Next subphase: **9.4.7** — pull-to-refresh.
 
-Do not declare 9.4.6–9.4.9 implemented.
+Do not declare 9.4.7–9.4.9 implemented.

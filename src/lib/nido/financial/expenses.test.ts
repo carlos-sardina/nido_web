@@ -125,6 +125,37 @@ describe("expense splits", () => {
     assert.equal(memberBalance(rows, "carlos"), 500);
     assert.equal(memberBalance(rows, "diana"), -500);
   });
+
+  it("nets refunds from paid and from each member's owed share", () => {
+    const splits = [
+      split({ memberId: "carlos", amount: 600 }),
+      split({ memberId: "diana", amount: 400 }),
+    ];
+    const rows = [
+      expense({
+        amount: 1000,
+        payerId: "carlos",
+        splits,
+        refunds: [
+          {
+            id: "r1",
+            expenseId: "e1",
+            amount: 200,
+            occurredAt: "2026-09-03",
+            createdBy: "carlos",
+            createdAt: "2026-09-03T12:00:00.000Z",
+            splits: [
+              { id: "rs-c", refundId: "r1", memberId: "carlos", amount: 120, percentage: 60 },
+              { id: "rs-d", refundId: "r1", memberId: "diana", amount: 80, percentage: 40 },
+            ],
+          },
+        ],
+      }),
+    ];
+    assert.equal(memberPaid(rows, "carlos"), 800);
+    assert.equal(memberBalance(rows, "carlos"), 320);
+    assert.equal(memberBalance(rows, "diana"), -320);
+  });
 });
 
 describe("expense authorization helper", () => {

@@ -36,6 +36,13 @@ export {
   parseBudgetAmountInput,
   parseBudgetMonthInput,
 } from "./budget-input.ts";
+export {
+  calculateMemberBalances,
+  calculateMonthlyBalance,
+  compactBalanceCopy,
+  deriveSettlements,
+  shortMemberName,
+} from "./balance.ts";
 export { buildDashboardViewModel } from "./dashboard.ts";
 export {
   formatRelativeActivityDate,
@@ -45,9 +52,11 @@ export {
   isCalendarDate,
   isCalendarMonthRange,
   isDateInRange,
+  isSameMonth,
   monthRangeFromIsoDate,
   formatMonthLabel,
   NIDO_TIMEZONE,
+  shiftMonth,
   todayIso,
   type MonthRange,
 } from "./dates.ts";
@@ -59,9 +68,11 @@ export {
   isActiveExpense,
   isPersonalExpense,
   isRecurringExpense,
+  isSharedExpense,
   memberBalance,
   memberOwed,
   memberPaid,
+  memberRefundShare,
   visiblePeriodExpenses,
 } from "./expenses.ts";
 export {
@@ -181,6 +192,8 @@ export {
 export {
   clampedPercent,
   formatCompactMoney,
+  formatExactMoney,
+  formatSignedMoney,
   formatWholeMoney,
   goalProgressRatio,
   moneyOrZero,
@@ -189,6 +202,7 @@ export {
   roundMoney,
   sumMoney,
 } from "./money.ts";
+export type { CompactBalanceCopy } from "./balance.ts";
 export type {
   ActivityItem,
   ActivitySource,
@@ -197,6 +211,7 @@ export type {
   BudgetRow,
   DashboardSnapshot,
   DashboardViewModel,
+  DerivedSettlement,
   ExpenseRefundRow,
   ExpenseRow,
   ExpenseScope,
@@ -207,6 +222,8 @@ export type {
   GoalType,
   HealthView,
   IncomeRow,
+  MemberBalanceView,
+  MonthlyBalance,
   RecurrenceFrequency,
   RecurringExpenseTemplate,
   RecurringIncomeTemplate,
