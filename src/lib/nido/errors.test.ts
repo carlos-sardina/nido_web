@@ -83,6 +83,11 @@ describe("nidoErrorFromUnknown", () => {
     );
     assert.equal(nidoErrorFromUnknown({ message: "nido.expense_not_found" }).code, "expense_not_found");
     assert.equal(nidoErrorFromUnknown({ message: "nido.expense_deleted" }).code, "expense_deleted");
+    assert.equal(
+      nidoErrorFromUnknown({ message: "nido.expense_has_refunds" }).code,
+      "expense_has_refunds",
+    );
+    assert.match(userMessageFor("expense_has_refunds"), /devoluciones/i);
     assert.match(userMessageFor("expense_not_found"), /encontramos/i);
     assert.match(userMessageFor("expense_deleted"), /eliminado/i);
     assert.equal(

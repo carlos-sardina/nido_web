@@ -2,7 +2,7 @@
 
 This document describes Row Level Security for the Nido domain model.
 
-The domain model in [database.md](./database.md) is the source of truth. RLS implements authorization on that model. The live application must not be the authorization authority. Google OAuth is not a pending 9.4 item; see [future.md](./future.md). Personal-visibility RLS is applied in 9.4.3 (`profiles.personal_visibility` + `personal_finance_visible`). Budget consumption (9.4.4) is derived from RLS-visible `expenses`; there is no spending RPC and no persisted spent column.
+The domain model in [database.md](./database.md) is the source of truth. RLS implements authorization on that model. The live application must not be the authorization authority. Google OAuth is not a pending 9.4 item; see [future.md](./future.md). Personal-visibility RLS is applied in 9.4.3 (`profiles.personal_visibility` + `personal_finance_visible`). Budget consumption (9.4.4 / 9.4.5) is derived from RLS-visible `expenses` minus refunds of those expenses; there is no spending RPC and no persisted spent column. Refund SELECT inherits the parent expense, including `personal_visibility`.
 
 Implementation:
 
@@ -76,6 +76,8 @@ Child tables without `household_id` inherit the parent household:
 | Child | Parent lookup |
 | --- | --- |
 | `expense_splits` | `household_id_for_expense(expense_id)` |
+| `expense_refunds` | parent `expenses` row (SELECT inherits expense visibility) |
+| `expense_refund_splits` | parent `expense_refunds` row |
 | `recurring_expense_splits` | `household_id_for_recurring_expense(recurring_expense_id)` |
 | `goal_contributions` | `household_id_for_goal(goal_id)` |
 
@@ -222,7 +224,9 @@ Budgets do not restrict spending. Soft-delete uses `deleted_at` (migration `2026
 
 ### Child tables
 
-Applies to `expense_splits`, `recurring_expense_splits`, and `goal_contributions`.
+Applies to `expense_splits`, `expense_refunds`, `expense_refund_splits`, `recurring_expense_splits`, and `goal_contributions`.
+
+**`expense_refunds` / `expense_refund_splits` (Phase 9.4.5):** SELECT exists only when the parent expense is visible (same `personal_visibility` boundary). INSERT requires `can_mutate_expense` and `created_by = auth.uid()`. No UPDATE or DELETE policies: refunds are immutable. The product write path is `create_expense_refund` (`SECURITY INVOKER`). Concurrent creates lock the expense (`FOR UPDATE`) so live refunds cannot exceed `expenses.amount`.
 
 **`expense_splits` writes** (Phase 9.1.2B) require `can_mutate_expense(expense_id)`: active membership, `created_by = auth.uid()`, and `deleted_at IS NULL` on the parent. SELECT stays historical-member.
 
@@ -483,7 +487,7 @@ The static check that **was executed** and passed:
 node supabase/tests/validate_rls_coverage.mjs
 ```
 
-Result: RLS coverage validation passed for 14 tables at the 9.3/9.4.1 baseline. After 9.4.2 the same static script reports **15 tables** (adds `savings_balances`). 9.4.3 does not add a table; it adds `personal_finance_visible` and rewrites SELECT policies. The script confirmed RLS is enabled, expected policies exist, helpers exist, `SECURITY DEFINER` functions set `search_path`, and no policy uses `USING (true)`. It does **not** prove runtime authorization.
+Result: RLS coverage validation passed for 14 tables at the 9.3/9.4.1 baseline. After 9.4.2 the same static script reports **15 tables** (adds `savings_balances`). After 9.4.5 it reports **17 tables** (adds `expense_refunds` and `expense_refund_splits`). 9.4.3 does not add a table; it adds `personal_finance_visible` and rewrites SELECT policies. The script confirmed RLS is enabled, expected policies exist, helpers exist, `SECURITY DEFINER` functions set `search_path`, and no policy uses `USING (true)`. It does **not** prove runtime authorization.
 
 ### Behavioral matrix against the linked project
 
@@ -503,7 +507,7 @@ npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
 
 It impersonates Carlos, Diana, Luis, and Eva with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, expense mutation cases `X01`–`X14`, goal mutation cases `Y01`–`Y12`, contribution cases `Z01`–`Z22`, and owner-transfer / leave cases `T01`–`T13` and `T20`–`T30`.
 
-`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. `Z12`–`Z22` (creator update/delete, non-creator deny, other household, deleted row, archived goal, other Nido goal, unauthenticated, historical member, member who left) require migration `20260821210000`. `I01`–`I13` require `20260821220000`. `K01`–`K16` (budget create/update/soft-delete, non-creator deny, other household, historical member, deleted row, spent derivation; 1:1 with the requested B01–B16 list) require `20260821230000`. Prefix **K** is used because **B01–B09** already cover Luis / never-member and **P01–P07** already cover child-table SELECT. `T01`–`T13` and `T20`–`T30` (owner transfer, last-owner leave, historical / other-Nido / unauthenticated deny, atomic role swap, privilege change after transfer) require `20260822000000`. `OB01`–`OB11` (onboarding persist: unauthenticated, no membership, invalid amount, double execution, already-active member, historical member, other Nido) require `20260822300000`. `OB12`–`OB28` (savings stock, estimates → budgets, split method, capacity reject, retry, other-Nido deny) require `20260822600000`. `V01`–`V22` (personal visibility, private/nido SELECT of expenses, budgets, and savings, create_budget personal path) require `20260822700000`. `C01`–`C06` (budget consumption aggregates: private personal expense omitted from a peer SUM, owner SUM includes it, visible personal expense enters the peer Nido SUM) reuse the same policies; there is no consumption RPC. They are runtime SQL, not unit mocks.
+`X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. `Z12`–`Z22` (creator update/delete, non-creator deny, other household, deleted row, archived goal, other Nido goal, unauthenticated, historical member, member who left) require migration `20260821210000`. `I01`–`I13` require `20260821220000`. `K01`–`K16` (budget create/update/soft-delete, non-creator deny, other household, historical member, deleted row, spent derivation; 1:1 with the requested B01–B16 list) require `20260821230000`. Prefix **K** is used because **B01–B09** already cover Luis / never-member and **P01–P07** already cover child-table SELECT. `T01`–`T13` and `T20`–`T30` (owner transfer, last-owner leave, historical / other-Nido / unauthenticated deny, atomic role swap, privilege change after transfer) require `20260822000000`. `OB01`–`OB11` (onboarding persist: unauthenticated, no membership, invalid amount, double execution, already-active member, historical member, other Nido) require `20260822300000`. `OB12`–`OB28` (savings stock, estimates → budgets, split method, capacity reject, retry, other-Nido deny) require `20260822600000`. `V01`–`V22` (personal visibility, private/nido SELECT of expenses, budgets, and savings, create_budget personal path) require `20260822700000`. `C01`–`C06` (budget consumption aggregates: private personal expense omitted from a peer SUM, owner SUM includes it, visible personal expense enters the peer Nido SUM) reuse the same policies; there is no consumption RPC. `RF01`–`RF12` (refund create/read, private/visible/other-household/anon, splits inherit visibility) require `20260822800000`. They are runtime SQL, not unit mocks. `R01` remains the membership-helper recursion smoke; refund cases use the `RF` prefix.
 
 The script rolls back its own seeded users. It does not empty the linked database: existing **Departamento** and **Nido Smoke 924** rows remain after `ROLLBACK`.
 

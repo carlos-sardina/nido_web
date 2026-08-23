@@ -22,8 +22,13 @@ function activityCaption(item: {
   metadata: { scope?: string; categoryName?: string | null; goalName?: string | null };
 }): string {
   const parts = [formatRelativeActivityDate(item.date, item.createdAt)];
-  if (item.type === "expense" && item.metadata.scope === "personal") parts.push("Personal");
-  if (item.type === "expense" && item.metadata.scope === "shared") parts.push("Compartido");
+  if (item.type === "refund") parts.push("Devolución");
+  if ((item.type === "expense" || item.type === "refund") && item.metadata.scope === "personal") {
+    parts.push("Personal");
+  }
+  if ((item.type === "expense" || item.type === "refund") && item.metadata.scope === "shared") {
+    parts.push("Compartido");
+  }
   if (item.metadata.categoryName) parts.push(item.metadata.categoryName);
   return parts.join(" · ");
 }

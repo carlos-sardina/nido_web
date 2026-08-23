@@ -12,7 +12,7 @@
 --      budget mutations, owner transfer, recurrence mutations,
 --      onboarding financial persist, household categories/split,
 --      onboarding savings / budgets, personal visibility,
---      budget consumption visibility)
+--      budget consumption visibility, expense refunds)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -5818,6 +5818,179 @@ BEGIN
     CASE WHEN pg_temp.expect_count(format(
       'SELECT count(*) FROM public.budgets WHERE id = %L', v_personal_budget
     )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Phase 9.4.5 — expense refunds (RF01–RF12)
+-- R01 is already the membership-helper recursion smoke. These cases use RF.
+-- Refunds inherit expense visibility. Only the expense creator can insert.
+-- Refunds are immutable (no UPDATE/DELETE policies).
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_expense_a uuid;
+  v_shared_expense uuid := 'f1111111-1111-4111-8111-111111111111';
+  v_refund_personal uuid;
+  v_today date := (timezone('America/Mexico_City', now()))::date;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_expense_a FROM rls_ids WHERE key = 'expense_a';
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.create_expense_refund(v_expense_a, 20) INTO v_refund_personal;
+
+  PERFORM pg_temp.record_result(
+    'RF01', 'Carlos', 'A', 'active', 'owner can create refund',
+    'allow',
+    CASE WHEN v_refund_personal IS NOT NULL THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'RF02', 'Carlos', 'A', 'active', 'owner can read refund',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expense_refunds WHERE id = %L', v_refund_personal
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'RF03', 'Carlos', 'A', 'active', 'owner can read refund splits',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expense_refund_splits WHERE refund_id = %L',
+      v_refund_personal
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.expect_allow(
+    $sql$
+      SELECT public.update_personal_visibility('private')
+    $sql$
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'RF04', 'Diana', 'A', 'active', 'peer cannot read private refund',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expense_refunds WHERE id = %L', v_refund_personal
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.expect_allow(
+    $sql$
+      SELECT public.update_personal_visibility('nido')
+    $sql$
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'RF05', 'Diana', 'A', 'active', 'peer can read visible refund',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expense_refunds WHERE id = %L', v_refund_personal
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'RF06', 'Diana', 'A', 'active', 'peer cannot create refund without expense permission',
+    'deny',
+    pg_temp.expect_allow(format(
+      'SELECT public.create_expense_refund(%L::uuid, 10)', v_shared_expense
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'RF07', 'Luis', 'A', 'other Nido', 'other household cannot read',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expense_refunds WHERE id = %L', v_refund_personal
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'RF08', 'Luis', 'A', 'other Nido', 'other household cannot insert',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expense_refunds (
+          expense_id, amount, occurred_at, created_by
+        ) VALUES (
+          %L, 10, %L, %L
+        )
+      $sql$,
+      v_expense_a,
+      v_today,
+      v_luis
+    ))
+  );
+
+  PERFORM pg_temp.clear_auth();
+  PERFORM pg_temp.record_result(
+    'RF09', 'none', '-', 'none', 'anonymous cannot read',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expense_refunds WHERE id = %L', v_refund_personal
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'RF10', 'none', '-', 'none', 'anonymous cannot insert',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expense_refunds (
+          expense_id, amount, occurred_at, created_by
+        ) VALUES (
+          %L, 10, %L, %L
+        )
+      $sql$,
+      v_expense_a,
+      v_today,
+      v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.expect_allow(
+    $sql$
+      SELECT public.update_personal_visibility('private')
+    $sql$
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'RF11', 'Diana', 'A', 'active', 'refund cannot bypass expense visibility',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expense_refunds WHERE id = %L', v_refund_personal
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'RF12', 'Diana', 'A', 'active', 'refund splits inherit visibility',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.expense_refund_splits WHERE refund_id = %L',
+      v_refund_personal
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.expect_allow(
+    $sql$
+      SELECT public.update_personal_visibility('nido')
+    $sql$
   );
 END;
 $$;

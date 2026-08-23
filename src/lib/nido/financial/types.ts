@@ -25,6 +25,24 @@ export type ExpenseSplitRow = {
   percentage: number | null;
 };
 
+export type ExpenseRefundSplitRow = {
+  id: string;
+  refundId: string;
+  memberId: string;
+  amount: number;
+  percentage: number | null;
+};
+
+export type ExpenseRefundRow = {
+  id: string;
+  expenseId: string;
+  amount: number;
+  occurredAt: string;
+  createdBy: string;
+  createdAt: string;
+  splits: ExpenseRefundSplitRow[];
+};
+
 export type ExpenseRow = {
   id: string;
   householdId: string;
@@ -42,6 +60,7 @@ export type ExpenseRow = {
   category: CategoryRef | null;
   payer: MemberRef | null;
   splits: ExpenseSplitRow[];
+  refunds?: ExpenseRefundRow[];
 };
 
 export type IncomeRow = {
@@ -151,7 +170,7 @@ export type GoalRow = {
   contributions: GoalContributionRow[];
 };
 
-export type ActivityType = "expense" | "income" | "goal_contribution";
+export type ActivityType = "expense" | "income" | "goal_contribution" | "refund";
 
 export type ActivityItem = {
   id: string;
@@ -170,6 +189,7 @@ export type ActivityItem = {
     categoryName?: string | null;
     goalId?: string | null;
     goalName?: string | null;
+    expenseId?: string | null;
   };
 };
 
@@ -194,7 +214,7 @@ export type GoalProgress = {
 
 /**
  * Derived budget consumption. Never persisted.
- * Gross of refunds until 9.4.5 (`net_spent = expenses - refunds`).
+ * `consumed` is net: live expenses minus live refunds of those expenses.
  */
 export type BudgetConsumption = {
   budgetAmount: number;

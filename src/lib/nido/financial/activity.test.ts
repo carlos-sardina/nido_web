@@ -347,6 +347,73 @@ describe("activity transformation", () => {
     assert.equal(items[0].id, "expense:e1");
   });
 
+  it("includes a refund as a derived event linked to the original expense", () => {
+    const withRefund: ExpenseRow = {
+      ...expense,
+      refunds: [
+        {
+          id: "rf1",
+          expenseId: "e1",
+          amount: 200,
+          occurredAt: "2026-08-22",
+          createdBy: "carlos",
+          createdAt: "2026-08-22T10:00:00.000Z",
+          splits: [],
+        },
+      ],
+    };
+    const items = build({
+      expenses: [withRefund],
+      incomes: [],
+      contributions: [],
+      goals: [],
+    });
+    assert.equal(items.length, 2);
+    const refund = items.find((item) => item.type === "refund");
+    assert.ok(refund);
+    assert.equal(refund.id, "refund:rf1");
+    assert.equal(refund.amount, 200);
+    assert.equal(refund.metadata.expenseId, "e1");
+    assert.equal(refund.metadata.scope, "shared");
+    assert.match(refund.title, /devolución/i);
+    assert.match(refund.title, /Internet/);
+
+    const source = findActivitySource(refund, {
+      expenses: [withRefund],
+      incomes: [],
+      goals: [],
+    });
+    assert.equal(source?.type, "expense");
+    if (source?.type === "expense") assert.equal(source.expense.id, "e1");
+  });
+
+  it("does not turn a refund of a soft-deleted expense into activity", () => {
+    const items = build({
+      expenses: [
+        {
+          ...expense,
+          id: "e-deleted",
+          deletedAt: "2026-08-21T18:00:00.000Z",
+          refunds: [
+            {
+              id: "rf-gone",
+              expenseId: "e-deleted",
+              amount: 50,
+              occurredAt: "2026-08-22",
+              createdBy: "carlos",
+              createdAt: "2026-08-22T10:00:00.000Z",
+              splits: [],
+            },
+          ],
+        },
+      ],
+      incomes: [],
+      contributions: [],
+      goals: [],
+    });
+    assert.deepEqual(items, []);
+  });
+
   it("resolves activity back to the existing detail sources", () => {
     const items = build();
     const expenseSource = findActivitySource(items[0], {

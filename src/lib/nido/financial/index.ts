@@ -4,6 +4,7 @@ export {
   expenseToActivity,
   findActivitySource,
   incomeToActivity,
+  refundToActivity,
 } from "./activity.ts";
 export {
   BUDGET_NEAR_LIMIT_PERCENT,
@@ -51,7 +52,9 @@ export {
   type MonthRange,
 } from "./dates.ts";
 export {
+  canEditExpense,
   canMutateExpense,
+  canRefundExpense,
   householdSpent,
   isActiveExpense,
   isPersonalExpense,
@@ -85,6 +88,19 @@ export {
   normalizeExpenseDescription,
   parseExpenseAmountInput,
 } from "./expense-input.ts";
+export {
+  allocateRefundSplits,
+  expenseHasRefunds,
+  expenseRefunds,
+  netExpense,
+  refundableRemaining,
+  refundedTotal,
+  validateRefundAmount,
+} from "./refunds.ts";
+export {
+  buildCreateRefundPayload,
+  refundAmountMessage,
+} from "./refund-input.ts";
 export {
   amountToGoalInput,
   buildCreateGoalPayload,
@@ -181,6 +197,7 @@ export type {
   BudgetRow,
   DashboardSnapshot,
   DashboardViewModel,
+  ExpenseRefundRow,
   ExpenseRow,
   ExpenseScope,
   GoalContributionRow,

@@ -2,6 +2,7 @@ import type { HouseholdMemberView } from "../types.ts";
 import { isDateInRange, type MonthRange } from "./dates.ts";
 import { ratioPercent, roundMoney, sumMoney } from "./money.ts";
 import { isActiveExpense, isPersonalExpense } from "./expenses.ts";
+import { netExpense } from "./refunds.ts";
 import type {
   BudgetConsumption,
   BudgetItemView,
@@ -63,7 +64,9 @@ export function nidoBudgetsForMonth(budgets: BudgetRow[], range: MonthRange): Bu
  * `created_by` (same as `payer_id` on personal expenses). Splits are not
  * re-interpreted.
  *
- * Amounts are gross. 9.4.5 will subtract live refunds.
+ * Amounts are net of refunds belonging to those same expenses.
+ * A refund never consumes another budget: it inherits category and
+ * period from the parent expense (expense month, not refund date).
  */
 export function expenseConsumesBudget(
   budget: Pick<BudgetRow, "householdId" | "categoryId" | "startDate" | "endDate" | "memberId">,
@@ -88,15 +91,18 @@ export function expenseConsumesBudget(
 
 /**
  * Single source of truth for spent against a budget.
- * Sums confirmed expenses only. Does not add recurring_expenses templates.
- * Does not persist. See `expenseConsumesBudget` for Nido vs personal rules.
+ * Sums confirmed expenses net of their refunds. Does not add
+ * recurring_expenses templates. Does not persist.
+ * See `expenseConsumesBudget` for Nido vs personal rules.
  */
 export function budgetSpent(
   budget: Pick<BudgetRow, "householdId" | "categoryId" | "startDate" | "endDate" | "memberId">,
   expenses: ExpenseRow[],
 ): number {
   return sumMoney(
-    expenses.filter((expense) => expenseConsumesBudget(budget, expense)).map((expense) => expense.amount),
+    expenses
+      .filter((expense) => expenseConsumesBudget(budget, expense))
+      .map((expense) => netExpense(expense.amount, expense.refunds)),
   );
 }
 
@@ -219,7 +225,11 @@ export function buildMonthBudgetView(
   const nidoBudgets = nidoBudgetsForMonth(budgets, range);
   const items = nidoBudgets.map((budget) => buildBudgetItemView(budget, periodExpenses));
   const totalBudget = sumMoney(nidoBudgets.map((budget) => budget.amount));
-  const totalSpent = sumMoney(periodExpenses.filter(isActiveExpense).map((expense) => expense.amount));
+  const totalSpent = sumMoney(
+    periodExpenses
+      .filter(isActiveExpense)
+      .map((expense) => netExpense(expense.amount, expense.refunds)),
+  );
   const remaining = roundMoney(totalBudget - totalSpent);
   const over = totalBudget > 0 && totalSpent > totalBudget;
 
@@ -235,7 +245,7 @@ export function buildMonthBudgetView(
     const spentOnly = new Map<string, (typeof categories)[number]>();
     for (const expense of periodExpenses.filter(isActiveExpense)) {
       const existing = spentOnly.get(expense.categoryId);
-      const spent = (existing?.spent ?? 0) + expense.amount;
+      const spent = (existing?.spent ?? 0) + netExpense(expense.amount, expense.refunds);
       spentOnly.set(expense.categoryId, {
         categoryId: expense.categoryId,
         name: expense.category?.name?.trim() || "Categoría",

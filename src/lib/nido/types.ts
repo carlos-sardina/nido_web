@@ -80,6 +80,7 @@ export type NidoErrorCode =
   | "invalid_date"
   | "expense_not_found"
   | "expense_deleted"
+  | "expense_has_refunds"
   | "goal_not_found"
   | "goal_archived"
   | "contribution_not_found"

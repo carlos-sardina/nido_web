@@ -183,6 +183,66 @@ describe("dashboard view model", () => {
     }
   });
 
+  it("uses net period spent after refunds without changing the health formula", () => {
+    const expense: ExpenseRow = {
+      id: "e1",
+      householdId: "h1",
+      categoryId: "c1",
+      amount: 1000,
+      description: "Spotify",
+      occurredAt: "2026-08-10",
+      payerId: "diana",
+      scope: "shared",
+      distributionMethod: "equal",
+      recurringId: null,
+      createdBy: "diana",
+      createdAt: "2026-08-10T12:00:00.000Z",
+      deletedAt: null,
+      category: { id: "c1", name: "Spotify", icon: "🎵" },
+      payer: { id: "diana", displayName: "Diana Vega" },
+      splits: [],
+      refunds: [
+        {
+          id: "rf1",
+          expenseId: "e1",
+          amount: 200,
+          occurredAt: "2026-09-02",
+          createdBy: "diana",
+          createdAt: "2026-09-02T12:00:00.000Z",
+          splits: [],
+        },
+      ],
+    };
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        expenses: [expense],
+        periodExpenses: [expense],
+        budgets: [
+          {
+            id: "b1",
+            householdId: "h1",
+            memberId: null,
+            categoryId: "c1",
+            amount: 1000,
+            period: "monthly",
+            startDate: "2026-08-01",
+            endDate: "2026-08-31",
+            createdBy: "diana",
+            createdAt: "2026-08-01T12:00:00.000Z",
+            deletedAt: null,
+            category: { id: "c1", name: "Spotify", icon: "🎵" },
+          },
+        ],
+      }),
+      members,
+      range,
+    });
+    assert.equal(model.periodSpent, 800);
+    assert.equal(model.budget.totalSpent, 800);
+    assert.equal(model.periodBudgets[0].spent, 800);
+    assert.equal(model.activity.some((item) => item.type === "refund"), true);
+  });
+
   it("does not count a recurring template twice when an occurrence is confirmed", () => {
     const income: IncomeRow = {
       id: "i1",

@@ -85,8 +85,11 @@ export function buildDashboardViewModel(input: {
       }
     : null;
 
+  const activityExpenses = [...snapshot.periodExpenses, ...snapshot.expenses].filter(
+    (row, index, rows) => rows.findIndex((item) => item.id === row.id) === index,
+  );
   const activity = buildActivityItems({
-    expenses: snapshot.expenses,
+    expenses: activityExpenses,
     incomes: snapshot.incomes,
     contributions: snapshot.contributions,
     goals: snapshot.goals,

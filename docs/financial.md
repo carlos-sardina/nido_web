@@ -2,7 +2,7 @@
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
-Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1**, **9.4.2**, **9.4.3**, and **9.4.4** are implemented. 9.4.5–9.4.9 are not. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
+Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1**, **9.4.2**, **9.4.3**, **9.4.4**, and **9.4.5** are implemented. 9.4.6–9.4.9 are not. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
 
 Phase 9.2.3 is the QA close of this integration. It does not add tables, columns, or product surfaces. The source of truth is the current code, the applied migrations on `nido_dev`, the RLS matrix, and the unit tests — not earlier “pending” notes in this file.
 
@@ -13,7 +13,7 @@ Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar
 - Nido budgets (`member_id` NULL) sum every visible expense in that set, including personal rows the viewer may SELECT (D5)
 - personal budgets sum only that owner’s `scope = personal` expenses. Shared expenses do not consume a personal budget
 - there is no `current_spent`, remaining, or percentage column. Those are view-model fields
-- consumption is **gross**. 9.4.5 will subtract live refunds (`net_spent = expenses − refunds`)
+- consumption is **net**: live expenses minus live refunds of those same expenses. A refund inherits category and period from the parent expense (expense month, not refund date). Soft-deleted expenses and their refunds do not count. Net is never negative.
 - `recurring_expenses` templates are never added to spent
 - any active member may create a Nido-level budget (`member_id` NULL) or their own personal budget (`member_id = auth.uid()` via `p_personal`; never another member’s id)
 - personal SELECT follows `profiles.personal_visibility`; Nido / shared rows stay visible to the household
@@ -38,6 +38,7 @@ households
   → incomes / recurring_incomes
   → expenses / recurring_expenses
   → expense_splits (via expenses)
+  → expense_refunds → expense_refund_splits
   → budgets
   → savings_balances
   → goals → goal_contributions
@@ -92,14 +93,14 @@ There is no product rule that rejects future expense dates. The form defaults to
 | Value | Formula |
 | --- | --- |
 | Period income | `SUM(incomes.amount)` where `deleted_at IS NULL` and `occurred_at` in range |
-| Period spent | `SUM(expenses.amount)` for the same filter |
+| Period spent | `SUM(netExpense)` for the same filter |
 | Member owed | `SUM(expense_splits.amount)` for that member on non-deleted expenses |
 | Member balance | amount paid − amount owed |
 | Goal progress | `SUM(goal_contributions.amount) WHERE deleted_at IS NULL / goals.target_amount` (0 if target ≤ 0) |
-| Budget spent | `calculateBudgetConsumption()` / `budgetSpent()`: `SUM(expenses.amount)` where `deleted_at IS NULL`, same `household_id`, same `category_id`, `occurred_at` in `[budgets.start_date, budgets.end_date]`. Nido: all visible rows (personal + shared). Personal: `scope = personal` and `created_by = budgets.member_id`. Gross; refunds are 9.4.5 |
+| Budget spent | `calculateBudgetConsumption()` / `budgetSpent()`: `SUM(netExpense)` of live expenses in the same household, `category_id`, and month. Nido: all visible rows (personal + shared). Personal: `scope = personal` and `created_by = budgets.member_id`. `netExpense = amount − SUM(refunds of that expense)` |
 | Budget remaining | `budgets.amount − spent` (view model only; may be negative) |
 | Budget usage | `spent / budgets.amount * 100` (view model only; unbounded, may exceed 100; null if amount ≤ 0) |
-| Activity | union of expenses, incomes, and goal contributions, newest first |
+| Activity | union of expenses, incomes, goal contributions, and refunds, newest first |
 
 There is no `balances` table, no `current_amount` on goals, and no `current_spent` on budgets.
 
@@ -115,9 +116,13 @@ Nido-level budgets (`member_id IS NULL`) overlapping the current month feed “P
 
 `profiles.personal_visibility` (`nido` \| `private`, default `nido`) is one global setting. It applies to personal expenses, personal budgets, and personal savings. Shared / Nido rows ignore it. RLS is the authority: a peer cannot SELECT another member’s personal rows when that member is `private`. Dashboard, health, and derived Activity only see rows the viewer is allowed to read. Activity stays derived (no activity table).
 
-The canonical helpers are `calculateBudgetConsumption()` and `budgetSpent()` in `src/lib/nido/financial/budgets.ts`. They run on the RLS-filtered dashboard snapshot (period expenses already loaded). There is no consumption RPC and no persisted spent column.
+The canonical helpers are `calculateBudgetConsumption()` and `budgetSpent()` in `src/lib/nido/financial/budgets.ts`. They run on the RLS-filtered dashboard snapshot (period expenses already loaded). There is no consumption RPC and no persisted spent column. `netExpense()` / `refundableRemaining()` live in `refunds.ts`.
 
-Financial health is unchanged: `computeHealth` still uses `budgetTotal` / `budgetUsagePercent` when a Nido-level budget exists. Those inputs now come from live snapshot budgets and derived spent. The score formula was not modified and is not persisted.
+Financial health is unchanged: `computeHealth` still uses `budgetTotal` / `budgetUsagePercent` when a Nido-level budget exists. Those inputs now come from live snapshot budgets and **net** spent. The score formula was not modified and is not persisted.
+
+### Refunds (Phase 9.4.5)
+
+A refund is a positive row on `expense_refunds` linked to one live expense. The original `expenses.amount` stays intact. The client sends only `expense_id` and `amount` to `create_expense_refund`. The RPC locks the expense (`FOR UPDATE`), rejects an amount above the remaining refundable, and writes frozen `expense_refund_splits` from the current `expense_splits` (last participant absorbs leftover cents, same as `allocateIncomeBasedSplits`). Scope is inherited; there is no `scope` column. Refunds are immutable. Soft-deleting the expense does not delete refunds and does not turn them into new spend. Only the expense creator with an active membership may create a refund. SELECT follows the parent expense, including `personal_visibility`.
 
 ---
 
@@ -432,7 +437,7 @@ Double submit: **Guardando…** (`aria-busy`). After create, edit, or delete, Ho
 | --- | --- |
 | `queries/dashboard.ts` | `fetchDashboardSnapshot(householdId)` |
 | `queries/categories.ts` | `fetchActiveExpenseCategories` / `fetchActiveIncomeCategories` |
-| `expenses.ts` | `createExpense` / `updateExpense` / `deleteExpense` |
+| `expenses.ts` | `createExpense` / `updateExpense` / `deleteExpense` / `createRefund` |
 | `incomes.ts` | `createIncome` / `updateIncome` / `deleteIncome` |
 | `budgets.ts` | `createBudget` / `updateBudget` / `deleteBudget` |
 | `goals.ts` | `createGoal` / `updateGoal` / `archiveGoal` |
@@ -457,6 +462,7 @@ Events, and only these:
 | Gasto | live `expenses` | quién pagó, descripción o categoría, monto, fecha, personal/compartido |
 | Ingreso | live `incomes` | quién lo registró, descripción o categoría, monto, fecha |
 | Aportación | live `goal_contributions` | quién aportó, meta, monto, fecha |
+| Devolución | live `expense_refunds` of a live expense | quién la registró, gasto original, monto, fecha. Abre el detalle del gasto |
 
 Budgets and recurrence templates are not activity events. A template appears only after `materialize_recurring_*` writes a real `expenses` / `incomes` row.
 
@@ -505,9 +511,9 @@ A newly created Nido has default **expense and income categories**. If the user 
 
 SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense, income, contribution, and budget **UPDATE** (including soft-delete) and goal **UPDATE** (including archive) require the same plus `created_by = auth.uid()` and a live row (`deleted_at IS NULL` / `status <> archived`). Income INSERT also requires `member_id = auth.uid()`. Budget create writes `member_id` NULL. Contribution **UPDATE** also requires parent goal `status = active`. Physical DELETE remains denied on incomes/expenses/goals/budgets and is revoked on `goal_contributions` for `authenticated`.
 
-`create_expense`, `update_expense`, `soft_delete_expense`, `create_income`, `update_income`, `soft_delete_income`, `create_budget`, `update_budget`, `soft_delete_budget`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, `soft_delete_goal_contribution`, `create_recurring_income`, `update_recurring_income`, `set_recurring_income_active`, `materialize_recurring_income`, `create_recurring_expense`, `update_recurring_expense`, `set_recurring_expense_active`, `materialize_recurring_expense`, `update_household_name`, `update_household_default_split_method`, `create_category`, `rename_category`, and `archive_category` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Recurring split writes follow `can_mutate_recurring_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
+`create_expense`, `update_expense`, `soft_delete_expense`, `create_expense_refund`, `create_income`, `update_income`, `soft_delete_income`, `create_budget`, `update_budget`, `soft_delete_budget`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, `soft_delete_goal_contribution`, `create_recurring_income`, `update_recurring_income`, `set_recurring_income_active`, `materialize_recurring_income`, `create_recurring_expense`, `update_recurring_expense`, `set_recurring_expense_active`, `materialize_recurring_expense`, `update_household_name`, `update_household_default_split_method`, `create_category`, `rename_category`, and `archive_category` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Recurring split writes follow `can_mutate_recurring_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
 
-SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y20`, `Z01`–`Z22`, `I01`–`I13`, `K01`–`K16`, `RE01`–`RE16`, `OB01`–`OB28`, `V01`–`V22`, `C01`–`C06`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
+SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y20`, `Z01`–`Z22`, `I01`–`I13`, `K01`–`K16`, `RE01`–`RE16`, `OB01`–`OB28`, `V01`–`V22`, `C01`–`C06`, `RF01`–`RF12`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
 
 ---
 
@@ -516,7 +522,7 @@ SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `
 - Dashboard, gasto, ingreso, presupuesto, meta, aportación, and recurrencia mutations: active household from `useMyNido` only
 - Only the recurrence creator may edit, pause, reactivate, or materialize
 - Creating a template does not insert `incomes` / `expenses`. The first movement is an explicit **Registrar este periodo** when `next_occurrence <= today`
-- Only the expense creator may update or soft-delete
+- Only the expense creator may update, soft-delete, or create a refund. `update_expense` is rejected while refunds exist. Refunds are immutable.
 - Only the income creator may update or soft-delete
 - Only the budget creator may update or soft-delete
 - Only the goal creator may update or archive

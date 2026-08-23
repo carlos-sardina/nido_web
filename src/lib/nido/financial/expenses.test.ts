@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { getMonthRange } from "./dates.ts";
 import {
+  canEditExpense,
   canMutateExpense,
+  canRefundExpense,
   householdSpent,
   memberBalance,
   memberOwed,
@@ -50,6 +52,44 @@ describe("household spent", () => {
       }),
     ];
     assert.equal(householdSpent(rows), 1000);
+  });
+
+  it("nets refunds of live expenses and ignores refunds of soft-deleted ones", () => {
+    const rows = [
+      expense({
+        amount: 1000,
+        payerId: "carlos",
+        refunds: [
+          {
+            id: "r1",
+            expenseId: "e1",
+            amount: 200,
+            occurredAt: "2026-09-01",
+            createdBy: "carlos",
+            createdAt: "2026-09-01T12:00:00.000Z",
+            splits: [],
+          },
+        ],
+      }),
+      expense({
+        id: "e2",
+        amount: 800,
+        payerId: "carlos",
+        deletedAt: "2026-08-11T00:00:00.000Z",
+        refunds: [
+          {
+            id: "r2",
+            expenseId: "e2",
+            amount: 800,
+            occurredAt: "2026-08-12",
+            createdBy: "carlos",
+            createdAt: "2026-08-12T12:00:00.000Z",
+            splits: [],
+          },
+        ],
+      }),
+    ];
+    assert.equal(householdSpent(rows), 800);
   });
 
   it("ignores soft-deleted expenses", () => {
@@ -103,6 +143,32 @@ describe("expense authorization helper", () => {
       deletedAt: "2026-08-21T12:00:00.000Z",
     });
     assert.equal(canMutateExpense(deleted, "carlos"), false);
+  });
+
+  it("blocks edit when live refunds exist but still allows a remaining refund", () => {
+    const refunded = expense({
+      amount: 1000,
+      payerId: "carlos",
+      createdBy: "carlos",
+      refunds: [
+        {
+          id: "r1",
+          expenseId: "e1",
+          amount: 300,
+          occurredAt: "2026-08-22",
+          createdBy: "carlos",
+          createdAt: "2026-08-22T12:00:00.000Z",
+          splits: [],
+        },
+      ],
+    });
+    assert.equal(canMutateExpense(refunded, "carlos"), true);
+    assert.equal(canEditExpense(refunded, "carlos"), false);
+    assert.equal(canRefundExpense(refunded, "carlos"), true);
+    assert.equal(
+      canRefundExpense({ ...refunded, refunds: [{ ...refunded.refunds![0], amount: 1000 }] }, "carlos"),
+      false,
+    );
   });
 });
 

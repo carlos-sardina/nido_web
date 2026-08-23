@@ -21,7 +21,7 @@ import {
 } from "./map.ts";
 
 const EXPENSE_SELECT =
-  "id, household_id, category_id, amount, description, occurred_at, payer_id, scope, distribution_method, recurring_id, created_by, created_at, deleted_at, categories(id, name, icon), expense_splits(id, expense_id, member_id, amount, percentage), payer:profiles!expenses_payer_id_fkey(id, display_name)";
+  "id, household_id, category_id, amount, description, occurred_at, payer_id, scope, distribution_method, recurring_id, created_by, created_at, deleted_at, categories(id, name, icon), expense_splits(id, expense_id, member_id, amount, percentage), expense_refunds(id, expense_id, amount, occurred_at, created_by, created_at, expense_refund_splits(id, refund_id, member_id, amount, percentage)), payer:profiles!expenses_payer_id_fkey(id, display_name)";
 
 const INCOME_SELECT =
   "id, household_id, member_id, category_id, amount, description, occurred_at, recurring_id, created_by, created_at, deleted_at, categories(id, name, icon), member:profiles!incomes_member_id_fkey(id, display_name)";

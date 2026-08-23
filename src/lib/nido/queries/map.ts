@@ -3,6 +3,8 @@ import { moneyOrZero, parseMoney } from "../financial/money.ts";
 import type {
   BudgetRow,
   CategoryRef,
+  ExpenseRefundRow,
+  ExpenseRefundSplitRow,
   ExpenseRow,
   ExpenseSplitRow,
   GoalContributionRow,
@@ -54,6 +56,21 @@ export type ExpenseQueryRow = {
     amount: unknown;
     percentage: unknown;
   }> | null;
+  expense_refunds?: Array<{
+    id: string;
+    expense_id?: string;
+    amount: unknown;
+    occurred_at: string;
+    created_by: string;
+    created_at: string;
+    expense_refund_splits?: Array<{
+      id: string;
+      refund_id?: string;
+      member_id: string;
+      amount: unknown;
+      percentage: unknown;
+    }> | null;
+  }> | null;
   payer?: ProfileEmbed | ProfileEmbed[];
 };
 
@@ -65,6 +82,33 @@ export function mapExpenseRow(row: ExpenseQueryRow): ExpenseRow {
     amount: moneyOrZero(split.amount),
     percentage: parseMoney(split.percentage),
   }));
+
+  const refunds: ExpenseRefundRow[] = (row.expense_refunds ?? [])
+    .map((refund) => {
+      const refundSplits: ExpenseRefundSplitRow[] = (refund.expense_refund_splits ?? []).map(
+        (split) => ({
+          id: split.id,
+          refundId: split.refund_id ?? refund.id,
+          memberId: split.member_id,
+          amount: moneyOrZero(split.amount),
+          percentage: parseMoney(split.percentage),
+        }),
+      );
+      return {
+        id: refund.id,
+        expenseId: refund.expense_id ?? row.id,
+        amount: moneyOrZero(refund.amount),
+        occurredAt: refund.occurred_at,
+        createdBy: refund.created_by,
+        createdAt: refund.created_at,
+        splits: refundSplits,
+      };
+    })
+    .sort((a, b) => {
+      const byDate = a.occurredAt.localeCompare(b.occurredAt);
+      if (byDate !== 0) return byDate;
+      return a.createdAt.localeCompare(b.createdAt);
+    });
 
   return {
     id: row.id,
@@ -83,6 +127,7 @@ export function mapExpenseRow(row: ExpenseQueryRow): ExpenseRow {
     category: categoryRef(row.categories),
     payer: memberRef(row.payer),
     splits,
+    refunds,
   };
 }
 

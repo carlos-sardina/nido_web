@@ -44,7 +44,7 @@ auth.users 1──1 profiles
                  ├── sends ── household_invitations
                  ├── earns ── incomes / recurring_incomes
                  ├── pays ── expenses / recurring_expenses
-                 ├── participates in ── expense_splits / recurring_expense_splits
+                 ├── participates in ── expense_splits / recurring_expense_splits / expense_refund_splits
                  ├── owns optional ── budgets (personal)
                  ├── owns optional ── savings_balances (personal)
                  └── contributes to ── goal_contributions
@@ -66,6 +66,7 @@ recurring_incomes 1──* incomes          (optional origin of a confirmed inco
 recurring_expenses 1──* expenses        (optional origin of a confirmed expense)
 recurring_expenses 1──* recurring_expense_splits
 expenses 1──* expense_splits
+expenses 1──* expense_refunds 1──* expense_refund_splits
 goals 1──* goal_contributions
 ```
 
@@ -343,6 +344,38 @@ For a confirmed expense:
 Those cross-row sums are enforced in a **single application/service transaction** that creates the expense and all splits together. There is no database trigger that would block incremental inserts. See [section 6](#6-integrity-constraints).
 
 A personal expense must have exactly one split for the responsible person at `100%` / the full amount. That is an application transaction rule. A count trigger would make incremental inserts fail, so it is not implemented in PostgreSQL.
+
+### 3.11b `expense_refunds`
+
+Positive refund linked to one expense. Added in 9.4.5. Not a negative expense. `expenses.amount` is never rewritten.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` PK | |
+| `expense_id` | `uuid` FK → `expenses.id` | ON DELETE RESTRICT. No orphan refunds. |
+| `amount` | `numeric(12,2)` | `> 0`. Live refunds of one expense cannot sum past `expenses.amount`. |
+| `occurred_at` | `date` | Recorded date (today `America/Mexico_City` on create). Activity uses this. Budget spent uses the parent expense date. |
+| `created_by` | `uuid` FK → `profiles.id` | `auth.uid()` on create. Same person who may mutate the expense. |
+| `created_at` / `updated_at` | `timestamptz` | |
+
+Refunds are **immutable** after insert: no UPDATE/DELETE policies, no `deleted_at`, no edit/delete RPC. Soft-deleting the parent expense does not delete refunds. Those refunds leave active consumption because the expense is excluded.
+
+`update_expense` (and any rewrite of `expense_splits`) is rejected while refunds exist. Soft-delete of the expense is still allowed.
+
+### 3.11c `expense_refund_splits`
+
+Frozen allocation of a refund. Generated from `expense_splits` at create time. `member_id` is `profiles.id`, same as `expense_splits`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` PK | |
+| `refund_id` | `uuid` FK → `expense_refunds.id` | ON DELETE CASCADE (only if the refund row is physically deleted). |
+| `member_id` | `uuid` FK → `profiles.id` | Unique per refund. Historical participants stay even after leave. |
+| `amount` | `numeric(12,2)` | `>= 0`. `SUM(amount)` must equal `expense_refunds.amount`. |
+| `percentage` | `numeric(7,4)` nullable | Frozen copy of the original `expense_splits.percentage`. |
+| `created_at` / `updated_at` | `timestamptz` | |
+
+There is no active-membership trigger: refund splits copy history, they do not attach a new participant.
 
 ### 3.12 `budgets`
 
@@ -637,12 +670,12 @@ current_amount = SUM(goal_contributions.amount) WHERE goal_id = goal AND deleted
 
 ### Budget spent
 
-Derived only. There is no `current_spent` column and no spending table. 9.4.4 consumption is **gross**; 9.4.5 will subtract live refunds.
+Derived only. There is no `current_spent` column and no spending table. 9.4.5 consumption is **net**: live expenses minus refunds of those same expenses. Attribution is the expense month. Soft-deleted expenses (and their refunds) do not count. Net is never negative.
 
 ```
 -- Nido (member_id IS NULL): every visible live expense in the category/month (D5).
 -- Personal (member_id set): only that owner's scope = personal rows.
-spent = SUM(expenses.amount)
+spent = SUM(expenses.amount - COALESCE(refunds_of_that_expense, 0))
         WHERE household_id = budget.household_id
           AND category_id = budget.category_id
           AND occurred_at BETWEEN budget.start_date AND budget.end_date
@@ -942,7 +975,7 @@ Still deferred (not 9.4 unless [phase-9.4.md](./phase-9.4.md) says otherwise):
 9. **Stored `requires_review` flag** — derived at materialize time instead.
 10. **Separate pause vs archive on recurring rules** — `is_active` covers both for now.
 
-Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): refunds (9.4.5), derived monthly balance / settlements, pull-to-refresh. 9.4.1–9.4.4 (name, initials, categories, split column, onboarding persist, personal budgets + visibility, derived budget consumption) are implemented.
+Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): derived monthly balance / settlements, pull-to-refresh. 9.4.1–9.4.5 (name, initials, categories, split column, onboarding persist, personal budgets + visibility, derived budget consumption, refunds) are implemented.
 
 Moved to **[future.md](./future.md)** (not pending 9.4): multi-currency, notifications, activity-feed persistence, insights, Google OAuth, image avatars, Realtime, receipts, email invitations, recurring budgets, push.
 
@@ -960,7 +993,8 @@ Moved to **[future.md](./future.md)** (not pending 9.4): multi-currency, notific
 - Household name / categories / split preference: `supabase/migrations/20260822500000_nido_household_categories_split.sql`
 - Onboarding savings + estimates → budgets: `supabase/migrations/20260822600000_nido_onboarding_savings_budgets.sql` (`savings_balances`; extends the onboarding RPC)
 - Personal visibility + personal budgets: `supabase/migrations/20260822700000_nido_personal_visibility.sql` (`profiles.personal_visibility`, `personal_finance_visible`, `update_personal_visibility`, `create_budget` personal path)
-- 9.4.1 and 9.4.2 are local migrations. They were **not** applied to remote by this phase.
+- Expense refunds: `supabase/migrations/20260822800000_nido_expense_refunds.sql` (`expense_refunds`, `expense_refund_splits`, `create_expense_refund`)
+- 9.4.1–9.4.5 are local migrations. They were **not** applied to remote by this phase.
 - Security model: [docs/security.md](./security.md)
 - Application clients: [docs/supabase.md](./supabase.md)
 - These migrations are applied on the linked hosted project. See [docs/supabase.md](./supabase.md).

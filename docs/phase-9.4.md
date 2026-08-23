@@ -1,6 +1,6 @@
 # Phase 9.4 — Technical contract
 
-Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1 is implemented** (household name, initials contract, category RPCs + Hogar UI, `households.default_split_method`, `create_expense` uses that preference for new shared expenses). **9.4.2 is implemented** (onboarding persists savings stock, estimates as initial monthly budgets, and `contrib` → `households.default_split_method`). **9.4.3 is implemented** (personal budgets UI + global `profiles.personal_visibility` with RLS). **9.4.4 is implemented** (derived budget consumption; personal vs Nido; live expenses; no persisted spent). Subphases 9.4.5–9.4.9 are **not** implemented. Smoke UI and the live RLS matrix were not executed in the implementation environment — see [testing.md](./testing.md).
+Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1 is implemented** (household name, initials contract, category RPCs + Hogar UI, `households.default_split_method`, `create_expense` uses that preference for new shared expenses). **9.4.2 is implemented** (onboarding persists savings stock, estimates as initial monthly budgets, and `contrib` → `households.default_split_method`). **9.4.3 is implemented** (personal budgets UI + global `profiles.personal_visibility` with RLS). **9.4.4 is implemented** (derived budget consumption; personal vs Nido; live expenses; no persisted spent). **9.4.5 is implemented** (refunds linked to the original expense, frozen refund splits, atomic `create_expense_refund`, net budget consumption). Subphases 9.4.6–9.4.9 are **not** implemented. Smoke UI and the live RLS matrix were not executed in the implementation environment — see [testing.md](./testing.md).
 
 Source of confirmed product decisions: the 9.4.0 brief. Discarded items live in [future.md](./future.md). Do not re-interpret those as pending 9.4 work.
 
@@ -10,7 +10,7 @@ Source of confirmed product decisions: the 9.4.0 brief. Discarded items live in 
 
 ### 1.1 Migrations
 
-Exactly **17** local migrations. Remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) still has the previous **14** until 9.4.1–9.4.3 are applied. This phase must not run `supabase db push`.
+Exactly **18** local migrations. Remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) still has the previous **14** until 9.4.1–9.4.5 are applied. This phase must not run `supabase db push`.
 
 | # | Migration |
 | --- | --- |
@@ -31,6 +31,7 @@ Exactly **17** local migrations. Remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) st
 | 15 | `20260822500000_nido_household_categories_split.sql` |
 | 16 | `20260822600000_nido_onboarding_savings_budgets.sql` |
 | 17 | `20260822700000_nido_personal_visibility.sql` |
+| 18 | `20260822800000_nido_expense_refunds.sql` |
 
 Protected business data (do not touch): **Departamento**, **Nido Smoke 924**.
 
@@ -44,17 +45,17 @@ Protected business data (do not touch): **Departamento**, **Nido Smoke 924**.
 | Categories | Household-scoped. Defaults seeded (`is_default`). Unique active name per type. Archive via `archived_at`. RLS allows active members to INSERT/UPDATE. **No RPC, no UI.** Forms only list active rows. |
 | Expenses | Personal + shared. `create_expense` forces personal → `fixed`, shared → household preference. Creator-only edit/soft-delete. Personal SELECT follows `profiles.personal_visibility`. Shared stays visible to household members. |
 | Incomes | Live. Onboarding monthly income persists as a real `incomes` row (Sueldo, today Mexico City) when amount > 0. |
-| Nido budgets | Live monthly rows (`member_id` NULL). `create_budget` default / `p_personal = false` writes `member_id` NULL. Spent is derived (9.4.4): `SUM(expenses.amount)` same household + category + month, `deleted_at IS NULL`. Includes visible personal expenses (D5). RLS hides `private` personal rows from peers. |
-| Personal budgets | `create_budget(..., p_personal := true)` writes `member_id = auth.uid()`. Spent is only that owner’s `scope = personal` expenses in the same category + month. Shared expenses do not consume a personal budget. UI: Presupuestos del Nido / Presupuestos personales. Creator-only edit/soft-delete. SELECT follows `personal_visibility`. |
+| Nido budgets | Live monthly rows (`member_id` NULL). Spent is derived and **net** (9.4.5): live expenses in category + month minus refunds of those expenses. Includes visible personal expenses (D5). RLS hides `private` personal rows from peers. |
+| Personal budgets | `create_budget(..., p_personal := true)` writes `member_id = auth.uid()`. Spent is only that owner’s `scope = personal` expenses in the same category + month, net of those expenses’ refunds. Shared expenses do not consume a personal budget. |
 | Goals / contributions / recurrences | Live. Recurring **budgets** do not exist. |
-| Activity | Derived from expenses, incomes, goal contributions. No activity table. |
+| Activity | Derived from expenses, incomes, goal contributions, and refunds. No activity table. A refund opens the parent expense. |
 | Split preference | Onboarding UI collects `equal` / `proportional` and persist writes `households.default_split_method`. `capacity` is not a product value. |
 | DB `distribution_method` | `equal`, `percentage`, `fixed`, `income_based`. Stored **per expense / recurring template**, not on the household. |
 | `income_based` | Recurring materialization only. Basis = **active recurring incomes** of participants. One-time `incomes` (including onboarding) do **not** participate. |
 | Savings | Onboarding persists personal + shared stock in `savings_balances`. Not income, expense, or a goal. |
 | Estimated onboarding expenses | Become initial monthly `budgets` (shared → `member_id` NULL; personal → creator). Never `expenses`. |
 | Visibility | `profiles.personal_visibility` (`nido` \| `private`, default `nido`). One global setting for personal expenses, personal budgets, and personal savings. RLS helper `personal_finance_visible`. |
-| Settlements / refunds | No tables. `memberBalance()` exists in domain and has no UI. Amounts are `>= 0`. |
+| Settlements / refunds | **Refunds live** (`expense_refunds` + frozen `expense_refund_splits`). Creator-only create via `create_expense_refund`. Immutable after insert. `memberBalance()` still ignores refunds (9.4.6). |
 | Initials | `initialsFromName`: one word → first **two** letters (`Carlos` → `CA`). Product contract is one letter (`C`). |
 | Avatar image | `profiles.avatar_url` exists. No upload. Auth metadata `picture` may display as URL. |
 | Refresh | `dashboard.refresh()` after mutations and error retry. No pull-to-refresh. MainApp shell does not scroll; **each tab** owns `h-full overflow-y-auto`. |
@@ -342,7 +343,7 @@ No SQL in this phase.
 | 9.4.1 | `20260822500000_nido_household_categories_split.sql` | **Created.** `households.default_split_method`; category RPCs; `update_household_name`; `update_household_default_split_method`; `create_expense` uses the household preference for new shared expenses. |
 | 9.4.2 | `nido_onboarding_savings_budgets` | `savings_balances` + RLS; extend `create_household_with_onboarding_income` (or replacement) to persist savings, estimates→budgets, split method |
 | 9.4.3 | `20260822700000_nido_personal_visibility.sql` | **Created.** `personal_visibility` enum + `profiles` column; `personal_finance_visible`; `update_personal_visibility`; `create_budget` personal path; SELECT policies on expenses, splits, budgets, and savings. |
-| 9.4.5 | `nido_expense_refunds` | `expense_refunds`, `expense_refund_splits`, RPCs, RLS |
+| 9.4.5 | `20260822800000_nido_expense_refunds.sql` | **Created.** `expense_refunds`, `expense_refund_splits`, `create_expense_refund`, RLS, edit-block triggers. Refunds are immutable (no `soft_delete_refund`). |
 | 9.4.6 | none if derived-only | Add a table only if a later decision requires recorded transfers |
 
 9.4.4 / 9.4.7 / 9.4.8 / 9.4.9 are expected to be application + docs unless a gap appears.
@@ -362,7 +363,7 @@ All SECURITY INVOKER unless noted. `auth.uid()` is the actor. No `service_role` 
 | extend `create_household_with_onboarding_income` | 9.4.2 | Persist split method, savings rows, initial budgets (and custom categories) atomically with today’s household + income. |
 | `update_personal_visibility(p_visibility)` | 9.4.3 | Self only. |
 | extend `create_budget` / personal variant | 9.4.3 | `member_id = auth.uid()` when personal. |
-| `create_refund` / `soft_delete_refund` | 9.4.5 | Expense creator; writes refund + splits in one transaction. |
+| `create_expense_refund(p_expense_id, p_amount)` | 9.4.5 | Expense creator; writes refund + frozen splits in one transaction. No edit/delete RPC: refunds are immutable. |
 
 Existing `create_expense` must accept household `proportional` for **shared** rows (9.4.1 or immediately after the column exists). Personal path unchanged.
 
@@ -398,7 +399,7 @@ UI filters are presentation only.
 | `OnboardingFinancialPlan` | Persist savings + estimates + `contrib`; drop those `skipped` reasons when written. |
 | `create_budget` | Personal payload (`memberId` implied by auth, not a free client field). |
 | `budgetSpent` | Net of refunds; personal budgets filter `scope = personal` + member. |
-| Activity types | Add `refund` when 9.4.5 lands. |
+| Activity types | `refund` derived from embedded `expense_refunds`. Opens the parent expense. |
 | New | `SavingsBalance`, `PersonalVisibility`, `ExpenseRefund`. |
 
 No persistent activity types. No notification types. No OAuth types.
@@ -474,9 +475,9 @@ No indispensable product decision is missing for **LISTA PARA IMPLEMENTACIÓN** 
 ## 12. Verdict
 
 ```text
-9.4.4 IMPLEMENTADA (CASI CERRADA) — veredicto de cierre en testing.md
+9.4.5 IMPLEMENTADA (CASI CERRADA) — veredicto de cierre en testing.md
 ```
 
-Next subphase: **9.4.5** — refunds + automatic splits + Activity/budget hooks.
+Next subphase: **9.4.6** — monthly balance + derived settlements.
 
-Do not declare 9.4.5–9.4.9 implemented.
+Do not declare 9.4.6–9.4.9 implemented.

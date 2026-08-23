@@ -641,4 +641,16 @@ Phase 9.4.4 (budget consumption: personal vs Nido, derived from live expenses) a
 - Manual Presupuestos / Home UI smoke is **BLOCKED**. This environment has no browser automation. Do not treat unit/build success as a UI pass.
 - Verdict: **CASI CERRADA**. Implementation and unit/build checks are complete; UI smoke and the live RLS matrix remain open.
 
+Phase 9.4.5 (expense refunds + frozen splits + net budget consumption) against the repo on 2026-08-22:
+
+- New migration `20260822800000_nido_expense_refunds.sql`: `expense_refunds`, `expense_refund_splits`, `create_expense_refund` (SECURITY INVOKER), SELECT via parent expense (inherits `personal_visibility`), INSERT via `can_mutate_expense`, no UPDATE/DELETE. Refunds are immutable. `update_expense` / split rewrites are rejected while refunds exist; soft-delete of the expense is still allowed. Concurrent creates lock the expense (`SELECT … FOR UPDATE`).
+- Domain: `refundableRemaining`, `validateRefundAmount`, `allocateRefundSplits` (reuses `allocateIncomeBasedSplits`), `netExpense`, `calculateBudgetConsumption` now net. Activity type `refund` is derived and opens the parent expense.
+- UI: expense detail shows original / refunded / remaining / net and **Devolver dinero**. No independent refunds screen. No split editor.
+- Unit tests 786 passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 17 tables (adds `expense_refunds`, `expense_refund_splits`).
+- Local Docker / `supabase start` is not available. `supabase` / `psql` are not on PATH. `supabase db push` was **not** run. Local still has 18 migrations; remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) still has the previous 14 until the team applies 9.4.1–9.4.5.
+- RLS matrix cases `RF01`–`RF12` are in `rls_security_matrix.sql` (ROLLBACK). They were **not** executed. Do not treat them as a live pass. Prefix **RF** because **R01** is the membership-helper recursion smoke.
+- **Departamento** and **Nido Smoke 924** were not modified. No temporary users, invitations, or permanent seeds.
+- Manual Gastos / Activity / Presupuestos / Home UI smoke is **BLOCKED**. This environment has no browser automation. Do not treat unit/build success as a UI pass.
+- Verdict: **CASI CERRADA**. Implementation and unit/build checks are complete; UI smoke and the live RLS matrix remain open.
+
 Do not record production results here unless they were performed.

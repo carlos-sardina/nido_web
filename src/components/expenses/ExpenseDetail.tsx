@@ -2,15 +2,27 @@
 
 import { useId, useRef, useState } from "react";
 import { Button } from "@/components/nido/Button";
-import { FieldError } from "@/components/nido/Field";
+import { Field, FieldError, HelperText, MoneyField } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
 import { Text } from "@/components/nido/Typography";
-import { canSubmitExpense, deleteExpense } from "@/lib/nido/expenses";
 import {
+  canSubmitExpense,
+  canSubmitRefund,
+  createRefund,
+  deleteExpense,
+} from "@/lib/nido/expenses";
+import {
+  canEditExpense,
   canMutateExpense,
+  canRefundExpense,
   formatCompactMoney,
   formatRelativeActivityDate,
   isPersonalExpense,
+  netExpense,
+  parseExpenseAmountInput,
+  refundableRemaining,
+  refundAmountMessage,
+  refundedTotal,
   type ExpenseRow,
 } from "@/lib/nido/financial";
 import type { HouseholdMemberView } from "@/lib/nido/types";
@@ -33,6 +45,7 @@ export function ExpenseDetail({
   onClose,
   onEdit,
   onDeleted,
+  onRefunded,
 }: {
   expense: ExpenseRow;
   members: HouseholdMemberView[];
@@ -40,16 +53,26 @@ export function ExpenseDetail({
   onClose: () => void;
   onEdit: () => void;
   onDeleted: () => void;
+  onRefunded?: () => void;
 }) {
   const ids = useId();
   const submittingRef = useRef(false);
   const [confirming, setConfirming] = useState(false);
+  const [refunding, setRefunding] = useState(false);
+  const [refundAmount, setRefundAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canMutate = canMutateExpense(expense, currentUserId);
+  const canEdit = canEditExpense(expense, currentUserId);
+  const canRefund = canRefundExpense(expense, currentUserId);
   const personal = isPersonalExpense(expense);
+  const refunds = expense.refunds ?? [];
+  const refunded = refundedTotal(refunds);
+  const remaining = refundableRemaining(expense.amount, refunds);
+  const net = netExpense(expense.amount, refunds);
   const payerName = memberName(expense.payerId, members, expense.payer?.displayName);
   const creatorName = memberName(expense.createdBy, members, expense.createdBy === expense.payerId ? expense.payer?.displayName : null);
+  const refundFieldError = refundAmount ? refundAmountMessage(refundAmount, remaining) : null;
 
   const handleDelete = async () => {
     if (!canSubmitExpense(submitting) || submittingRef.current) return;
@@ -66,6 +89,38 @@ export function ExpenseDetail({
     }
 
     onDeleted();
+  };
+
+  const handleRefund = async () => {
+    if (!canSubmitRefund(submitting) || submittingRef.current) return;
+    const amount = parseExpenseAmountInput(refundAmount);
+    const message = refundAmountMessage(refundAmount, remaining);
+    if (amount == null || message) {
+      setError(message ?? "Ingresa un monto válido.");
+      return;
+    }
+
+    submittingRef.current = true;
+    setSubmitting(true);
+    setError(null);
+
+    const result = await createRefund({
+      expenseId: expense.id,
+      amount,
+      refundableRemaining: remaining,
+    });
+    if (result.ok === false) {
+      submittingRef.current = false;
+      setSubmitting(false);
+      setError(result.error.message);
+      return;
+    }
+
+    submittingRef.current = false;
+    setSubmitting(false);
+    setRefunding(false);
+    setRefundAmount("");
+    onRefunded?.();
   };
 
   return (
@@ -97,9 +152,36 @@ export function ExpenseDetail({
                     {submitting ? "Eliminando…" : "Eliminar gasto"}
                   </Button>
                 </div>
+              ) : refunding ? (
+                <div className="space-y-3">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      if (submitting) return;
+                      setRefunding(false);
+                      setRefundAmount("");
+                      setError(null);
+                    }}
+                    disabled={submitting}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    loading={submitting}
+                    disabled={Boolean(refundFieldError) || !refundAmount.trim()}
+                    onClick={() => void handleRefund()}
+                  >
+                    {submitting ? "Guardando…" : "Devolver dinero"}
+                  </Button>
+                </div>
               ) : (
                 <div className="space-y-3">
-                  <Button onClick={onEdit}>Editar</Button>
+                  {canRefund ? (
+                    <Button onClick={() => { setRefunding(true); setError(null); }}>
+                      Devolver dinero
+                    </Button>
+                  ) : null}
+                  {canEdit ? <Button variant={canRefund ? "ghost" : undefined} onClick={onEdit}>Editar</Button> : null}
                   <Button variant="ghost" onClick={() => setConfirming(true)}>
                     Eliminar
                   </Button>
@@ -123,12 +205,16 @@ export function ExpenseDetail({
               title={
                 confirming
                   ? "¿Eliminar este gasto?"
-                  : expense.description?.trim() || expense.category?.name || "Gasto"
+                  : refunding
+                    ? "Devolver dinero"
+                    : expense.description?.trim() || expense.category?.name || "Gasto"
               }
               description={
                 confirming
                   ? "Esta acción quitará el gasto de tus totales y actividad."
-                  : undefined
+                  : refunding
+                    ? `Disponible para devolver: ${formatCompactMoney(remaining)}`
+                    : undefined
               }
             />
           </div>
@@ -136,18 +222,47 @@ export function ExpenseDetail({
           <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-6 space-y-4">
             {error ? <FieldError id={`${ids}-error`}>{error}</FieldError> : null}
 
-            {confirming ? null : (
+            {confirming ? null : refunding ? (
+              <Field>
+                <MoneyField
+                  id={`${ids}-refund`}
+                  label="Monto a devolver"
+                  value={refundAmount}
+                  onChange={setRefundAmount}
+                  invalid={Boolean(refundFieldError)}
+                  disabled={submitting}
+                  describedBy={refundFieldError ? `${ids}-refund-error` : `${ids}-refund-help`}
+                />
+                {refundFieldError ? (
+                  <FieldError id={`${ids}-refund-error`}>{refundFieldError}</FieldError>
+                ) : (
+                  <HelperText id={`${ids}-refund-help`}>
+                    {`Disponible: ${formatCompactMoney(remaining)}`}
+                  </HelperText>
+                )}
+              </Field>
+            ) : (
               <>
                 <div
                   className="rounded-2xl p-4 shadow-sm"
                   style={{ backgroundColor: P.card }}
                 >
                   <Text size="caption" tone="muted">
-                    Monto
+                    Gasto original
                   </Text>
                   <p className="mt-1 text-h2 font-bold font-sans" style={{ color: P.text }}>
                     {formatCompactMoney(expense.amount)}
                   </p>
+                  {refunded > 0 ? (
+                    <div className="mt-3 space-y-1">
+                      <Text size="caption" tone="muted">
+                        {`Ya reembolsado ${formatCompactMoney(refunded)}`}
+                      </Text>
+                      <Text size="body-sm" className="font-semibold">
+                        {`Neto ${formatCompactMoney(net)}`}
+                      </Text>
+                    </div>
+                  ) : null}
                 </div>
 
                 <DetailRow
@@ -171,22 +286,68 @@ export function ExpenseDetail({
                       Distribución
                     </Text>
                     <div className="space-y-2">
-                      {expense.splits.map((split) => (
+                      {expense.splits.map((split) => {
+                        const refundShare = refunds.reduce((sum, refund) => {
+                          const match = refund.splits.find((row) => row.memberId === split.memberId);
+                          return sum + (match?.amount ?? 0);
+                        }, 0);
+                        return (
+                          <div
+                            key={split.id}
+                            className="rounded-2xl px-4 py-3"
+                            style={{ backgroundColor: P.sub }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <Text size="body-sm">
+                                {memberName(split.memberId, members)}
+                              </Text>
+                              <Text size="body-sm" className="font-semibold">
+                                {formatCompactMoney(split.amount)}
+                              </Text>
+                            </div>
+                            {refundShare > 0 ? (
+                              <Text size="caption" tone="muted" className="mt-1">
+                                {`Original ${formatCompactMoney(split.amount)} · Devolución ${formatCompactMoney(refundShare)}`}
+                              </Text>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
+                {refunds.length > 0 ? (
+                  <div>
+                    <Text size="label" tone="muted" className="mb-2">
+                      Devoluciones
+                    </Text>
+                    <div className="space-y-2">
+                      {refunds.map((refund) => (
                         <div
-                          key={split.id}
+                          key={refund.id}
                           className="flex items-center justify-between rounded-2xl px-4 py-3"
                           style={{ backgroundColor: P.sub }}
                         >
-                          <Text size="body-sm">
-                            {memberName(split.memberId, members)}
+                          <Text size="caption" tone="muted">
+                            {formatRelativeActivityDate(refund.occurredAt, refund.createdAt)}
                           </Text>
                           <Text size="body-sm" className="font-semibold">
-                            {formatCompactMoney(split.amount)}
+                            {`− ${formatCompactMoney(refund.amount)}`}
                           </Text>
                         </div>
                       ))}
                     </div>
+                    <div className="mt-3 space-y-1">
+                      <DetailRow label="Total refundado" value={formatCompactMoney(refunded)} />
+                      <DetailRow label="Neto" value={formatCompactMoney(net)} />
+                      {remaining > 0 ? (
+                        <DetailRow label="Disponible para devolver" value={formatCompactMoney(remaining)} />
+                      ) : null}
+                    </div>
                   </div>
+                ) : canRefund ? (
+                  <DetailRow label="Disponible para devolver" value={formatCompactMoney(remaining)} />
                 ) : null}
               </>
             )}

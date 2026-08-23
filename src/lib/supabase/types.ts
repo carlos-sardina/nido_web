@@ -142,6 +142,96 @@ export type Database = {
           },
         ]
       }
+      expense_refund_splits: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          member_id: string
+          percentage: number | null
+          refund_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          member_id: string
+          percentage?: number | null
+          refund_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          member_id?: string
+          percentage?: number | null
+          refund_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_refund_splits_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_refund_splits_refund_id_fkey"
+            columns: ["refund_id"]
+            isOneToOne: false
+            referencedRelation: "expense_refunds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_refunds: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          expense_id: string
+          id: string
+          occurred_at: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by: string
+          expense_id: string
+          id?: string
+          occurred_at: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          expense_id?: string
+          id?: string
+          occurred_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_refunds_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_refunds_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_splits: {
         Row: {
           amount: number
@@ -985,6 +1075,10 @@ export type Database = {
           p_scope: Database["public"]["Enums"]["expense_scope"]
           p_splits: Json
         }
+        Returns: string
+      }
+      create_expense_refund: {
+        Args: { p_amount: number; p_expense_id: string }
         Returns: string
       }
       create_goal: {

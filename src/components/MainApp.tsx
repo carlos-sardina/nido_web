@@ -293,6 +293,7 @@ export function MainApp({
               setActiveFlow("expense");
             }}
             onDeleted={handleFlowDone}
+            onRefunded={() => void dashboard.refresh()}
           />
         )}
 

@@ -1,5 +1,6 @@
 import { isDateInRange, type MonthRange } from "./dates.ts";
 import { roundMoney, sumMoney } from "./money.ts";
+import { expenseHasRefunds, netExpense } from "./refunds.ts";
 import type { ExpenseRow, ExpenseSplitRow } from "./types.ts";
 
 export function isActiveExpense(expense: Pick<ExpenseRow, "deletedAt">): boolean {
@@ -11,6 +12,20 @@ export function canMutateExpense(
   userId: string | null | undefined,
 ): boolean {
   return Boolean(userId) && expense.createdBy === userId && expense.deletedAt == null;
+}
+
+export function canEditExpense(
+  expense: Pick<ExpenseRow, "createdBy" | "deletedAt" | "refunds">,
+  userId: string | null | undefined,
+): boolean {
+  return canMutateExpense(expense, userId) && !expenseHasRefunds(expense);
+}
+
+export function canRefundExpense(
+  expense: Pick<ExpenseRow, "createdBy" | "deletedAt" | "amount" | "refunds">,
+  userId: string | null | undefined,
+): boolean {
+  return canMutateExpense(expense, userId) && netExpense(expense.amount, expense.refunds) > 0;
 }
 
 export function expensesInRange(expenses: ExpenseRow[], range: MonthRange): ExpenseRow[] {
@@ -39,11 +54,16 @@ export function visiblePeriodExpenses(
 }
 
 /**
- * Household outflow for a period: the confirmed expense total.
- * Recurring templates are not included. Soft-deleted rows are excluded.
+ * Household outflow for a period: confirmed expenses net of their refunds.
+ * Recurring templates are not included. Soft-deleted rows are excluded,
+ * so their refunds are not subtracted either.
  */
 export function householdSpent(expenses: ExpenseRow[]): number {
-  return sumMoney(expenses.filter(isActiveExpense).map((expense) => expense.amount));
+  return sumMoney(
+    expenses
+      .filter(isActiveExpense)
+      .map((expense) => netExpense(expense.amount, expense.refunds)),
+  );
 }
 
 /**
@@ -73,7 +93,7 @@ export function spentByCategory(expenses: ExpenseRow[], categoryId: string): num
   return sumMoney(
     expenses
       .filter((expense) => isActiveExpense(expense) && expense.categoryId === categoryId)
-      .map((expense) => expense.amount),
+      .map((expense) => netExpense(expense.amount, expense.refunds)),
   );
 }
 

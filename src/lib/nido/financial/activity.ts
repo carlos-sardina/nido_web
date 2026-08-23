@@ -5,6 +5,7 @@ import { isActiveIncome } from "./incomes.ts";
 import type {
   ActivityItem,
   ActivitySource,
+  ExpenseRefundRow,
   ExpenseRow,
   GoalContributionRow,
   GoalRow,
@@ -90,6 +91,38 @@ export function incomeToActivity(
   };
 }
 
+export function refundToActivity(
+  refund: ExpenseRefundRow,
+  expense: ExpenseRow,
+  members: HouseholdMemberView[],
+): ActivityItem {
+  const name = memberName(refund.createdBy, members, null);
+  const categoryName = expense.category?.name?.trim() || null;
+  const concept = expense.description?.trim() || categoryName || "un gasto";
+  const who = firstName(name);
+  const title = who
+    ? `${who} registró una devolución de ${concept}`
+    : `Devolución de ${concept}`;
+
+  return {
+    id: `refund:${refund.id}`,
+    type: "refund",
+    sourceId: refund.id,
+    title,
+    amount: refund.amount,
+    date: refund.occurredAt,
+    createdAt: refund.createdAt,
+    memberId: refund.createdBy,
+    memberName: name,
+    icon: expense.category?.icon?.trim() || "↩️",
+    metadata: {
+      scope: expense.scope,
+      categoryName,
+      expenseId: expense.id,
+    },
+  };
+}
+
 export function contributionToActivity(
   contribution: GoalContributionRow,
   goals: GoalRow[],
@@ -165,6 +198,11 @@ export function buildActivityItems(input: {
         return goal == null || goal.householdId === householdId;
       })
       .map((row) => contributionToActivity(row, goals, input.members)),
+    ...input.expenses
+      .filter((row) => isActiveExpense(row) && belongsToHousehold(householdId, row.householdId))
+      .flatMap((row) =>
+        (row.refunds ?? []).map((refund) => refundToActivity(refund, row, input.members)),
+      ),
   ];
 
   items.sort(compareActivity);
@@ -181,8 +219,9 @@ export function findActivitySource(
     goals: GoalRow[];
   },
 ): ActivitySource | null {
-  if (item.type === "expense") {
-    const expense = input.expenses.find((row) => row.id === item.sourceId);
+  if (item.type === "expense" || item.type === "refund") {
+    const expenseId = item.type === "refund" ? item.metadata.expenseId : item.sourceId;
+    const expense = input.expenses.find((row) => row.id === expenseId);
     return expense ? { type: "expense", expense } : null;
   }
   if (item.type === "income") {

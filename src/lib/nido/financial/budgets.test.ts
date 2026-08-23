@@ -357,6 +357,141 @@ describe("calculateBudgetConsumption", () => {
     );
   });
 
+  it("subtracts refunds of consuming expenses (gross to net)", () => {
+    const spent = budgetSpent(nido, [
+      expense({
+        amount: 200,
+        categoryId: "spotify",
+        refunds: [
+          {
+            id: "r1",
+            expenseId: "e1",
+            amount: 50,
+            occurredAt: "2026-09-02",
+            createdBy: "u1",
+            createdAt: "2026-09-02T12:00:00.000Z",
+            splits: [],
+          },
+        ],
+      }),
+    ]);
+    assert.equal(spent, 150);
+  });
+
+  it("attributes a later-month refund to the expense month, not the refund month", () => {
+    const spent = budgetSpent(nido, [
+      expense({
+        amount: 1000,
+        categoryId: "spotify",
+        occurredAt: "2026-08-10",
+        refunds: [
+          {
+            id: "r-sep",
+            expenseId: "e1",
+            amount: 200,
+            occurredAt: "2026-09-15",
+            createdBy: "u1",
+            createdAt: "2026-09-15T12:00:00.000Z",
+            splits: [],
+          },
+        ],
+      }),
+    ]);
+    assert.equal(spent, 800);
+  });
+
+  it("does not create negative consumption when a consuming expense is fully refunded", () => {
+    const view = calculateBudgetConsumption(nido, [
+      expense({
+        amount: 100,
+        categoryId: "spotify",
+        refunds: [
+          {
+            id: "r-full",
+            expenseId: "e1",
+            amount: 100,
+            occurredAt: "2026-08-11",
+            createdBy: "u1",
+            createdAt: "2026-08-11T12:00:00.000Z",
+            splits: [],
+          },
+        ],
+      }),
+    ]);
+    assert.equal(view.consumed, 0);
+    assert.equal(view.remaining, 200);
+  });
+
+  it("does not let a refund of a personal expense reduce another member's personal budget", () => {
+    const spent = budgetSpent(personal, [
+      expense({
+        id: "e-me",
+        amount: 90,
+        categoryId: "spotify",
+        scope: "personal",
+        createdBy: "carlos",
+        payerId: "carlos",
+        distributionMethod: "fixed",
+        refunds: [
+          {
+            id: "r-me",
+            expenseId: "e-me",
+            amount: 20,
+            occurredAt: "2026-08-12",
+            createdBy: "carlos",
+            createdAt: "2026-08-12T12:00:00.000Z",
+            splits: [],
+          },
+        ],
+      }),
+      expense({
+        id: "e-other",
+        amount: 70,
+        categoryId: "spotify",
+        scope: "personal",
+        createdBy: "diana",
+        payerId: "diana",
+        distributionMethod: "fixed",
+        refunds: [
+          {
+            id: "r-other",
+            expenseId: "e-other",
+            amount: 70,
+            occurredAt: "2026-08-12",
+            createdBy: "diana",
+            createdAt: "2026-08-12T12:00:00.000Z",
+            splits: [],
+          },
+        ],
+      }),
+    ]);
+    assert.equal(spent, 70);
+  });
+
+  it("does not subtract refunds of a soft-deleted expense from active consumption", () => {
+    const spent = budgetSpent(nido, [
+      expense({ amount: 40, categoryId: "spotify" }),
+      expense({
+        id: "e-del",
+        amount: 90,
+        categoryId: "spotify",
+        deletedAt: "2026-08-12T00:00:00.000Z",
+        refunds: [
+          {
+            id: "r-del",
+            expenseId: "e-del",
+            amount: 90,
+            occurredAt: "2026-08-12",
+            createdBy: "u1",
+            createdAt: "2026-08-12T12:00:00.000Z",
+            splits: [],
+          },
+        ],
+      }),
+    ]);
+    assert.equal(spent, 40);
+  });
+
   it("builds a list item from the same consumption", () => {
     const item = buildBudgetItemView(
       personal,
