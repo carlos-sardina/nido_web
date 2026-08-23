@@ -24,9 +24,7 @@ function minimalDraft(): OData {
 
 function completeDraft(): OData {
   const data = minimalDraft();
-  data.freelance = "5000";
   data.savings = "12000";
-  data.savingsType = "both";
   data.savingsShared = "8000";
   data.expenses = [
     { name: "Renta", icon: "🏢", selected: true, amount: "8000", type: "shared", kind: "recurring" },
@@ -57,7 +55,7 @@ describe("onboarding financial plan — draft shapes", () => {
     assert.equal(result.plan.estimates[0]?.name, "Renta");
     assert.equal(result.plan.estimates[0]?.type, "shared");
     assert.equal(result.plan.estimates[0]?.amount, 8000);
-    assert.deepEqual(result.plan.skipped, ["freelance"]);
+    assert.deepEqual(result.plan.skipped, []);
   });
 
   it("maps a minimal draft without inventing savings or estimates", () => {
@@ -70,7 +68,6 @@ describe("onboarding financial plan — draft shapes", () => {
     assert.equal(result.plan.savingsPersonal.persist, false);
     assert.equal(result.plan.savingsShared.persist, false);
     assert.deepEqual(result.plan.estimates, []);
-    assert.equal(result.plan.skipped.includes("freelance"), false);
     assert.equal(result.plan.skipped.includes("income_zero"), false);
   });
 

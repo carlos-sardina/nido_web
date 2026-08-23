@@ -16,9 +16,8 @@ export type OnboardingExpense = {
 };
 
 export interface OData {
-  flow: "join"|"create"|null; nestType: string; nestEmoji: string; nestName: string;
-  userName: string; salary: string; freelance: string; savings: string;
-  savingsType: "personal" | "shared" | "both";
+  flow: "join"|"create"|null; nestType: string; nestName: string;
+  userName: string; salary: string; savings: string;
   savingsShared: string;
   expenses: OnboardingExpense[]; contrib: Model;
   _showAdd?: boolean; _emoji?: string; _cname?: string; _etype?: "personal"|"shared";

@@ -888,7 +888,7 @@ export function OnboardingFlow({
                 <div className="w-full p-4 rounded-2xl flex gap-2 mt-6" style={{ backgroundColor: P.sagePl }}>
                   <Sparkles size={16} style={{ color: P.sageDk, flexShrink:0, marginTop:2 }} />
                   <Text size="caption" className="leading-relaxed text-left">
-                    Un Nido puede ser de una persona o de muchas. Los datos financieros de esta pantalla siguen siendo de demostración.
+                    Un Nido puede ser de una persona o de muchas.
                   </Text>
                 </div>
               </div>

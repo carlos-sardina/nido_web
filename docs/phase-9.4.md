@@ -1,6 +1,6 @@
 # Phase 9.4 — Technical contract
 
-Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1 is implemented** (household name, initials contract, category RPCs + Hogar UI, `households.default_split_method`, `create_expense` uses that preference for new shared expenses). **9.4.2 is implemented** (onboarding persists savings stock, estimates as initial monthly budgets, and `contrib` → `households.default_split_method`). **9.4.3 is implemented** (personal budgets UI + global `profiles.personal_visibility` with RLS). **9.4.4 is implemented** (derived budget consumption; personal vs Nido; live expenses; no persisted spent). **9.4.5 is implemented** (refunds linked to the original expense, frozen refund splits, atomic `create_expense_refund`, net budget consumption). **9.4.6 is implemented** (derived monthly balance + derived settlements; no `balances` / `settlements` tables). **9.4.7 is implemented** (pull-to-refresh on the real tab/overlay scroll roots; reuses `dashboard.refresh()` / existing loaders; no Realtime). Subphases 9.4.8–9.4.9 are **not** implemented. Smoke UI and the live RLS matrix were not executed in the implementation environment — see [testing.md](./testing.md).
+Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1 is implemented** (household name, initials contract, category RPCs + Hogar UI, `households.default_split_method`, `create_expense` uses that preference for new shared expenses). **9.4.2 is implemented** (onboarding persists savings stock, estimates as initial monthly budgets, and `contrib` → `households.default_split_method`). **9.4.3 is implemented** (personal budgets UI + global `profiles.personal_visibility` with RLS). **9.4.4 is implemented** (derived budget consumption; personal vs Nido; live expenses; no persisted spent). **9.4.5 is implemented** (refunds linked to the original expense, frozen refund splits, atomic `create_expense_refund`, net budget consumption). **9.4.6 is implemented** (derived monthly balance + derived settlements; no `balances` / `settlements` tables). **9.4.7 is implemented** (pull-to-refresh on the real tab/overlay scroll roots; reuses `dashboard.refresh()` / existing loaders; no Realtime). **9.4.8 is implemented** (leftover cleanup of proven-unused prototype constants, orphaned components, unused onboarding draft fields, and stale demo copy). **9.4.9 is not** implemented. Smoke UI and the live RLS matrix were not executed in the implementation environment — see [testing.md](./testing.md).
 
 Source of confirmed product decisions: the 9.4.0 brief. Discarded items live in [future.md](./future.md). Do not re-interpret those as pending 9.4 work.
 
@@ -280,19 +280,28 @@ No Realtime. No extra fetch functions.
 
 **Refetch:** the same live `dashboard.refresh()` / `useMonthlyBalance.refresh()` / existing Hogar and recurring loaders. `initialLoading` and `refreshing` are separate. In-flight lock ignores a second pull. Existing data stay on screen; a failed refresh keeps them and shows the existing error banner.
 
-### 2.11 Leftover cleanup — IMPLEMENT last (9.4.8)
+### 2.11 Leftover cleanup — IMPLEMENTED (9.4.8)
 
-Delete only after proving no consumer. Candidates (audit):
+Delete only after proving no consumer. 9.4.8 removed proven-unused leftovers only. It did not change architecture, financial rules, RLS, RPCs, or SQL.
 
-- `ComingSoon` (no imports)
-- Unused mocks in `src/lib/constants.ts`: `CATS`, `TOT_S`, `GOALS`, `FEED`, `LIFE_EVENTS`, `SAVE_METHODS`, `FREQUENCIES` (keep `EXP_SUGG`, `EXP_CATS`, `NIDO_NAMES`, `NEST_TYPES`, `QUICK_AMOUNTS`, `GOAL_TYPES` until proven unused)
-- `Model` / `capacity` / `divisionMethodHint` capacity branch
-- Onboarding leftovers: `freelance`, `savingsType`, `nestType` if still unconsumed after persist
-- Stale copy: onboarding `nest-ready` “datos de demostración”
-- Docs that still call the frontend a disposable prototype
-- `capacity` product type only — **not** DB `income_based`
+Removed (no runtime consumer):
 
-`D_CAP` / `C_CAP` / `T_CAP` / `DIANA_*` are already gone from `src/`.
+- `ComingSoon`
+- Prototype mocks `CATS`, `TOT_S`, `GOALS`, `FEED`, `LIFE_EVENTS`, `SAVE_METHODS`, `FREQUENCIES`, `EXP_CATS`, `GOAL_TYPES`
+- Unused onboarding draft fields `freelance`, `savingsType`, `nestEmoji`
+- Orphan wrappers `FlowHeader`, `OBtn2` / `PBtn`, `$k` / `pct`, `extract-components.mjs`, `ImageWithFallback`
+- Unused `NidoHouse` `showCarlos` branch
+- nest-ready “datos de demostración” copy
+
+Kept (still consumed or legitimate):
+
+- `EXP_SUGG`, `NIDO_NAMES`, `NEST_TYPES`, `QUICK_AMOUNTS`, `DEFAULT_QUICK`
+- `nestType` and the `c-type` step (onboarding navigation; not persisted)
+- sessionStorage draft until finalize
+- `capacity` rejection tests and historical docs (product type stays deleted)
+- Test fixtures named Diana / Carlos
+
+`D_CAP` / `C_CAP` / `T_CAP` / `DIANA_*` were already gone from `src/`. `capacity` product type only — **not** DB `income_based`.
 
 ### 2.12 Out of 9.4 (do not implement)
 
@@ -312,7 +321,7 @@ The brief’s order is kept except one dependency: **refunds before monthly bala
 9.4.5  Refunds + automatic splits + Activity/budget hooks
 9.4.6  Monthly balance + derived settlements  **implemented**
 9.4.7  Pull-to-refresh  **implemented**
-9.4.8  Leftover cleanup (proven unused only)
+9.4.8  Leftover cleanup (proven unused only)  **implemented**
 9.4.9  Final documentation
 ```
 
@@ -407,7 +416,7 @@ No persistent activity types. No notification types. No OAuth types.
 | Perfil | Initials (not image); **Visible al Nido / Solo yo**. |
 | Expense form | Shared default split from household preference. Personal unchanged. Category create/rename. |
 | Budget form | Nido vs personal. Consumption: presupuesto / gastado / consumo % / restante from live data. |
-| Onboarding | Persist savings, estimates, `contrib`. Remove capacity types. Fix `nest-ready` demo copy. |
+| Onboarding | Persist savings, estimates, `contrib`. Remove capacity types. `nest-ready` no longer says the data is a demonstration. |
 | Gastos / Home | Personal vs shared remain; honor RLS (empty for others when private). |
 | Refund | From expense detail, creator only. No split editor. |
 | Balance | **Implemented (9.4.6).** Period statement + derived who-owes-whom. No “cierre de mes” ceremony. No “marcar como pagado”. |
@@ -467,9 +476,9 @@ No indispensable product decision is missing for **LISTA PARA IMPLEMENTACIÓN** 
 ## 12. Verdict
 
 ```text
-9.4.7 IMPLEMENTADA (CASI CERRADA) — veredicto de cierre en testing.md
+9.4.8 IMPLEMENTADA (CASI CERRADA) — veredicto de cierre en testing.md
 ```
 
-Next subphase: **9.4.8** — leftover cleanup (proven unused only).
+Next subphase: **9.4.9** — final documentation.
 
-Do not declare 9.4.8–9.4.9 implemented.
+Do not declare 9.4.9 or phase 9.4 complete.

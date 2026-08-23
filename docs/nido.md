@@ -232,7 +232,7 @@ Perfil also has **Visibilidad de mis datos personales**: **Visible al Nido** / *
 
 ## What is still mock / local
 
-Onboarding leftovers still not persisted (`freelance`, `savingsType`, nest type). Cleanup of unused draft fields is 9.4.8.
+The create-Nido draft stays in `sessionStorage` until finalize. After persist, Home reads live rows. Nest type (`c-type`) is local onboarding UX only; it is not written to the household. Unused draft leftovers (`freelance`, `savingsType`, `nestEmoji`) were removed in 9.4.8.
 
 The onboarding **Ingreso mensual neto** is persisted. Category is the household **Sueldo** catalog row. `occurred_at` is today in `America/Mexico_City`. Description is `Ingreso mensual neto`. Amount `0` creates the Nido and writes no income row.
 
@@ -365,7 +365,7 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 ## What remains after owner transfer
 
-Phase 9.4 work is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1–9.4.7** are implemented. 9.4.8–9.4.9 remain.
+Phase 9.4 work is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1–9.4.8** are implemented. 9.4.9 remains. 9.4.8 is leftover cleanup, not a new product surface.
 
 Do **not** treat these as pending 9.4: Google OAuth, image avatars, notifications, Realtime, insights, persistent Activity, multi-currency, receipts, email invitations, recurring budgets, push. See [future.md](./future.md).
 

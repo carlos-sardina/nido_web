@@ -1,6 +1,6 @@
 import { P } from "@/lib/palette";
 
-export function NidoHouse({ showCarlos = false }: { showCarlos?: boolean }) {
+export function NidoHouse() {
   return (
     <svg viewBox="0 0 300 230" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full max-w-[260px] mx-auto">
       <ellipse cx="150" cy="210" rx="120" ry="16" fill={P.border} />
@@ -19,17 +19,8 @@ export function NidoHouse({ showCarlos = false }: { showCarlos?: boolean }) {
       <path d="M128 210 Q150 204 172 210" stroke={P.sub} strokeWidth="5" fill="none" strokeLinecap="round" />
       <circle cx="46" cy="160" r="16" fill={P.sage} />
       <path d="M30 210 Q46 190 62 210" fill={P.sageDk} />
-      {showCarlos ? (
-        <>
-          <circle cx="254" cy="160" r="16" fill="#5A9E90" />
-          <path d="M238 210 Q254 190 270 210" fill="#437A74" />
-        </>
-      ) : (
-        <>
-          <circle cx="254" cy="160" r="16" fill={P.sub} stroke={P.border} strokeWidth="2" strokeDasharray="4 3" />
-          <text x="254" y="165" textAnchor="middle" fill={P.muted} fontSize="14">?</text>
-        </>
-      )}
+      <circle cx="254" cy="160" r="16" fill={P.sub} stroke={P.border} strokeWidth="2" strokeDasharray="4 3" />
+      <text x="254" y="165" textAnchor="middle" fill={P.muted} fontSize="14">?</text>
       <circle cx="72"  cy="204" r="9" fill={P.sageLt} />
       <rect   x="69"  y="204" width="6" height="14" rx="3" fill={P.sage} />
       <circle cx="228" cy="204" r="9" fill={P.sageLt} />

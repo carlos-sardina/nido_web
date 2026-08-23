@@ -2,7 +2,7 @@
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
-Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1**, **9.4.2**, **9.4.3**, **9.4.4**, **9.4.5**, **9.4.6**, and **9.4.7** are implemented. 9.4.8–9.4.9 are not. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
+Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1**, **9.4.2**, **9.4.3**, **9.4.4**, **9.4.5**, **9.4.6**, **9.4.7**, and **9.4.8** are implemented. 9.4.9 is not. 9.4.8 is leftover cleanup of unused prototype constants and draft fields; it did not change the financial model. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
 
 Phase 9.2.3 is the QA close of this integration. It does not add tables, columns, or product surfaces. The source of truth is the current code, the applied migrations on `nido_dev`, the RLS matrix, and the unit tests — not earlier “pending” notes in this file.
 
@@ -57,7 +57,7 @@ Categories are **household-scoped**. There is no global catalog table.
 
 `categories.is_default` marks rows seeded when the Nido is created. User-created categories (later) stay `false`. Archive with `archived_at`; do not hard-delete a category used by expenses (`category_id ON DELETE RESTRICT`).
 
-Default expense names live in `public.default_expense_category_catalog()` and `src/lib/nido/financial/categories.ts`. They follow the existing product list in `EXP_CATS` (`src/lib/constants.ts`), with truncated UI labels expanded (`Entretenim.` → `Entretenimiento`, `Otra` → `Otros`):
+Default expense names live in `public.default_expense_category_catalog()` and `src/lib/nido/financial/categories.ts`:
 
 Vivienda, Despensa, Restaurantes, Transporte, Mascotas, Servicios, Limpieza, Entretenimiento, Salud, Educación, Trabajo, Otros.
 
@@ -507,10 +507,10 @@ The create-Nido draft from Fase 8.9 is reused. Finalize does **not** invent move
 
 | Draft field | Screen | Persist? | Table / reason |
 | --- | --- | --- | --- |
+| `nestType` | ¿Qué tipo de Nido es? | no | Local onboarding UX only. Not a household column. |
 | `nestName` | Dale nombre a tu Nido | yes | `households.name` |
 | `userName` | ¿Cómo te llamas? | yes | `profiles.display_name` (existing UPDATE) |
 | `salary` | Ingreso mensual neto | yes, if `> 0` | `incomes` via `create_income`. Category is the household **Sueldo** row (the screen does not pick a category; this is the catalog name that matches “ingreso mensual neto”). Date is today in `America/Mexico_City`, not UTC. `created_by = member_id = auth.uid()`. Not a `recurring_incomes` template. |
-| `freelance` | unused leftover | no | Field is not shown. Not persisted. |
 | `savings` / `savingsShared` | ¿Cuánto tienes ahorrado? | yes, if present | `savings_balances` stock. Personal → `member_id = auth.uid()`. Shared → `member_id` NULL. Zero persists. Blank is omitted. Not an income, expense, or goal. |
 | selected `expenses` | Gastos mensuales estimados | yes, if selected with amount `> 0` | Initial monthly `budgets` for the current `America/Mexico_City` month. Shared → Nido (`member_id` NULL). Personal → creator. Category is the estimate name (`Renta` stays `Renta`). Never `expenses`. |
 | `contrib` | Método de división | yes | `households.default_split_method` (`equal` / `proportional`; SQL default `equal` when omitted). `capacity` is rejected. |

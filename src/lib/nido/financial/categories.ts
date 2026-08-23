@@ -15,7 +15,7 @@ export type DefaultExpenseCategory = {
 
 /**
  * Product catalog used when a Nido is created.
- * Source: EXP_CATS in src/lib/constants.ts, with truncated labels expanded.
+ * Must stay in sync with public.default_expense_category_catalog().
  */
 export const DEFAULT_EXPENSE_CATEGORIES: readonly DefaultExpenseCategory[] = [
   { name: "Vivienda", icon: "🏠" },

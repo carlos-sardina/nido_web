@@ -230,7 +230,7 @@ The middleware:
 - does **not** protect every route as a login wall
 - does **not** query financial data
 
-If `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` are missing, the middleware passes the request through so the prototype can still build and start.
+If `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` are missing, the middleware passes the request through so the app can still build and start.
 
 ### Profile trigger
 

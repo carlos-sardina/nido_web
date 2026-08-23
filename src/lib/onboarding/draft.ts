@@ -36,13 +36,10 @@ export function emptyOnboardingData(): OData {
   return {
     flow: null,
     nestType: "",
-    nestEmoji: "🏠",
     nestName: "",
     userName: "",
     salary: "",
-    freelance: "",
     savings: "",
-    savingsType: "personal",
     savingsShared: "",
     expenses: [],
     contrib: "proportional",
@@ -72,10 +69,6 @@ function asExpenseKind(value: unknown): ExpenseKind {
 
 function asFlow(value: unknown): OData["flow"] {
   return value === "join" || value === "create" ? value : null;
-}
-
-function asSavingsType(value: unknown): OData["savingsType"] {
-  return value === "shared" || value === "both" || value === "personal" ? value : "personal";
 }
 
 function asContrib(value: unknown): Model {
@@ -119,13 +112,10 @@ export function sanitizeOnboardingData(raw: unknown): OData | null {
     ...emptyOnboardingData(),
     flow: asFlow(src.flow),
     nestType: asString(src.nestType),
-    nestEmoji: asString(src.nestEmoji, "🏠") || "🏠",
     nestName: src.nestName,
     userName: asString(src.userName),
     salary: asString(src.salary),
-    freelance: asString(src.freelance),
     savings: asString(src.savings),
-    savingsType: asSavingsType(src.savingsType),
     savingsShared: asString(src.savingsShared),
     expenses: asExpenses(src.expenses),
     contrib: asContrib(src.contrib),

@@ -18,9 +18,7 @@ export const ONBOARDING_INCOME_CATEGORY_NAME = "Sueldo";
 /** Field label on the income step. Required by `create_income`. */
 export const ONBOARDING_INCOME_DESCRIPTION = "Ingreso mensual neto";
 
-export type SkippedOnboardingField =
-  | "freelance"
-  | "income_zero";
+export type SkippedOnboardingField = "income_zero";
 
 export type OnboardingIncomePlan = {
   persist: boolean;
@@ -131,7 +129,7 @@ export function buildOnboardingEstimates(
  * Savings of zero persist as stock. Blank savings are omitted.
  */
 export function planOnboardingFinances(
-  data: Pick<OData, "nestName" | "userName" | "salary" | "freelance" | "savings" | "savingsShared" | "expenses" | "contrib">,
+  data: Pick<OData, "nestName" | "userName" | "salary" | "savings" | "savingsShared" | "expenses" | "contrib">,
 ): { ok: true; plan: OnboardingFinancialPlan } | { ok: false; error: string } {
   const invalid = validateOnboardingFinalize(data);
   if (invalid) return { ok: false, error: invalid };
@@ -157,7 +155,6 @@ export function planOnboardingFinances(
   if (estimates.ok === false) return estimates;
 
   const skipped: SkippedOnboardingField[] = [];
-  if (data.freelance.trim()) skipped.push("freelance");
   if (amount === 0) skipped.push("income_zero");
 
   return {
