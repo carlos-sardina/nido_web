@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/nido/Button";
 import { EmptyState } from "@/components/nido/EmptyState";
+import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
 import { Text } from "@/components/nido/Typography";
 import {
@@ -32,19 +33,31 @@ export function RecurringExpensesScreen({
   const [templates, setTemplates] = useState<RecurringExpenseTemplate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const inFlightRef = useRef(false);
+  const templatesRef = useRef(templates);
+  templatesRef.current = templates;
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    const hasData = templatesRef.current != null;
+    if (hasData) setRefreshing(true);
+    else setLoading(true);
     const result = await fetchRecurringExpenses(householdId);
     if (result.ok === false) {
       setError(result.error.message);
-      setTemplates(null);
+      if (!hasData) setTemplates(null);
       setLoading(false);
+      setRefreshing(false);
+      inFlightRef.current = false;
       return;
     }
     setError(null);
     setTemplates(result.data);
     setLoading(false);
+    setRefreshing(false);
+    inFlightRef.current = false;
   }, [householdId]);
 
   useEffect(() => {
@@ -72,7 +85,11 @@ export function RecurringExpensesScreen({
             />
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6">
+          <PullToRefresh
+            onRefresh={load}
+            refreshing={refreshing}
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6"
+          >
             {loading && !templates ? (
               <Text size="caption" tone="muted">Cargando recurrencias…</Text>
             ) : error && !templates ? (
@@ -125,7 +142,7 @@ export function RecurringExpensesScreen({
                 })}
               </div>
             )}
-          </div>
+          </PullToRefresh>
         </div>
       </FlowScreen>
     </div>

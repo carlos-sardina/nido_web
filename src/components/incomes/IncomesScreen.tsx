@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/nido/Button";
 import { EmptyState } from "@/components/nido/EmptyState";
+import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { TextLink } from "@/components/nido/TextLink";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
@@ -40,12 +41,16 @@ export function IncomesScreen({
   onRegisterIncome: () => void;
   onOpenRecurring: () => void;
 }) {
-  const { isLoading, error, model, refresh } = dashboard;
+  const { isLoading, refreshing, error, model, refresh } = dashboard;
   const incomes = model?.periodIncomes ?? [];
   const empty = Boolean(model && incomes.length === 0);
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20">
+    <PullToRefresh
+      onRefresh={refresh}
+      refreshing={refreshing}
+      className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20"
+    >
       <div className="px-6 pt-3 pb-1">
         <Heading as="h2" size="h2">
           Ingresos
@@ -94,7 +99,7 @@ export function IncomesScreen({
               <button
                 type="button"
                 onClick={() => void refresh()}
-                disabled={isLoading}
+                disabled={refreshing}
                 className="mt-1 text-caption font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                 style={{ color: P.danger }}
               >
@@ -143,6 +148,6 @@ export function IncomesScreen({
           })}
         </div>
       )}
-    </div>
+    </PullToRefresh>
   );
 }

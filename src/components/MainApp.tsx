@@ -230,6 +230,7 @@ export function MainApp({
               membership={membership}
               members={members}
               onOwnershipTransferred={onNidoChanged}
+              onRefresh={onNidoChanged}
               onHouseholdUpdated={(next) => setHouseholdPatch({
                 name: next.name,
                 default_split_method: next.default_split_method,
@@ -548,6 +549,10 @@ export function MainApp({
             onLeft={onNidoChanged}
             onDisplayNameSaved={setSavedDisplayName}
             onVisibilitySaved={setSavedVisibility}
+            onRefresh={async () => {
+              await onNidoChanged();
+              await dashboard.refresh();
+            }}
           />
         )}
     </div>

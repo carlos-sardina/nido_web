@@ -2,7 +2,7 @@
 
 Supabase is the source of truth for household financial data. The dashboard does not mix mock constants with live rows. If a Nido has no incomes, expenses, budgets, or goals, the UI shows empty states.
 
-Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1**, **9.4.2**, **9.4.3**, **9.4.4**, **9.4.5**, and **9.4.6** are implemented. 9.4.7–9.4.9 are not. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
+Phase 9.4 is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1**, **9.4.2**, **9.4.3**, **9.4.4**, **9.4.5**, **9.4.6**, and **9.4.7** are implemented. 9.4.8–9.4.9 are not. Discarded ideas (Realtime, insights, persistent Activity, recurring budgets, multi-currency, receipts) are [future.md](./future.md), not pending 9.4 work.
 
 Phase 9.2.3 is the QA close of this integration. It does not add tables, columns, or product surfaces. The source of truth is the current code, the applied migrations on `nido_dev`, the RLS matrix, and the unit tests — not earlier “pending” notes in this file.
 
@@ -117,6 +117,10 @@ There is no `balances` table, no `settlements` table, no `current_amount` on goa
 - **Settlements:** obligations derived from `balance = paid − owed`. There is no “marcar como pagado” and no Activity event.
 
 Home shows a compact card (`Diana te debe $1,500` / `Todo está equilibrado` / `Sin gastos compartidos este mes`). The **Balance** overlay (from Home, not a new tab) has a month selector for the current and previous months. Health is unchanged.
+
+### Pull-to-refresh (Phase 9.4.7)
+
+The gesture is attached to each real `overflow-y-auto` scroll root (tabs and the Presupuestos / Balance / Perfil / recurrencias overlays), not to `MainApp`. It only arms at `scrollTop === 0`. Releasing past 72 px calls the existing `refresh()` / loader. `refreshing` does not replace `isLoading`. Existing rows stay on screen until the new snapshot arrives. A second pull while a refresh is in flight is ignored. Derived spent, health, activity, and monthly balance recompute from that same snapshot. There is no Realtime channel and no extra query module.
 
 ### Incomes: do not double-count recurrence
 
@@ -459,10 +463,13 @@ Double submit: **Guardando…** (`aria-busy`). After create, edit, or delete, Ho
 | `financial/` | dates, money, splits, validation, activity, dashboard view model, monthly balance |
 | `recurring-incomes.ts` | `createRecurringIncome` / `updateRecurringIncome` / `setRecurringIncomeActive` / `materializeRecurringIncome` |
 | `recurring-expenses.ts` | `createRecurringExpense` / `updateRecurringExpense` / `setRecurringExpenseActive` / `materializeRecurringExpense` |
-| `use-dashboard.ts` | shared snapshot; `refresh()` after create/edit/delete/archive/materialize |
+| `use-dashboard.ts` | shared snapshot; `refresh()` after create/edit/delete/archive/materialize and pull-to-refresh. `isLoading` is the first load; `refreshing` is a later refetch that keeps the current model |
 | `use-monthly-balance.ts` | selected calendar month for the Balance overlay; reuses `fetchDashboardSnapshot` |
+| `pull-to-refresh.ts` | gesture rules: only at `scrollTop === 0`, 72 px threshold, one in-flight refresh |
 
 Visual components do not query Supabase tables directly. Home, Ingresos, Gastos, Presupuestos, Metas, Actividad, and Balance do not keep a parallel financial store. Balance for a past month reuses `fetchDashboardSnapshot(householdId, range)` and `calculateMonthlyBalance()`.
+
+Pull-to-refresh (9.4.7) lives on each real `overflow-y-auto` scroll root, not on `MainApp`. It calls the existing `refresh()` / loader. It does not add Realtime, polling, or a second snapshot. Derived totals (spent, health, activity, monthly balance) recompute from the new snapshot the same way they do after a mutation.
 
 ---
 

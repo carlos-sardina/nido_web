@@ -976,7 +976,7 @@ Still deferred (not 9.4 unless [phase-9.4.md](./phase-9.4.md) says otherwise):
 9. **Stored `requires_review` flag** — derived at materialize time instead.
 10. **Separate pause vs archive on recurring rules** — `is_active` covers both for now.
 
-Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): pull-to-refresh remains. 9.4.1–9.4.6 (name, initials, categories, split column, onboarding persist, personal budgets + visibility, derived budget consumption, refunds, derived monthly balance / settlements) are implemented. There is still no `balances` or `settlements` table.
+Moved to **9.4** ([phase-9.4.md](./phase-9.4.md)): 9.4.1–9.4.7 (name, initials, categories, split column, onboarding persist, personal budgets + visibility, derived budget consumption, refunds, derived monthly balance / settlements, pull-to-refresh) are implemented. There is still no `balances` or `settlements` table. 9.4.8 leftover cleanup remains.
 
 Moved to **[future.md](./future.md)** (not pending 9.4): multi-currency, notifications, activity-feed persistence, insights, Google OAuth, image avatars, Realtime, receipts, email invitations, recurring budgets, push.
 

@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
+import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { Text } from "@/components/nido/Typography";
 import type { AuthIdentity } from "@/lib/auth/identity";
 import { canSubmitLeave } from "@/lib/nido/leave-household";
@@ -46,6 +47,7 @@ export function ProfilePanel({
   onLeft,
   onDisplayNameSaved,
   onVisibilitySaved,
+  onRefresh,
   signingOut = false,
 }: {
   identity: AuthIdentity | null;
@@ -59,6 +61,7 @@ export function ProfilePanel({
   onLeft: () => void;
   onDisplayNameSaved: (displayName: string) => void;
   onVisibilitySaved: (visibility: PersonalVisibility) => void;
+  onRefresh: () => void | Promise<void>;
   signingOut?: boolean;
 }) {
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -71,8 +74,22 @@ export function ProfilePanel({
   const [visibilitySaving, setVisibilitySaving] = useState(false);
   const [visibilityError, setVisibilityError] = useState<string | null>(null);
   const [visibilitySuccess, setVisibilitySuccess] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const savingRef = useRef(false);
   const visibilityRef = useRef(false);
+  const refreshInFlight = useRef(false);
+
+  const handleRefresh = async () => {
+    if (refreshInFlight.current || nameStatus === "editing" || nameStatus === "saving") return;
+    refreshInFlight.current = true;
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
+      refreshInFlight.current = false;
+    }
+  };
 
   const displayedName = identity?.displayName ?? "Usuario";
   const saving = nameStatus === "saving";
@@ -148,7 +165,11 @@ export function ProfilePanel({
         <div className="w-9" />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-6">
+      <PullToRefresh
+        onRefresh={handleRefresh}
+        refreshing={refreshing}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-6"
+      >
         {/* User identity */}
         <div className="flex flex-col items-center py-6 px-6">
           <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-bold mb-3 shadow-md overflow-hidden" style={{ backgroundColor: P.sage }}>
@@ -330,7 +351,7 @@ export function ProfilePanel({
             {signingOut ? "Cerrando sesión…" : "Cerrar sesión"}
           </button>
         </div>
-      </div>
+      </PullToRefresh>
     </div>
   );
 }

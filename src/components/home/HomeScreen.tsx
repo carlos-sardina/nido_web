@@ -13,6 +13,7 @@ import { P } from "@/lib/palette";
 import type { Tab } from "@/lib/types";
 import { Button } from "@/components/nido/Button";
 import { EmptyState } from "@/components/nido/EmptyState";
+import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { Text } from "@/components/nido/Typography";
 import { HealthGauge } from "@/components/home/HealthGauge";
 
@@ -67,10 +68,14 @@ export function HomeScreen({
   onOpenBalance: () => void;
   currentUserId: string | null;
 }) {
-  const { isLoading, error, model, refresh } = dashboard;
+  const { isLoading, refreshing, error, model, refresh } = dashboard;
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20">
+    <PullToRefresh
+      onRefresh={refresh}
+      refreshing={refreshing}
+      className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20"
+    >
       <div className="px-6 pt-3 pb-1 flex items-center justify-between">
         <div>
           <p className="text-xs font-medium" style={{ color: P.muted }}>
@@ -121,7 +126,7 @@ export function HomeScreen({
           model={model}
           error={error}
           onRetry={() => void refresh()}
-          retrying={isLoading}
+          retrying={refreshing}
           onNavigate={onNavigate}
           onOpenBudgets={onOpenBudgets}
           onCreateBudget={onCreateBudget}
@@ -129,7 +134,7 @@ export function HomeScreen({
           currentUserId={currentUserId}
         />
       ) : null}
-    </div>
+    </PullToRefresh>
   );
 }
 

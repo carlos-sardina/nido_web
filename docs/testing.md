@@ -664,4 +664,15 @@ Phase 9.4.6 (derived monthly balance + derived settlements) against the repo on 
 - Manual Balance / Home UI smoke is **BLOCKED**. This environment has no browser automation. Do not treat unit/build success as a UI pass. Pending cases: (1) open Balance, (2) current month, (3) previous month, (4) summary, (5) per-member balances, (6) who owes whom, (7) 50/50, (8) proportional, (9) refund, (10) personal excluded, (11) soft-deleted excluded, (12) period without movements, (13) balanced period, (14) peer, (15) private personal data, (16) multiple members.
 - Verdict: **CASI CERRADA**. Implementation and unit/build checks are complete; UI smoke and the live RLS matrix remain open.
 
+Phase 9.4.7 (pull-to-refresh) against the repo on 2026-08-22:
+
+- No new migration, table, column, RPC, or RLS change. Pull-to-refresh calls the existing `dashboard.refresh()` / `useMonthlyBalance.refresh()` / Hogar and recurring loaders. No Realtime, polling, or second snapshot.
+- Scroll root is each tab/overlay `overflow-y-auto` node, not `MainApp` (`overflow-hidden`). Gesture is touch-only, `scrollTop === 0`, 72 px threshold, one in-flight refresh. `isLoading` (first load) and `refreshing` are separate; a failed refresh keeps previous data.
+- Unit tests 832 passed, 0 failed. `tsc --noEmit` pass. `npm run build` pass. `validate_rls_coverage.mjs` 17 tables (unchanged; no new table).
+- Local Docker / `supabase start` is not available. `supabase` / `psql` are not on PATH. `supabase db push` was **not** run. Local still has 18 migrations; remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) still has the previous 14 until the team applies 9.4.1–9.4.5.
+- RLS matrix was **not** re-run: no policy or table change.
+- **Departamento** and **Nido Smoke 924** were not modified. No temporary users, invitations, or permanent seeds.
+- Manual pull-to-refresh UI smoke is **BLOCKED**. This environment has no browser automation and no real session. Do not treat unit/build success as a UI pass. Pending cases: (A) Home refresh, (B) external change visible after pull, (C) refresh error keeps data, (D) double pull ignored, (E) mid-scroll does not refresh, (F) empty state still pullable, (G) overlay does not trap the gesture.
+- Verdict: **CASI CERRADA**. Implementation and automated checks are complete; UI smoke remains open.
+
 Do not record production results here unless they were performed.

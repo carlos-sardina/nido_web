@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/nido/Button";
 import { EmptyState } from "@/components/nido/EmptyState";
+import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
   formatCompactMoney,
@@ -23,14 +24,18 @@ export function GoalsScreen({
   onOpenGoal: (goal: GoalRow) => void;
   onCreateGoal: () => void;
 }) {
-  const { isLoading, error, model, refresh } = dashboard;
+  const { isLoading, refreshing, error, model, refresh } = dashboard;
   const goals = model?.goals ?? [];
   const active = model?.activeGoals ?? [];
   const empty = Boolean(model && active.length === 0);
   const totalSaved = sumMoney(active.map((goal) => goal.contributed));
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20">
+    <PullToRefresh
+      onRefresh={refresh}
+      refreshing={refreshing}
+      className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20"
+    >
       <div className="px-6 pt-3 pb-1">
         <Heading as="h2" size="h2">
           Metas
@@ -80,7 +85,7 @@ export function GoalsScreen({
               <button
                 type="button"
                 onClick={() => void refresh()}
-                disabled={isLoading}
+                disabled={refreshing}
                 className="mt-1 text-caption font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                 style={{ color: P.danger }}
               >
@@ -111,7 +116,7 @@ export function GoalsScreen({
           })}
         </div>
       )}
-    </div>
+    </PullToRefresh>
   );
 }
 

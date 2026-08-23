@@ -20,7 +20,13 @@ const TYPE_LABEL: Record<CategoryType, string> = {
   income: "Ingresos",
 };
 
-export function HouseholdCategoriesCard({ householdId }: { householdId: string }) {
+export function HouseholdCategoriesCard({
+  householdId,
+  refreshKey = 0,
+}: {
+  householdId: string;
+  refreshKey?: number;
+}) {
   const [categories, setCategories] = useState<HouseholdCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
@@ -35,24 +41,30 @@ export function HouseholdCategoriesCard({ householdId }: { householdId: string }
   const [busyId, setBusyId] = useState<string | null>(null);
   const creatingRef = useRef(false);
   const busyRef = useRef(false);
+  const categoriesRef = useRef(categories);
+  categoriesRef.current = categories;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setListError(null);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = Boolean(opts?.silent && categoriesRef.current.length > 0);
+    if (!silent) {
+      setLoading(true);
+      setListError(null);
+    }
     const result = await fetchHouseholdCategories(householdId);
     if (result.ok === false) {
       setListError(result.error.message);
-      setCategories([]);
+      if (!silent) setCategories([]);
       setLoading(false);
       return;
     }
+    setListError(null);
     setCategories(result.data);
     setLoading(false);
   }, [householdId]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load({ silent: refreshKey > 0 });
+  }, [load, refreshKey]);
 
   const visible = categories.filter((row) => row.type === type);
 
@@ -158,12 +170,12 @@ export function HouseholdCategoriesCard({ householdId }: { householdId: string }
           </button>
         ))}
       </div>
-      {loading && <Text size="caption" tone="muted">Cargando categorías…</Text>}
+      {loading && categories.length === 0 && <Text size="caption" tone="muted">Cargando categorías…</Text>}
       {listError && <Text size="caption" tone="danger" role="alert">{listError}</Text>}
       {!loading && !listError && visible.length === 0 && (
         <Text size="caption" tone="muted">No hay categorías activas en esta lista.</Text>
       )}
-      {!loading && visible.map((category) => {
+      {visible.map((category) => {
         const mode = rowMode[category.id] ?? "view";
         const busy = busyId === category.id;
         return (

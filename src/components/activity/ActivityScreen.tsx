@@ -3,6 +3,7 @@
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/nido/Button";
 import { EmptyInline } from "@/components/nido/EmptyState";
+import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
   findActivitySource,
@@ -50,7 +51,7 @@ export function ActivityScreen({
   onRegisterIncome: () => void;
   onRegisterContribution: () => void;
 }) {
-  const { isLoading, error, model, refresh } = dashboard;
+  const { isLoading, refreshing, error, model, refresh } = dashboard;
   const activity = model?.activity ?? [];
   const empty = Boolean(model && activity.length === 0);
   const health = model?.health;
@@ -80,7 +81,11 @@ export function ActivityScreen({
   };
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20">
+    <PullToRefresh
+      onRefresh={refresh}
+      refreshing={refreshing}
+      className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20"
+    >
       <div className="px-6 pt-3 pb-1">
         <Heading as="h2" size="h2">
           Actividad
@@ -117,7 +122,7 @@ export function ActivityScreen({
               <button
                 type="button"
                 onClick={() => void refresh()}
-                disabled={isLoading}
+                disabled={refreshing}
                 className="mt-1 text-caption font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                 style={{ color: P.danger }}
               >
@@ -223,6 +228,6 @@ export function ActivityScreen({
           </div>
         </>
       )}
-    </div>
+    </PullToRefresh>
   );
 }

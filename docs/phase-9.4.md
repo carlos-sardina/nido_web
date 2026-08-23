@@ -1,6 +1,6 @@
 # Phase 9.4 — Technical contract
 
-Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1 is implemented** (household name, initials contract, category RPCs + Hogar UI, `households.default_split_method`, `create_expense` uses that preference for new shared expenses). **9.4.2 is implemented** (onboarding persists savings stock, estimates as initial monthly budgets, and `contrib` → `households.default_split_method`). **9.4.3 is implemented** (personal budgets UI + global `profiles.personal_visibility` with RLS). **9.4.4 is implemented** (derived budget consumption; personal vs Nido; live expenses; no persisted spent). **9.4.5 is implemented** (refunds linked to the original expense, frozen refund splits, atomic `create_expense_refund`, net budget consumption). **9.4.6 is implemented** (derived monthly balance + derived settlements; no `balances` / `settlements` tables). Subphases 9.4.7–9.4.9 are **not** implemented. Smoke UI and the live RLS matrix were not executed in the implementation environment — see [testing.md](./testing.md).
+Phase 9.4.0 (this document) is **scope, contract, and preparation**. **9.4.1 is implemented** (household name, initials contract, category RPCs + Hogar UI, `households.default_split_method`, `create_expense` uses that preference for new shared expenses). **9.4.2 is implemented** (onboarding persists savings stock, estimates as initial monthly budgets, and `contrib` → `households.default_split_method`). **9.4.3 is implemented** (personal budgets UI + global `profiles.personal_visibility` with RLS). **9.4.4 is implemented** (derived budget consumption; personal vs Nido; live expenses; no persisted spent). **9.4.5 is implemented** (refunds linked to the original expense, frozen refund splits, atomic `create_expense_refund`, net budget consumption). **9.4.6 is implemented** (derived monthly balance + derived settlements; no `balances` / `settlements` tables). **9.4.7 is implemented** (pull-to-refresh on the real tab/overlay scroll roots; reuses `dashboard.refresh()` / existing loaders; no Realtime). Subphases 9.4.8–9.4.9 are **not** implemented. Smoke UI and the live RLS matrix were not executed in the implementation environment — see [testing.md](./testing.md).
 
 Source of confirmed product decisions: the 9.4.0 brief. Discarded items live in [future.md](./future.md). Do not re-interpret those as pending 9.4 work.
 
@@ -58,7 +58,7 @@ Protected business data (do not touch): **Departamento**, **Nido Smoke 924**.
 | Settlements / refunds | **Refunds live** (`expense_refunds` + frozen `expense_refund_splits`). Creator-only create via `create_expense_refund`. Immutable after insert. Monthly balance is derived: shared `paid − owed` net of those refunds, then pairwise obligations. No `balances` or `settlements` table. There is no “marcar como pagado”. |
 | Initials | `initialsFromName`: one word → first **two** letters (`Carlos` → `CA`). Product contract is one letter (`C`). |
 | Avatar image | `profiles.avatar_url` exists. No upload. Auth metadata `picture` may display as URL. |
-| Refresh | `dashboard.refresh()` after mutations and error retry. No pull-to-refresh. MainApp shell does not scroll; **each tab** owns `h-full overflow-y-auto`. |
+| Refresh | `dashboard.refresh()` after mutations, error retry, and pull-to-refresh (9.4.7). MainApp shell does not scroll; **each tab** owns `h-full overflow-y-auto`. |
 | Email invitations | Closed. `email` column historical, always inserted `null`. |
 
 ### 1.3 What must not be treated as pending 9.4
@@ -270,13 +270,15 @@ Expense
 | Balance | Refunds reduce shared obligations in the **original expense month**, not the refund date (same as budget consumption) |
 | Expense edit | Reject `update_expense` while live refunds exist (or require refunds deleted first). Do not rewrite history silently |
 
-### 2.10 Pull-to-refresh — IMPLEMENT
+### 2.10 Pull-to-refresh — IMPLEMENTED (9.4.7)
 
-No Realtime.
+No Realtime. No extra fetch functions.
 
-**Container:** each main-tab scroll root (`h-full min-h-0 overflow-y-auto` on Home, Gastos, Ingresos, Metas, Hogar, Actividad). Not `MainApp` (`overflow-hidden`). Overlays keep their own scroll.
+**Container:** each main-tab scroll root (`h-full min-h-0 overflow-y-auto` on Home, Gastos, Ingresos, Metas, Hogar, Actividad). Not `MainApp` (`overflow-hidden`). Overlays that already have their own scroll (Presupuestos, Balance, Perfil, recurrencias) attach the same gesture to that root.
 
-**Gesture (as specified):** swipe **up** when the user is actually at the **end** of that container. Ignore mid-scroll. Visual feedback. Call the same live `dashboard.refresh()` (auth session). In-flight lock to prevent duplicate requests.
+**Gesture (9.4.7 brief; supersedes the 9.4.0 “swipe up at end” sketch):** traditional pull-to-refresh. Swipe **down** only when that container is at `scrollTop === 0`. Threshold 72 px with resistance. Ignore mid-scroll. Touch-only; desktop mouse/trackpad keeps native scroll.
+
+**Refetch:** the same live `dashboard.refresh()` / `useMonthlyBalance.refresh()` / existing Hogar and recurring loaders. `initialLoading` and `refreshing` are separate. In-flight lock ignores a second pull. Existing data stay on screen; a failed refresh keeps them and shows the existing error banner.
 
 ### 2.11 Leftover cleanup — IMPLEMENT last (9.4.8)
 
@@ -309,7 +311,7 @@ The brief’s order is kept except one dependency: **refunds before monthly bala
 9.4.4  Budget consumption (personal vs Nido; live expenses; no mocks)
 9.4.5  Refunds + automatic splits + Activity/budget hooks
 9.4.6  Monthly balance + derived settlements  **implemented**
-9.4.7  Pull-to-refresh
+9.4.7  Pull-to-refresh  **implemented**
 9.4.8  Leftover cleanup (proven unused only)
 9.4.9  Final documentation
 ```
@@ -409,7 +411,7 @@ No persistent activity types. No notification types. No OAuth types.
 | Gastos / Home | Personal vs shared remain; honor RLS (empty for others when private). |
 | Refund | From expense detail, creator only. No split editor. |
 | Balance | **Implemented (9.4.6).** Period statement + derived who-owes-whom. No “cierre de mes” ceremony. No “marcar como pagado”. |
-| All main tabs | End-of-scroll refresh (9.4.7). |
+| All main tabs | Pull-to-refresh from the top of each tab scroll root (9.4.7). |
 
 ---
 
@@ -465,9 +467,9 @@ No indispensable product decision is missing for **LISTA PARA IMPLEMENTACIÓN** 
 ## 12. Verdict
 
 ```text
-9.4.6 IMPLEMENTADA (CASI CERRADA) — veredicto de cierre en testing.md
+9.4.7 IMPLEMENTADA (CASI CERRADA) — veredicto de cierre en testing.md
 ```
 
-Next subphase: **9.4.7** — pull-to-refresh.
+Next subphase: **9.4.8** — leftover cleanup (proven unused only).
 
-Do not declare 9.4.7–9.4.9 implemented.
+Do not declare 9.4.8–9.4.9 implemented.

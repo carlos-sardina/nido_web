@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { NidoError } from "./errors";
 import { getMyNidoState } from "./membership";
@@ -24,27 +24,45 @@ export function useMyNido(user: User | null, authLoading: boolean): MyNidoView {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<NidoError | null>(null);
   const [state, setState] = useState<MyNidoState | null>(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const inFlightRef = useRef(false);
+  const pendingRef = useRef(false);
 
   const refresh = useCallback(async () => {
     if (!user) {
       setState(null);
       setError(null);
       setIsLoading(false);
+      inFlightRef.current = false;
+      pendingRef.current = false;
       return;
     }
 
-    setIsLoading(true);
-    const result = await withTransientRetry(() => getMyNidoState());
-    if (result.ok === false) {
-      setError(result.error);
-      setState(null);
+    if (inFlightRef.current) {
+      pendingRef.current = true;
+      return;
+    }
+
+    inFlightRef.current = true;
+    do {
+      pendingRef.current = false;
+      const hasData = stateRef.current != null;
+      if (!hasData) setIsLoading(true);
+
+      const result = await withTransientRetry(() => getMyNidoState());
+      if (result.ok === false) {
+        setError(result.error);
+        if (!hasData) setState(null);
+        setIsLoading(false);
+        continue;
+      }
+
+      setError(null);
+      setState(result.data);
       setIsLoading(false);
-      return;
-    }
-
-    setError(null);
-    setState(result.data);
-    setIsLoading(false);
+    } while (pendingRef.current);
+    inFlightRef.current = false;
   }, [user]);
 
   useEffect(() => {

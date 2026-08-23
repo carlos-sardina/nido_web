@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "lucide-react";
 import { initialsFromName } from "@/lib/auth/identity";
 import {
@@ -19,6 +19,7 @@ import { HouseholdSplitCard } from "@/components/household/HouseholdSplitCard";
 import { InviteQrModal } from "@/components/flows/InviteQrModal";
 import { Button } from "@/components/nido/Button";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
+import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { TextLink } from "@/components/nido/TextLink";
 import { Text } from "@/components/nido/Typography";
 import { P } from "@/lib/palette";
@@ -35,12 +36,14 @@ export function HouseholdScreen({
   members,
   onOwnershipTransferred,
   onHouseholdUpdated,
+  onRefresh,
 }: {
   household: Household;
   membership: HouseholdMember;
   members: HouseholdMemberView[];
   onOwnershipTransferred: () => void;
   onHouseholdUpdated: (household: Household) => void;
+  onRefresh: () => void | Promise<void>;
 }) {
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -59,25 +62,48 @@ export function HouseholdScreen({
   const [transferring, setTransferring] = useState(false);
   const [transferError, setTransferError] = useState<string | null>(null);
   const [transferSuccess, setTransferSuccess] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [categoryRefreshKey, setCategoryRefreshKey] = useState(0);
+  const invitationsRef = useRef(invitations);
+  invitationsRef.current = invitations;
+  const householdRefreshInFlight = useRef(false);
   const isOwner = membership.role === "owner";
   const candidates = transferableMembers(members, membership.user_id);
   const selectedTarget = candidates.find((member) => member.userId === selectedTargetId) ?? null;
   const memberLabel = members.length === 1 ? "1 miembro" : `${members.length} miembros`;
 
-  const loadInvitations = useCallback(async () => {
+  const loadInvitations = useCallback(async (opts?: { silent?: boolean }) => {
     if (membership.role !== "owner") return;
-    setInvitationsLoading(true);
-    setInvitationsError(null);
+    const silent = Boolean(opts?.silent && invitationsRef.current.length > 0);
+    if (!silent) {
+      setInvitationsLoading(true);
+      setInvitationsError(null);
+    }
     const result = await listInvitations();
     if (result.ok === false) {
       setInvitationsError(result.error.message);
-      setInvitations([]);
+      if (!silent) setInvitations([]);
       setInvitationsLoading(false);
       return;
     }
+    setInvitationsError(null);
     setInvitations(result.data);
     setInvitationsLoading(false);
   }, [membership.role]);
+
+  const handleRefresh = useCallback(async () => {
+    if (householdRefreshInFlight.current) return;
+    householdRefreshInFlight.current = true;
+    setRefreshing(true);
+    try {
+      await onRefresh();
+      await loadInvitations({ silent: true });
+      setCategoryRefreshKey((value) => value + 1);
+    } finally {
+      setRefreshing(false);
+      householdRefreshInFlight.current = false;
+    }
+  }, [loadInvitations, onRefresh]);
 
   useEffect(() => {
     void loadInvitations();
@@ -136,7 +162,11 @@ export function HouseholdScreen({
   };
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20">
+    <PullToRefresh
+      onRefresh={handleRefresh}
+      refreshing={refreshing}
+      className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20"
+    >
       <div className="px-6 pt-3 pb-1">
         <h2 className="text-[22px] font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{household.name}</h2>
         <p className="text-xs" style={{ color: P.muted }}>{memberLabel}</p>
@@ -158,7 +188,7 @@ export function HouseholdScreen({
         ))}
       </div>
       <HouseholdSplitCard household={household} onSaved={onHouseholdUpdated} />
-      <HouseholdCategoriesCard householdId={household.id} />
+      <HouseholdCategoriesCard householdId={household.id} refreshKey={categoryRefreshKey} />
       {isOwner && (
         <div className="mx-6 mb-3">
           <button
@@ -385,6 +415,6 @@ export function HouseholdScreen({
           onClose={() => setQrInvitation(null)}
         />
       )}
-    </div>
+    </PullToRefresh>
   );
 }
