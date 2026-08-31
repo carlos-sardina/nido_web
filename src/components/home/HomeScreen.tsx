@@ -1,12 +1,13 @@
 "use client";
 
-import { Shield } from "lucide-react";
+import { ChevronRight, Shield } from "lucide-react";
 import type { AuthIdentity } from "@/lib/auth/identity";
 import {
   compactBalanceCopy,
   formatCompactMoney,
   formatRelativeActivityDate,
   formatWholeMoney,
+  type BudgetItemView,
 } from "@/lib/nido/financial";
 import type { DashboardQuery } from "@/lib/nido/use-dashboard";
 import { P } from "@/lib/palette";
@@ -54,6 +55,7 @@ export function HomeScreen({
   onProfileOpen,
   onNavigate,
   onOpenBudgets,
+  onOpenBudget,
   onCreateBudget,
   onOpenBalance,
   currentUserId,
@@ -64,6 +66,7 @@ export function HomeScreen({
   onProfileOpen: () => void;
   onNavigate: (tab: Tab) => void;
   onOpenBudgets: () => void;
+  onOpenBudget: (budget: BudgetItemView) => void;
   onCreateBudget: () => void;
   onOpenBalance: () => void;
   currentUserId: string | null;
@@ -129,6 +132,7 @@ export function HomeScreen({
           retrying={refreshing}
           onNavigate={onNavigate}
           onOpenBudgets={onOpenBudgets}
+          onOpenBudget={onOpenBudget}
           onCreateBudget={onCreateBudget}
           onOpenBalance={onOpenBalance}
           currentUserId={currentUserId}
@@ -145,6 +149,7 @@ function DashboardBody({
   retrying,
   onNavigate,
   onOpenBudgets,
+  onOpenBudget,
   onCreateBudget,
   onOpenBalance,
   currentUserId,
@@ -155,6 +160,7 @@ function DashboardBody({
   retrying: boolean;
   onNavigate: (tab: Tab) => void;
   onOpenBudgets: () => void;
+  onOpenBudget: (budget: BudgetItemView) => void;
   onCreateBudget: () => void;
   onOpenBalance: () => void;
   currentUserId: string | null;
@@ -305,9 +311,21 @@ function DashboardBody({
           <h3 className="text-xs font-semibold" style={{ color: P.text }}>
             Presupuesto del mes
           </h3>
-          <span className="text-[10px]" style={{ color: P.muted }}>
-            {range.label}
-          </span>
+          {empty.budget ? (
+            <span className="text-[10px]" style={{ color: P.muted }}>
+              {range.label}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenBudgets}
+              className="inline-flex items-center gap-0.5 text-[10px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+              style={{ color: P.brnDk }}
+            >
+              Ver presupuestos
+              <ChevronRight size={12} aria-hidden="true" />
+            </button>
+          )}
         </div>
         {empty.budget ? (
           <EmptyState
@@ -318,79 +336,97 @@ function DashboardBody({
             onAction={onCreateBudget}
           />
         ) : (
-          <button
-            type="button"
-            onClick={onOpenBudgets}
-            className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-[1.5rem]"
-          >
-            <div className="flex items-baseline gap-2 mb-3">
-              <span className="text-[22px] font-bold font-sans" style={{ color: P.text }}>
-                {formatCompactMoney(budget.totalSpent)}
-              </span>
-              {budget.hasBudget ? (
-                <span className="text-xs" style={{ color: P.muted }}>
-                  de {formatCompactMoney(budget.totalBudget)}
+          <>
+            <button
+              type="button"
+              onClick={onOpenBudgets}
+              className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
+            >
+              <div className="flex items-baseline gap-2 mb-3">
+                <span className="text-[22px] font-bold font-sans" style={{ color: P.text }}>
+                  {formatCompactMoney(budget.totalSpent)}
                 </span>
-              ) : (
-                <span className="text-xs" style={{ color: P.muted }}>
-                  gastados este mes
-                </span>
-              )}
-            </div>
-            {budget.hasBudget ? (
-              <>
-                <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: P.sub }}>
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.min(100, budget.usagePercent ?? 0)}%`,
-                      background: budget.over
-                        ? P.danger
-                        : `linear-gradient(90deg, ${P.sage}, ${P.sageDk})`,
-                    }}
-                  />
-                </div>
-                <div className="flex justify-between text-[10px]">
-                  <span style={{ color: P.muted }}>Gastado este mes</span>
-                  <span
-                    className="font-semibold"
-                    style={{ color: budget.over ? P.danger : P.sageDk }}
-                  >
-                    {budget.over
-                      ? `$${diff.toLocaleString("es-MX")} sobre el plan`
-                      : `$${diff.toLocaleString("es-MX")} disponible`}
+                {budget.hasBudget ? (
+                  <span className="text-xs" style={{ color: P.muted }}>
+                    de {formatCompactMoney(budget.totalBudget)}
                   </span>
-                </div>
-              </>
-            ) : null}
+                ) : (
+                  <span className="text-xs" style={{ color: P.muted }}>
+                    gastados este mes
+                  </span>
+                )}
+              </div>
+              {budget.hasBudget ? (
+                <>
+                  <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: P.sub }}>
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.min(100, budget.usagePercent ?? 0)}%`,
+                        background: budget.over
+                          ? P.danger
+                          : `linear-gradient(90deg, ${P.sage}, ${P.sageDk})`,
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px]">
+                    <span style={{ color: P.muted }}>Gastado este mes</span>
+                    <span
+                      className="font-semibold"
+                      style={{ color: budget.over ? P.danger : P.sageDk }}
+                    >
+                      {budget.over
+                        ? `$${diff.toLocaleString("es-MX")} sobre el plan`
+                        : `$${diff.toLocaleString("es-MX")} disponible`}
+                    </span>
+                  </div>
+                </>
+              ) : null}
+            </button>
             {budget.categories.length > 0 ? (
               <div className="flex gap-2 mt-4 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-                {budget.categories.slice(0, 5).map((category) => (
-                  <div
-                    key={category.categoryId}
-                    className="flex-shrink-0 rounded-xl px-3 py-2 text-center min-w-[58px]"
-                    style={{ backgroundColor: P.sub }}
-                  >
-                    <div className="text-sm mb-0.5">{category.icon}</div>
-                    <div className="text-[9px] mb-0.5" style={{ color: P.muted }}>
-                      {category.name.split(" ")[0]}
-                    </div>
-                    <div
-                      className="text-[10px] font-bold font-sans"
-                      style={{
-                        color:
-                          category.budget > 0 && category.spent > category.budget
-                            ? P.danger
-                            : P.text,
+                {budget.categories.slice(0, 5).map((category) => {
+                  const item = budget.items.find((row) => row.categoryId === category.categoryId);
+                  return (
+                    <button
+                      key={category.categoryId}
+                      type="button"
+                      onClick={() => {
+                        if (item) onOpenBudget(item);
+                        else onOpenBudgets();
                       }}
+                      aria-label={`Ver presupuesto de ${category.name}`}
+                      className="flex-shrink-0 rounded-xl px-3 py-2 text-center min-w-[68px] active:scale-[0.97] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      style={{ backgroundColor: P.sub }}
                     >
-                      {formatCompactMoney(category.spent)}
-                    </div>
-                  </div>
-                ))}
+                      <div className="text-sm mb-0.5">{category.icon}</div>
+                      <div className="text-[9px] mb-0.5" style={{ color: P.muted }}>
+                        {category.name.split(" ")[0]}
+                      </div>
+                      <div
+                        className="text-[10px] font-bold font-sans"
+                        style={{
+                          color:
+                            category.budget > 0 && category.spent > category.budget
+                              ? P.danger
+                              : P.text,
+                        }}
+                      >
+                        {formatCompactMoney(category.spent)}
+                      </div>
+                      <span
+                        className="mt-1 inline-flex items-center justify-center gap-0.5 text-[9px] font-semibold"
+                        style={{ color: P.brnDk }}
+                      >
+                        Ver
+                        <ChevronRight size={10} aria-hidden="true" />
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             ) : null}
-          </button>
+          </>
         )}
       </div>
 

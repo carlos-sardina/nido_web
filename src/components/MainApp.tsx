@@ -194,6 +194,7 @@ export function MainApp({
               onProfileOpen={() => setProfileOpen(true)}
               onNavigate={t => { setTab(t); setShowSheet(false); }}
               onOpenBudgets={() => setShowBudgets(true)}
+              onOpenBudget={setSelectedBudget}
               onCreateBudget={openBudgetCreate}
               onOpenBalance={() => setShowBalance(true)}
               currentUserId={user?.id ?? null}
