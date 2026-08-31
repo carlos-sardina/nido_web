@@ -20,6 +20,10 @@ import {
   expenseAmountMessage,
   expenseDescriptionMessage,
   parseExpenseAmountInput,
+  resolveExpenseParticipantIds,
+  resolveExpensePayerId,
+  showExpenseParticipantPicker,
+  showExpensePayerPicker,
   todayIso,
   withCurrentCategory,
   type ExpenseRow,
@@ -36,13 +40,29 @@ type FieldErrors = {
   category?: string;
   date?: string;
   scope?: string;
+  payer?: string;
   participants?: string;
   form?: string;
 };
 
+function defaultPayerId(
+  expense: ExpenseRow | null | undefined,
+  currentUserId: string | null,
+  members: HouseholdMemberView[],
+): string {
+  if (expense?.payerId && members.some((member) => member.userId === expense.payerId)) {
+    return expense.payerId;
+  }
+  if (currentUserId && members.some((member) => member.userId === currentUserId)) {
+    return currentUserId;
+  }
+  return members[0]?.userId ?? "";
+}
+
 export function ExpenseFlow({
   householdId,
   members,
+  currentUserId,
   defaultSplitMethod = "equal",
   expense,
   onClose,
@@ -50,6 +70,7 @@ export function ExpenseFlow({
 }: {
   householdId: string;
   members: HouseholdMemberView[];
+  currentUserId: string | null;
   defaultSplitMethod?: HouseholdSplitMethod;
   expense?: ExpenseRow | null;
   onClose: () => void;
@@ -65,6 +86,7 @@ export function ExpenseFlow({
   const [categoryId, setCategoryId] = useState(() => expense?.categoryId ?? "");
   const [occurredAt, setOccurredAt] = useState(() => expense?.occurredAt ?? todayIso());
   const [scope, setScope] = useState<ExpenseScope | null>(() => expense?.scope ?? null);
+  const [payerId, setPayerId] = useState(() => defaultPayerId(expense, currentUserId, members));
   const [participantIds, setParticipantIds] = useState<string[]>(() =>
     expense?.scope === "shared"
       ? expense.splits.map((split) => split.memberId)
@@ -76,6 +98,14 @@ export function ExpenseFlow({
   const [errors, setErrors] = useState<FieldErrors>({});
 
   const canShare = members.length >= 2;
+  const askPayer = showExpensePayerPicker(scope, members.length);
+  const askParticipants = showExpenseParticipantPicker(scope, members.length);
+  const payerOptions = currentUserId
+    ? [
+        ...members.filter((member) => member.userId === currentUserId),
+        ...members.filter((member) => member.userId !== currentUserId),
+      ]
+    : members;
   const participantCopy = !isEditing && defaultSplitMethod === "proportional"
     ? "Participa según el ingreso del mes"
     : "Participa en partes iguales";
@@ -84,6 +114,7 @@ export function ExpenseFlow({
   const dateId = `${ids}-date`;
   const categoryLabelId = `${ids}-category`;
   const scopeLabelId = `${ids}-scope`;
+  const payerLabelId = `${ids}-payer`;
   const participantsLabelId = `${ids}-participants`;
 
   useEffect(() => {
@@ -142,7 +173,22 @@ export function ExpenseFlow({
     if (!categoryId) nextErrors.category = "Elige una categoría.";
     if (!occurredAt) nextErrors.date = "La fecha no es válida.";
     if (scope == null) nextErrors.scope = "Elige si el gasto es personal o compartido.";
-    if (scope === "shared" && participantIds.length < 2) {
+    const resolvedPayerId =
+      scope == null
+        ? payerId
+        : resolveExpensePayerId(scope, payerId, currentUserId ?? "", members.map((member) => member.userId));
+    if (scope === "shared" && askPayer && !members.some((member) => member.userId === resolvedPayerId)) {
+      nextErrors.payer = "Elige quién pagó.";
+    }
+    const resolvedParticipants =
+      scope == null
+        ? participantIds
+        : resolveExpenseParticipantIds(
+            scope,
+            members.map((member) => member.userId),
+            participantIds,
+          );
+    if (scope === "shared" && askParticipants && resolvedParticipants.length < 2) {
       nextErrors.participants = "Para un gasto compartido elige al menos dos miembros.";
     }
 
@@ -168,7 +214,8 @@ export function ExpenseFlow({
       description,
       occurredAt,
       scope,
-      participantIds,
+      payerId: resolvedPayerId,
+      participantIds: [...resolvedParticipants],
       activeMemberIds: members.map((member) => member.userId),
       allowedCategoryIds: categories.map((category) => category.id),
     };
@@ -352,7 +399,12 @@ export function ExpenseFlow({
                   disabled={submitting}
                   onClick={() => {
                     setScope("personal");
-                    setErrors((current) => ({ ...current, scope: undefined, participants: undefined }));
+                    setErrors((current) => ({
+                      ...current,
+                      scope: undefined,
+                      payer: undefined,
+                      participants: undefined,
+                    }));
                   }}
                 />
                 <ChoiceCard
@@ -360,21 +412,51 @@ export function ExpenseFlow({
                   title="Compartido"
                   description={
                     canShare
-                      ? "Se divide entre las personas que elijas."
+                      ? members.length === 2
+                        ? "Se divide entre los dos."
+                        : "Se divide entre las personas que elijas."
                       : "Invita a otra persona para registrar gastos compartidos."
                   }
                   selected={scope === "shared"}
                   disabled={submitting || !canShare}
                   onClick={() => {
                     setScope("shared");
-                    setErrors((current) => ({ ...current, scope: undefined }));
+                    setErrors((current) => ({ ...current, scope: undefined, payer: undefined }));
                   }}
                 />
               </div>
               <FieldError id={`${ids}-scope-error`}>{errors.scope}</FieldError>
             </Field>
 
-            {scope === "shared" && canShare ? (
+            {askPayer ? (
+              <Field>
+                <p id={payerLabelId} className="mb-2 text-label font-semibold text-muted-foreground">
+                  Quién pagó
+                </p>
+                <div className="space-y-2" role="radiogroup" aria-labelledby={payerLabelId}>
+                  {payerOptions.map((member) => {
+                    const selected = payerId === member.userId;
+                    const isSelf = member.userId === currentUserId;
+                    return (
+                      <ChoiceCard
+                        key={member.userId}
+                        title={member.displayName}
+                        description={isSelf ? "Tú · titular de la cuenta" : "Miembro del Nido"}
+                        selected={selected}
+                        disabled={submitting}
+                        onClick={() => {
+                          setPayerId(member.userId);
+                          setErrors((current) => ({ ...current, payer: undefined }));
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                <FieldError id={`${ids}-payer-error`}>{errors.payer}</FieldError>
+              </Field>
+            ) : null}
+
+            {askParticipants ? (
               <Field>
                 <p
                   id={participantsLabelId}

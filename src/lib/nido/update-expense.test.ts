@@ -109,6 +109,7 @@ describe("updateExpenseWithAuth (unit, mocked auth adapter)", () => {
           assert.equal(fn, "update_expense");
           assert.equal(args.p_expense_id, "e1");
           assert.equal(args.p_scope, "shared");
+          assert.equal(args.p_payer_id, "u1");
           const splits = args.p_splits as Array<{ member_id: string; amount: number }>;
           assert.equal(splits.length, 2);
           assert.equal(splits.reduce((sum, split) => sum + Math.round(split.amount * 100), 0), 10000);
@@ -118,5 +119,26 @@ describe("updateExpenseWithAuth (unit, mocked auth adapter)", () => {
     );
     assert.equal(result.ok, true);
     if (result.ok) assert.equal(result.data.id, "e1");
+  });
+
+  it("sends the selected payer on update", async () => {
+    const result = await updateExpenseWithAuth(
+      {
+        ...validInput,
+        scope: "shared",
+        amount: 100,
+        payerId: "u2",
+        participantIds: ["u1", "u2"],
+        activeMemberIds: ["u1", "u2"],
+      },
+      {
+        getUserId: async () => "u1",
+        rpc: async (_fn, args) => {
+          assert.equal(args.p_payer_id, "u2");
+          return { data: "e1", error: null };
+        },
+      },
+    );
+    assert.equal(result.ok, true);
   });
 });

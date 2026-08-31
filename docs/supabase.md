@@ -68,10 +68,14 @@ Applied to `nido_dev` in 9.4.10 (`supabase db push --linked` after dry-run):
 17. `20260822700000_nido_personal_visibility.sql`
 18. `20260822800000_nido_expense_refunds.sql`
 
+Applied to `nido_dev` (`supabase db push --linked` after dry-run):
+
+19. `20260822900000_nido_expense_selectable_payer.sql`
+
 ```text
-local  = 18
-remote = 18
-db push = YES (9.4.10)
+local  = 19
+remote = 19
+db push = YES (selectable expense payer)
 ```
 
 9.4.6–9.4.9 added no SQL. 9.4.0–9.4.9 did not push.

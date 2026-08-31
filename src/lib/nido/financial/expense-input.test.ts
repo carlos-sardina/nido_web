@@ -7,6 +7,10 @@ import {
   expenseDescriptionMessage,
   normalizeExpenseDescription,
   parseExpenseAmountInput,
+  resolveExpenseParticipantIds,
+  resolveExpensePayerId,
+  showExpenseParticipantPicker,
+  showExpensePayerPicker,
 } from "./expense-input.ts";
 
 const members = ["diana", "carlos"];
@@ -207,5 +211,80 @@ describe("buildCreateExpensePayload", () => {
     );
     assert.equal(result.ok, false);
     if (result.ok === false) assert.equal(result.error, "invalid_split");
+  });
+
+  it("records a household member as payer even when the writer is someone else", () => {
+    const result = buildCreateExpensePayload(
+      request({
+        scope: "shared",
+        amount: 100,
+        payerId: "carlos",
+        participantIds: members,
+      }),
+      "diana",
+    );
+    assert.equal(result.ok, true);
+    if (result.ok === false) return;
+    assert.equal(result.data.payerId, "carlos");
+    assert.equal(result.data.splits.length, 2);
+  });
+
+  it("rejects a payer who is not an active member", () => {
+    const result = buildCreateExpensePayload(
+      request({ scope: "shared", amount: 100, payerId: "luis", participantIds: members }),
+      "diana",
+    );
+    assert.equal(result.ok, false);
+    if (result.ok === false) assert.equal(result.error, "not_a_member");
+  });
+
+  it("keeps the writer as payer when payerId is omitted", () => {
+    const result = buildCreateExpensePayload(request(), "diana");
+    assert.equal(result.ok, true);
+    if (result.ok === false) return;
+    assert.equal(result.data.payerId, "diana");
+  });
+});
+
+describe("expense form pickers", () => {
+  it("asks who paid on a shared expense when there are at least two members", () => {
+    assert.equal(showExpensePayerPicker("shared", 2), true);
+    assert.equal(showExpensePayerPicker("shared", 3), true);
+    assert.equal(showExpensePayerPicker("personal", 2), false);
+    assert.equal(showExpensePayerPicker("shared", 1), false);
+    assert.equal(showExpensePayerPicker(null, 2), false);
+  });
+
+  it("asks who participates only on a shared expense with more than two members", () => {
+    assert.equal(showExpenseParticipantPicker("shared", 3), true);
+    assert.equal(showExpenseParticipantPicker("shared", 2), false);
+    assert.equal(showExpenseParticipantPicker("personal", 3), false);
+    assert.equal(showExpenseParticipantPicker(null, 3), false);
+  });
+
+  it("uses every member as a participant when the Nido has two people", () => {
+    assert.deepEqual(
+      resolveExpenseParticipantIds("shared", ["diana", "carlos"], ["diana"]),
+      ["diana", "carlos"],
+    );
+    assert.deepEqual(
+      resolveExpenseParticipantIds("shared", ["diana", "carlos", "ana"], ["diana", "ana"]),
+      ["diana", "ana"],
+    );
+  });
+
+  it("defaults the payer to the current user on a personal expense", () => {
+    assert.equal(
+      resolveExpensePayerId("personal", "carlos", "diana", ["diana", "carlos"]),
+      "diana",
+    );
+    assert.equal(
+      resolveExpensePayerId("shared", "carlos", "diana", ["diana", "carlos"]),
+      "carlos",
+    );
+    assert.equal(
+      resolveExpensePayerId("shared", "luis", "diana", ["diana", "carlos"]),
+      "diana",
+    );
   });
 });

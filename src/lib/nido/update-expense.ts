@@ -33,6 +33,7 @@ export async function updateExpenseWithAuth(
     p_amount: payload.data.amount,
     p_description: payload.data.description,
     p_occurred_at: payload.data.occurredAt,
+    p_payer_id: payload.data.payerId,
     p_scope: payload.data.scope,
     p_splits: payload.data.splits.map((split) => ({
       member_id: split.memberId,

@@ -219,19 +219,23 @@ Home `+` → **Registrar un gasto** → form → `createExpense()` → `create_e
 | Description | trimmed text, required in this phase, max 80 |
 | Category | `category_id` of an active expense category in the same household |
 | Date | `occurred_at` calendar date |
-| Payer / created_by | `auth.uid()` (v1 does not let the UI pick another payer) |
-| Personal | `scope = personal`, `distribution_method = fixed`, exactly one split at 100% for the payer |
+| Payer | `expenses.payer_id` of an **active** household member. The form defaults to the writer (titular). Shared expenses may pick another member. `created_by` stays `auth.uid()`. |
+| Personal | `scope = personal`, `distribution_method = fixed`, exactly one split at 100% for the payer (the writer) |
 | Shared | `scope = shared`. Split method comes from `households.default_split_method`, not from the client. `equal` → `distribution_method = equal` (current equal shares). `proportional` → `distribution_method = income_based` from confirmed `incomes` of the participants in the current `America/Mexico_City` calendar month. All participants with zero income in that month → `nido.invalid_split`. Recurring `income_based` still uses active `recurring_incomes` only. |
 
 The canonical split value is **amount**. Percentage is stored so the rows sum to 100. Equal splits assign leftover cents to the first participants.
 
-Participants of a shared expense are exactly the selected members. The whole Nido is not implied. Inactive members and members of another household are rejected.
+**Quién pagó** appears when the expense is shared and the Nido has at least two active members. Default is the writer. The writer can switch it to another active member.
+
+**Quiénes participan** appears only when the expense is shared **and** the Nido has more than two active members. With exactly two members, both participate; the picker is omitted.
+
+Participants of a shared expense with three or more members are exactly the selected members. Inactive members and members of another household are rejected.
 
 ### Atomicity
 
 PostgREST cannot wrap two inserts in a transaction. `public.create_expense(...)` inserts `expenses` and all `expense_splits` in one Postgres function. Invalid splits abort before commit. There is no orphan expense.
 
-`SECURITY INVOKER`: existing RLS still applies. `created_by` is `auth.uid()`. A client-supplied `household_id` is not enough; the caller must be an **active** member.
+`SECURITY INVOKER`: existing RLS still applies. `created_by` is `auth.uid()`. `payer_id` may be any active member of the same household. A client-supplied `household_id` is not enough; the caller must be an **active** member.
 
 ### Validations
 
@@ -276,9 +280,9 @@ The UI hides Editar/Eliminar for non-creators. That is not sufficient. RLS and R
 
 ## Edit
 
-Gastos → row → detail → **Editar** (creator only) reuses `ExpenseFlow`. Same validations as create. Changing personal↔shared, participants, category, or amount **replaces** `expense_splits` in one transaction (`update_expense`). There are no orphan splits: old rows are deleted, then the canonical set is inserted.
+Gastos → row → detail → **Editar** (creator only) reuses `ExpenseFlow`. Same validations as create. Changing personal↔shared, payer, participants, category, or amount **replaces** `expense_splits` in one transaction (`update_expense`). There are no orphan splits: old rows are deleted, then the canonical set is inserted.
 
-Payer and `created_by` stay the original creator. The client cannot change them.
+`created_by` stays the original creator. The payer may change to another active household member.
 
 ---
 

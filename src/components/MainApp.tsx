@@ -375,6 +375,7 @@ export function MainApp({
           <ExpenseFlow
             householdId={liveHousehold.id}
             members={members}
+            currentUserId={user?.id ?? null}
             defaultSplitMethod={liveHousehold.default_split_method}
             expense={editingExpense}
             onClose={() => {

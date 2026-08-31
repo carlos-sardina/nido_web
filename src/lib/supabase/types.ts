@@ -1339,6 +1339,7 @@ export type Database = {
           p_description: string
           p_expense_id: string
           p_occurred_at: string
+          p_payer_id: string
           p_scope: Database["public"]["Enums"]["expense_scope"]
           p_splits: Json
         }

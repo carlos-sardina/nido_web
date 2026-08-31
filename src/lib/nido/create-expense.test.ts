@@ -170,6 +170,27 @@ describe("createExpenseWithAuth (unit, mocked auth adapter)", () => {
     assert.equal(result.ok, true);
     if (result.ok) assert.equal(result.data.id, "e-99");
   });
+
+  it("sends another active member as payer when the form selects them", async () => {
+    const result = await createExpenseWithAuth(
+      {
+        ...validInput,
+        scope: "shared",
+        amount: 100,
+        payerId: "u2",
+        participantIds: ["u1", "u2"],
+        activeMemberIds: ["u1", "u2"],
+      },
+      {
+        getUserId: async () => "u1",
+        rpc: async (_fn, args) => {
+          assert.equal(args.p_payer_id, "u2");
+          return { data: "e-payer", error: null };
+        },
+      },
+    );
+    assert.equal(result.ok, true);
+  });
 });
 
 describe("canSubmitExpense", () => {

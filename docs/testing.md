@@ -219,11 +219,12 @@ Requires migration `20260821000000_nido_categories_and_create_expense.sql` on th
 5. Empty amount, `0`, negative, and malformed amounts are rejected in Spanish. Invalid input is not coerced to `0`.
 6. Empty / whitespace description is rejected. Unicode is kept.
 7. Register a **personal** gasto for today → it appears in Home spent this month and activity.
-8. Register a **shared** gasto with at least two active members → `expense_splits` amounts sum to the expense.
-9. Double-tap **Guardar gasto** → one row. Button shows **Guardando…** and stays disabled.
-10. A date in a previous month updates activity if recent, but does not change “este mes” totals.
-11. A user who already left the Nido cannot register a gasto there.
-12. Errors stay in Spanish. No PostgREST / `nido.*` raw codes.
+8. Register a **shared** gasto with two active members → **Quién pagó** defaults to the writer (titular); it can be switched to the other member. **Quiénes participan** does not appear; both members are participants. `expense_splits` amounts sum to the expense.
+9. With **three or more** members, a shared gasto shows **Quiénes participan**. Unselected members are not split.
+10. Double-tap **Guardar gasto** → one row. Button shows **Guardando…** and stays disabled.
+11. A date in a previous month updates activity if recent, but does not change “este mes” totals.
+12. A user who already left the Nido cannot register a gasto there.
+13. Errors stay in Spanish. No PostgREST / `nido.*` raw codes.
 
 Manual runs actually executed for this checklist: none in this phase.
 
@@ -234,7 +235,7 @@ Manual runs actually executed for this checklist: none in this phase.
 Requires migrations `20260821000000_nido_categories_and_create_expense.sql` and `20260821120000_nido_expense_mutations.sql` on the linked project. Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. SQL cases `X08`–`X14` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). The manual UI checklist below was **not** executed in a live app session.
 
 A. **Crear gasto personal** — Home `+` → Registrar un gasto → personal → aparece en Home y Gastos.
-B. **Crear gasto compartido** — al menos dos miembros activos; los splits suman el monto.
+B. **Crear gasto compartido** — al menos dos miembros activos; **Quién pagó** por defecto el titular; con dos miembros no aparece **Quiénes participan**; los splits suman el monto.
 C. **Ver gasto en Home** — total del mes y actividad reciente usan el snapshot real.
 D. **Ver gasto en Gastos** — lista del mes actual, sin mocks, ordenada por fecha.
 E. **Abrir detalle** — descripción, monto, categoría, fecha, personal/compartido, quién registró, quién pagó, distribución si es compartido.

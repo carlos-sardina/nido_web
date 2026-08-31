@@ -98,6 +98,10 @@ export {
   expenseDescriptionMessage,
   normalizeExpenseDescription,
   parseExpenseAmountInput,
+  resolveExpenseParticipantIds,
+  resolveExpensePayerId,
+  showExpenseParticipantPicker,
+  showExpensePayerPicker,
 } from "./expense-input.ts";
 export {
   allocateRefundSplits,

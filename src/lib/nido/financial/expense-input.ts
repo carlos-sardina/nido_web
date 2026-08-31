@@ -18,6 +18,8 @@ export type CreateExpenseRequest = {
   description: string;
   occurredAt: string;
   scope: ExpenseScope;
+  /** Who paid. Defaults to the writer. Must be an active household member. */
+  payerId?: string;
   participantIds: readonly string[];
   activeMemberIds: readonly string[];
   allowedCategoryIds: readonly string[];
@@ -29,9 +31,50 @@ export type CreateExpensePayload = {
   amount: number;
   description: string;
   occurredAt: string;
+  payerId: string;
   scope: ExpenseScope;
   splits: SplitDraft[];
 };
+
+/** Shared expenses with two members split between both; the picker is unnecessary. */
+export function showExpenseParticipantPicker(
+  scope: ExpenseScope | null,
+  memberCount: number,
+): boolean {
+  return scope === "shared" && memberCount > 2;
+}
+
+/** Who paid only matters when the expense can be attributed to another member. */
+export function showExpensePayerPicker(
+  scope: ExpenseScope | null,
+  memberCount: number,
+): boolean {
+  return scope === "shared" && memberCount >= 2;
+}
+
+export function resolveExpenseParticipantIds(
+  scope: ExpenseScope,
+  memberIds: readonly string[],
+  selectedIds: readonly string[],
+): readonly string[] {
+  if (scope !== "shared") return selectedIds;
+  if (memberIds.length <= 2) return memberIds;
+  return selectedIds;
+}
+
+export function resolveExpensePayerId(
+  scope: ExpenseScope,
+  selectedPayerId: string,
+  currentUserId: string,
+  memberIds: readonly string[],
+): string {
+  const self = memberIds.includes(currentUserId)
+    ? currentUserId
+    : (memberIds[0] ?? currentUserId);
+  if (scope === "personal") return self;
+  if (memberIds.includes(selectedPayerId)) return selectedPayerId;
+  return self;
+}
 
 function looksNegative(raw: string): boolean {
   return /^\s*-/.test(raw) || /-\s*\d/.test(raw);
@@ -97,10 +140,13 @@ export function expenseDescriptionMessage(raw: string): string | null {
 
 export function buildCreateExpensePayload(
   input: CreateExpenseRequest,
-  payerId: string,
+  writerId: string,
 ): { ok: true; data: CreateExpensePayload } | { ok: false; error: NidoErrorCode } {
   if (!input.householdId) return { ok: false, error: "not_a_member" };
-  if (!payerId) return { ok: false, error: "unauthenticated" };
+  if (!writerId) return { ok: false, error: "unauthenticated" };
+  if (!input.activeMemberIds.includes(writerId)) return { ok: false, error: "not_a_member" };
+
+  const payerId = input.payerId ?? writerId;
   if (!input.activeMemberIds.includes(payerId)) return { ok: false, error: "not_a_member" };
 
   const amount = roundMoney(input.amount);
@@ -145,6 +191,7 @@ export function buildCreateExpensePayload(
       amount,
       description,
       occurredAt: input.occurredAt,
+      payerId,
       scope: input.scope,
       splits,
     },

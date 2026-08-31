@@ -1673,14 +1673,14 @@ BEGIN
     pg_temp.expect_allow(format(
       $sql$
         SELECT public.update_expense(
-          %L::uuid, %L::uuid, 40, 'Cena editada', DATE '2026-08-21', 'shared',
+          %L::uuid, %L::uuid, 40, 'Cena editada', DATE '2026-08-21', %L::uuid, 'shared',
           jsonb_build_array(
             jsonb_build_object('member_id', %L, 'amount', 20, 'percentage', 50),
             jsonb_build_object('member_id', %L, 'amount', 20, 'percentage', 50)
           )
         )
       $sql$,
-      v_mutate, v_cat_expense_a, v_carlos, v_diana
+      v_mutate, v_cat_expense_a, v_carlos, v_carlos, v_diana
     ))
   );
 
@@ -1702,11 +1702,11 @@ BEGIN
       WHEN pg_temp.expect_allow(format(
         $sql$
           SELECT public.update_expense(
-            %L::uuid, %L::uuid, 15, 'Diana no puede', DATE '2026-08-21', 'personal',
+            %L::uuid, %L::uuid, 15, 'Diana no puede', DATE '2026-08-21', %L::uuid, 'personal',
             jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 15, 'percentage', 100))
           )
         $sql$,
-        v_mutate, v_cat_expense_a, v_diana
+        v_mutate, v_cat_expense_a, v_diana, v_diana
       )) = 'deny'
       AND pg_temp.expect_allow(format(
         'UPDATE public.expenses SET description = %L WHERE id = %L',
@@ -1734,11 +1734,11 @@ BEGIN
       WHEN pg_temp.expect_allow(format(
         $sql$
           SELECT public.update_expense(
-            %L::uuid, %L::uuid, 15, 'Luis no puede', DATE '2026-08-21', 'personal',
+            %L::uuid, %L::uuid, 15, 'Luis no puede', DATE '2026-08-21', %L::uuid, 'personal',
             jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 15, 'percentage', 100))
           )
         $sql$,
-        v_mutate, v_cat_expense_a, v_luis
+        v_mutate, v_cat_expense_a, v_luis, v_luis
       )) = 'deny'
       AND pg_temp.expect_allow(format(
         'SELECT public.soft_delete_expense(%L::uuid)',
@@ -1779,11 +1779,11 @@ BEGIN
       WHEN pg_temp.expect_allow(format(
         $sql$
           SELECT public.update_expense(
-            %L::uuid, %L::uuid, 12, 'Ya eliminado', DATE '2026-08-21', 'personal',
+            %L::uuid, %L::uuid, 12, 'Ya eliminado', DATE '2026-08-21', %L::uuid, 'personal',
             jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 12, 'percentage', 100))
           )
         $sql$,
-        v_mutate, v_cat_expense_a, v_carlos
+        v_mutate, v_cat_expense_a, v_carlos, v_carlos
       )) = 'deny'
       AND pg_temp.expect_allow(format(
         'SELECT public.soft_delete_expense(%L::uuid)',
@@ -1817,7 +1817,7 @@ BEGIN
 
   PERFORM pg_temp.record_result(
     'X16', 'Carlos', 'A', 'active', 'PostgREST INSERT other member payer_id',
-    'deny',
+    'allow',
     pg_temp.expect_allow(format(
       $sql$
         INSERT INTO public.expenses (
@@ -1919,6 +1919,20 @@ BEGIN
     ))
   );
 
+  PERFORM pg_temp.record_result(
+    'X24', 'Carlos', 'A', 'active', 'create_expense RPC other member payer_id',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_expense(
+          %L::uuid, %L::uuid, 18, 'RPC otro pagador', DATE '2026-08-21', %L::uuid, 'personal',
+          jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 18, 'percentage', 100))
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_diana, v_diana
+    ))
+  );
+
   PERFORM pg_temp.set_auth(v_carlos);
   SELECT public.create_expense(
     v_nido_a,
@@ -1932,8 +1946,8 @@ BEGIN
   ) INTO v_payer_lock;
 
   PERFORM pg_temp.record_result(
-    'X23', 'Carlos', 'A', 'active', 'PostgREST UPDATE cannot reattribute payer_id',
-    'deny',
+    'X23', 'Carlos', 'A', 'active', 'PostgREST UPDATE can reattribute payer_id to household member',
+    'allow',
     pg_temp.expect_allow(format(
       'UPDATE public.expenses SET payer_id = %L WHERE id = %L',
       v_diana, v_payer_lock
@@ -3922,11 +3936,11 @@ BEGIN
       WHEN pg_temp.expect_allow(format(
         $sql$
           SELECT public.update_expense(
-            %L::uuid, %L::uuid, 12, 'Ya salio', DATE '2026-08-21', 'personal',
+            %L::uuid, %L::uuid, 12, 'Ya salio', DATE '2026-08-21', %L::uuid, 'personal',
             jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 12, 'percentage', 100))
           )
         $sql$,
-        v_expense_a, v_cat_expense_a, v_carlos
+        v_expense_a, v_cat_expense_a, v_carlos, v_carlos
       )) = 'deny'
       AND pg_temp.expect_allow(format(
         'SELECT public.soft_delete_expense(%L::uuid)',

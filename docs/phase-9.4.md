@@ -10,7 +10,7 @@ Source of confirmed product decisions: the 9.4.0 brief. Discarded items live in 
 
 ### 1.1 Migrations
 
-Exactly **18** local migrations. Remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) has the same **18** after the 9.4.10 `db push`. 9.4.0–9.4.9 did not push.
+Exactly **19** local migrations. Remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) has the same **19** after pushing `20260822900000_nido_expense_selectable_payer.sql`. 9.4.0–9.4.9 did not push. 9.4.10 applied 15–18.
 
 | # | Migration |
 | --- | --- |
@@ -32,6 +32,7 @@ Exactly **18** local migrations. Remote (`nido_dev` / `pxfdvhavcddqmhuljxlf`) ha
 | 16 | `20260822600000_nido_onboarding_savings_budgets.sql` |
 | 17 | `20260822700000_nido_personal_visibility.sql` |
 | 18 | `20260822800000_nido_expense_refunds.sql` |
+| 19 | `20260822900000_nido_expense_selectable_payer.sql` (after 9.4; applied to `nido_dev`) |
 
 Protected business data (do not touch): **Departamento**, **Nido Smoke 924**.
 

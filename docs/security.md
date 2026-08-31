@@ -197,7 +197,7 @@ Applies to `incomes`, `recurring_incomes`, `recurring_expenses`, `budgets`, `sav
 
 **`expenses` UPDATE is tighter** (Phase 9.1.2B): the writer must be an **active** member, `created_by = auth.uid()`, and the row must not already be soft-deleted. Shared SELECT is unchanged (household member). Personal SELECT is the owner or a household member when the owner’s `personal_visibility = nido`. `expense_splits` inherit that parent SELECT. See the expenses table below.
 
-**`expenses` INSERT locks payer identity** (Phase 9.2.4): `created_by = auth.uid()` and `payer_id = auth.uid()`. The registrar is the payer in v1. Shared splits may still include other active members. UPDATE WITH CHECK also keeps `payer_id = auth.uid()` so PostgREST cannot reattribute payment. `create_expense` remains `SECURITY INVOKER`.
+**`expenses` INSERT** (selectable payer): `created_by = auth.uid()`. `payer_id` must be an **active** member of the same household; it may be someone other than the writer. Shared splits may include other active members. UPDATE WITH CHECK no longer forces `payer_id = auth.uid()`, so a creator can edit an expense someone else paid and can correct the payer. A new payer must still pass the integrity trigger (active member). `create_expense` / `update_expense` remain `SECURITY INVOKER`. Recurring expenses still lock `payer_id = auth.uid()`.
 
 **`incomes` UPDATE is tighter** (Phase 9.1.3C): the writer must be an **active** member, `created_by = auth.uid()`, `member_id` remains `auth.uid()`, and the row must not already be soft-deleted. INSERT also requires `member_id = auth.uid()`. Other members may SELECT. Physical DELETE remains denied.
 
@@ -208,8 +208,8 @@ Applies to `incomes`, `recurring_incomes`, `recurring_expenses`, `budgets`, `sav
 | Operation | Policy |
 | --- | --- |
 | SELECT | Historical member of `household_id`. **Personal** `expenses` / `budgets` / `savings_balances` also require the owner or `personal_finance_visible(owner)`. Shared / Nido rows do not. |
-| INSERT | Active member, `created_by = auth.uid()`, subject (`member_id` / `payer_id`) is an active member of the same household when present, and `category_id` belongs to that household when present. **`incomes` / `recurring_incomes` INSERT** also requires `member_id = auth.uid()`. **`expenses` / `recurring_expenses` INSERT** also requires `payer_id = auth.uid()`. |
-| UPDATE | Active member of the row’s household. Category must remain in that household. **`goals` UPDATE** also requires `created_by = auth.uid()` and `status <> archived`. **`incomes` UPDATE** also requires `created_by = auth.uid()`, `member_id = auth.uid()`, and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`). **`expenses` UPDATE** also requires `created_by = auth.uid()`, `payer_id = auth.uid()`, and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`). **`budgets` UPDATE** also requires `created_by = auth.uid()` and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`). **`recurring_incomes` / `recurring_expenses` UPDATE** also requires `created_by = auth.uid()` and keeps `member_id` / `payer_id` as `auth.uid()` |
+| INSERT | Active member, `created_by = auth.uid()`, subject (`member_id` / `payer_id`) is an active member of the same household when present, and `category_id` belongs to that household when present. **`incomes` / `recurring_incomes` INSERT** also requires `member_id = auth.uid()`. **`recurring_expenses` INSERT** also requires `payer_id = auth.uid()`. **`expenses` INSERT** allows `payer_id` of any active household member. |
+| UPDATE | Active member of the row’s household. Category must remain in that household. **`goals` UPDATE** also requires `created_by = auth.uid()` and `status <> archived`. **`incomes` UPDATE** also requires `created_by = auth.uid()`, `member_id = auth.uid()`, and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`). **`expenses` UPDATE** also requires `created_by = auth.uid()` and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`). Payer may change to another active household member. **`budgets` UPDATE** also requires `created_by = auth.uid()` and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`). **`recurring_incomes` / `recurring_expenses` UPDATE** also requires `created_by = auth.uid()` and keeps `member_id` / `payer_id` as `auth.uid()` |
 | DELETE | None. Soft-delete / deactivate / archive instead |
 
 UPDATE does not require the **subject** (`member_id` / `payer_id`) to still be active. Remaining members can correct or soft-delete rows that belong to people who have left. Integrity triggers still reject key changes that attach a new departed member.
@@ -410,7 +410,8 @@ Same period + same `recurring_id` cannot insert two live movements.
 | --- | --- | --- | --- | --- |
 | Carlos | A | active | SELECT expense | allow |
 | Carlos | A | active | INSERT expense (own `payer_id`) | allow |
-| Carlos | A | active | INSERT expense with Diana / other-household `payer_id` | deny |
+| Carlos | A | active | INSERT expense with Diana `payer_id` | allow |
+| Carlos | A | active | INSERT expense with other-household `payer_id` | deny |
 | Carlos | A | active, creator | UPDATE / soft-delete expense | allow |
 | Diana | A | active, not creator | UPDATE / soft-delete Carlos expense | deny |
 | Carlos | A | active | SELECT/INSERT/UPDATE/DELETE split of own expense | allow |
