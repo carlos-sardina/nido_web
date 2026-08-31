@@ -7,6 +7,7 @@ import {
   identityFromUser,
   initialsFromName,
   isFallbackDisplayName,
+  suggestedOnboardingDisplayName,
 } from "./identity.ts";
 
 function user(overrides: Partial<User> & { user_metadata?: User["user_metadata"] }): User {
@@ -132,6 +133,25 @@ describe("isFallbackDisplayName", () => {
       }),
       false,
     );
+  });
+});
+
+describe("suggestedOnboardingDisplayName", () => {
+  it("leaves the onboarding name empty when Auth only has the email local-part", () => {
+    const identity = identityFromUser(user({
+      email: "carlos@example.com",
+      user_metadata: {},
+    }));
+    assert.equal(suggestedOnboardingDisplayName(identity), "");
+    assert.equal(suggestedOnboardingDisplayName(null), "");
+  });
+
+  it("prefills a real Auth name that is not the email local-part", () => {
+    const identity = identityFromUser(user({
+      email: "alex@example.com",
+      user_metadata: { full_name: "Alex Rivera" },
+    }));
+    assert.equal(suggestedOnboardingDisplayName(identity), "Alex Rivera");
   });
 });
 

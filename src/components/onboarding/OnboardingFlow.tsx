@@ -9,7 +9,7 @@ import type { User } from "@supabase/supabase-js";
 import { AuthPanel, type AuthView } from "@/components/auth/AuthPanel";
 import { CONFIRM_EMAIL_HEADING } from "@/lib/auth/credentials";
 import { resolveNidoChoice } from "@/lib/auth/destination";
-import { identityFromUser } from "@/lib/auth/identity";
+import { identityFromUser, isFallbackDisplayName, suggestedOnboardingDisplayName } from "@/lib/auth/identity";
 import { createHouseholdFromOnboarding } from "@/lib/nido/household";
 import { planOnboardingFinances } from "@/lib/onboarding/financial-plan";
 import { createInvitation } from "@/lib/nido/invitations";
@@ -100,11 +100,16 @@ export function OnboardingFlow({
 
   const applyNidoChoice = (choice: "create" | "join") => {
     const dest = resolveNidoChoice(choice);
-    setData(p => ({
-      ...p,
-      flow: choice,
-      userName: p.userName || identity?.displayName || "",
-    }));
+    setData(p => {
+      const keepTypedName =
+        Boolean(p.userName.trim()) &&
+        !isFallbackDisplayName({ displayName: p.userName, email: identity?.email });
+      return {
+        ...p,
+        flow: choice,
+        userName: keepTypedName ? p.userName : suggestedOnboardingDisplayName(identity),
+      };
+    });
     goTo(dest.kind === "join_code" ? "join" : "c-name");
   };
 
@@ -156,6 +161,12 @@ export function OnboardingFlow({
       if (draft && draft.step !== "select") {
         setData({
           ...draft.data,
+          userName: isFallbackDisplayName({
+            displayName: draft.data.userName,
+            email: user.email,
+          })
+            ? ""
+            : draft.data.userName,
           expenses: draft.data.expenses.length > 0
             ? draft.data.expenses
             : EXP_SUGG.map((expense) => ({ ...expense })),
@@ -183,7 +194,9 @@ export function OnboardingFlow({
   });
 
   const persistDisplayName = async () => {
-    const displayName = normalizeDisplayName(data.userName || identity?.displayName || "");
+    const displayName = normalizeDisplayName(
+      data.userName || suggestedOnboardingDisplayName(identity),
+    );
     if (!displayName) {
       return { ok: false as const, error: { message: "Ingresa el nombre que verán los demás miembros." } };
     }

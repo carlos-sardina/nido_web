@@ -60,6 +60,18 @@ export function isFallbackDisplayName(input: {
   return name === local;
 }
 
+/**
+ * Name to prefill in onboarding. Empty when Auth only has the email
+ * local-part fallback so the user types a real name.
+ */
+export function suggestedOnboardingDisplayName(identity: AuthIdentity | null): string {
+  if (!identity) return "";
+  if (isFallbackDisplayName({ displayName: identity.displayName, email: identity.email })) {
+    return "";
+  }
+  return identity.displayName;
+}
+
 export function identityFromUser(user: User | null | undefined): AuthIdentity | null {
   if (!user) return null;
 
