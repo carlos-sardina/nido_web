@@ -515,9 +515,6 @@ export function OnboardingFlow({
                   }}
                 />
               </div>
-              {inviteUrl && (
-                <HelperText className="break-all mb-4">{inviteUrl}</HelperText>
-              )}
               <Button
                 onClick={() => { void handleCreateNido(); }}
                 disabled={submitting}
