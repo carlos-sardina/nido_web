@@ -35,7 +35,7 @@ import {
   signUpWithPassword,
 } from "@/lib/auth/session";
 import { Button } from "@/components/nido/Button";
-import { Field, FieldError, FieldLabel, HelperText, TextInput } from "@/components/nido/Field";
+import { Field, FieldError, FieldLabel, HelperText, PasswordInput, TextInput } from "@/components/nido/Field";
 import { TextLink } from "@/components/nido/TextLink";
 import { Text } from "@/components/nido/Typography";
 
@@ -309,9 +309,8 @@ export function AuthPanel({
         {(view === "signup" || view === "login") && (
           <Field>
             <FieldLabel htmlFor={passwordId}>Contraseña</FieldLabel>
-            <TextInput
+            <PasswordInput
               id={passwordId}
-              type="password"
               autoComplete={view === "signup" ? "new-password" : "current-password"}
               placeholder="Contraseña"
               value={password}
@@ -325,9 +324,8 @@ export function AuthPanel({
         {view === "signup" && (
           <Field>
             <FieldLabel htmlFor={confirmId}>Confirmar contraseña</FieldLabel>
-            <TextInput
+            <PasswordInput
               id={confirmId}
-              type="password"
               autoComplete="new-password"
               placeholder="Repite la contraseña"
               value={confirmPassword}

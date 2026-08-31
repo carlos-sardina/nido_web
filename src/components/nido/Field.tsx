@@ -1,6 +1,8 @@
 "use client";
 
 import type { InputHTMLAttributes, ReactNode } from "react";
+import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/app/components/ui/utils";
 import { Text } from "@/components/nido/Typography";
 
@@ -44,6 +46,57 @@ export function TextInput({
       aria-invalid={invalid || undefined}
       {...props}
     />
+  );
+}
+
+export function PasswordInput({
+  invalid = false,
+  filled = false,
+  className,
+  disabled,
+  id,
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & {
+  invalid?: boolean;
+  filled?: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div className="relative">
+      <TextInput
+        id={id}
+        invalid={invalid}
+        filled={filled}
+        disabled={disabled}
+        spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
+        {...props}
+        type={visible ? "text" : "password"}
+        className={cn("pr-12", className)}
+      />
+      <button
+        type="button"
+        disabled={disabled}
+        className={cn(
+          "absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-xl",
+          "text-muted-foreground transition-colors hover:text-foreground",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+          "disabled:pointer-events-none disabled:opacity-50",
+        )}
+        aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+        aria-pressed={visible}
+        aria-controls={id}
+        onClick={() => setVisible((current) => !current)}
+      >
+        {visible ? (
+          <EyeOff className="h-5 w-5" aria-hidden="true" />
+        ) : (
+          <Eye className="h-5 w-5" aria-hidden="true" />
+        )}
+      </button>
+    </div>
   );
 }
 

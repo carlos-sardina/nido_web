@@ -8,7 +8,7 @@ import { RECOVERY_LINK_INVALID_MESSAGE } from "@/lib/auth/recovery";
 import { updatePassword } from "@/lib/auth/session";
 import { useAuth } from "@/lib/auth/use-auth";
 import { Button } from "@/components/nido/Button";
-import { Field, FieldError, FieldLabel, TextInput } from "@/components/nido/Field";
+import { Field, FieldError, FieldLabel, PasswordInput } from "@/components/nido/Field";
 import { FlowScreen, ScreenIntro } from "@/components/nido/Screen";
 import { TextLink } from "@/components/nido/TextLink";
 
@@ -78,9 +78,8 @@ export default function UpdatePasswordPage() {
           >
             <Field>
               <FieldLabel htmlFor={passwordId}>Contraseña</FieldLabel>
-              <TextInput
+              <PasswordInput
                 id={passwordId}
-                type="password"
                 autoComplete="new-password"
                 value={password}
                 filled={Boolean(password)}
@@ -90,9 +89,8 @@ export default function UpdatePasswordPage() {
             </Field>
             <Field>
               <FieldLabel htmlFor={confirmId}>Confirmar contraseña</FieldLabel>
-              <TextInput
+              <PasswordInput
                 id={confirmId}
-                type="password"
                 autoComplete="new-password"
                 value={confirmPassword}
                 filled={Boolean(confirmPassword)}
