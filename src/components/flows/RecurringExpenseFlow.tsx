@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { cn } from "@/app/components/ui/utils";
+import { CategoryPicker } from "@/components/flows/CategoryPicker";
 import { Button } from "@/components/nido/Button";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
-import { EmptyState } from "@/components/nido/EmptyState";
 import {
   Field,
   FieldError,
@@ -13,7 +12,6 @@ import {
   TextInput,
 } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
-import { Text } from "@/components/nido/Typography";
 import {
   amountToRecurrenceInput,
   parseRecurrenceAmountInput,
@@ -289,43 +287,20 @@ export function RecurringExpenseFlow({
 
             <Field>
               <p className="mb-2 text-label font-semibold text-muted-foreground">Categoría</p>
-              {loadingCategories ? (
-                <Text size="caption" tone="muted">Cargando categorías…</Text>
-              ) : categories.length === 0 ? (
-                <EmptyState
-                  plain
-                  title="No hay categorías disponibles."
-                  description="No se pueden crear recurrencias hasta que tu Nido tenga categorías."
-                />
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {categories.map((category) => {
-                    const selected = categoryId === category.id;
-                    return (
-                      <button
-                        key={category.id}
-                        type="button"
-                        aria-pressed={selected}
-                        disabled={submitting}
-                        onClick={() => {
-                          setCategoryId(category.id);
-                          setErrors((current) => ({ ...current, category: undefined }));
-                        }}
-                        className={cn(
-                          "flex items-center gap-2 p-3 rounded-2xl border-2 text-left transition-all",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                          selected ? "border-primary bg-card" : "border-border bg-card",
-                        )}
-                      >
-                        <span aria-hidden="true">{category.icon ?? "💸"}</span>
-                        <Text as="span" size="label" className="min-w-0 truncate">
-                          {category.name}
-                        </Text>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <CategoryPicker
+                householdId={householdId}
+                type="expense"
+                categories={categories}
+                selectedId={categoryId}
+                loading={loadingCategories}
+                disabled={submitting}
+                fallbackIcon="💸"
+                onSelect={(id) => {
+                  setCategoryId(id);
+                  setErrors((current) => ({ ...current, category: undefined }));
+                }}
+                onCategoriesChange={setCategories}
+              />
               <FieldError>{errors.category}</FieldError>
             </Field>
 
