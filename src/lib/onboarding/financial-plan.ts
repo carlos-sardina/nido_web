@@ -6,7 +6,8 @@
  * are discarded when the Nido is created.
  */
 
-import type { OData } from "../types.ts";
+import { isSuggestedOnboardingExpenseName } from "../constants.ts";
+import type { OData, OnboardingExpense } from "../types.ts";
 import { normalizeCategoryName } from "../nido/financial/categories.ts";
 import { isHouseholdSplitMethod, type HouseholdSplitMethod } from "../nido/split-method.ts";
 import { normalizeHouseholdName } from "../nido/rules.ts";
@@ -37,6 +38,7 @@ export type OnboardingEstimatePlan = {
   name: string;
   icon: string;
   type: "personal" | "shared";
+  /** Positive amount writes a budget. Zero keeps the category without a budget. */
   amount: number;
 };
 
@@ -67,6 +69,12 @@ export function onboardingEstimateCategoryName(name: string): string | null {
   return normalizeCategoryName(name);
 }
 
+export function isCustomOnboardingExpense(
+  expense: Pick<OnboardingExpense, "name" | "custom">,
+): boolean {
+  return expense.custom === true || !isSuggestedOnboardingExpenseName(expense.name);
+}
+
 function optionalSavingsPlan(
   raw: string,
   scope: "personal" | "shared",
@@ -80,22 +88,33 @@ function optionalSavingsPlan(
 }
 
 /**
- * Selected estimates with a positive amount. Same resolved name + type
- * are summed so the RPC writes one live budget per scope/category/month.
+ * Suggested onboarding rows persist only with a positive amount.
+ * Custom rows persist even when blank or zero (category only).
+ * Same resolved name + type are summed so the RPC writes one live
+ * budget per scope/category/month. Amount 0 means category, no budget.
  */
 export function buildOnboardingEstimates(
   data: Pick<OData, "expenses">,
 ): { ok: true; estimates: OnboardingEstimatePlan[] } | { ok: false; error: string } {
   const grouped = new Map<string, OnboardingEstimatePlan>();
 
-  for (const expense of data.expenses) {
-    if (!expense.selected) continue;
-    if (!expense.amount.trim()) continue;
+  const upsert = (plan: OnboardingEstimatePlan) => {
+    const key = `${plan.name.toLowerCase()}|${plan.type}`;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.amount = Math.round((existing.amount + plan.amount) * 100) / 100;
+      return;
+    }
+    grouped.set(key, plan);
+  };
 
-    const amount = parseMoneyInput(expense.amount);
-    if (amount === null) return { ok: false, error: "Ingresa un monto válido." };
-    if (amount < 0) return { ok: false, error: "El monto no puede ser negativo." };
-    if (amount === 0) continue;
+  for (const expense of data.expenses) {
+    const custom = isCustomOnboardingExpense(expense);
+
+    if (!custom) {
+      if (!expense.selected) continue;
+      if (!expense.amount.trim()) continue;
+    }
 
     if (expense.type !== "personal" && expense.type !== "shared") {
       return { ok: false, error: "Elige si el gasto es personal o compartido." };
@@ -104,19 +123,23 @@ export function buildOnboardingEstimates(
     const name = onboardingEstimateCategoryName(expense.name);
     if (!name) return { ok: false, error: "Ingresa el nombre del gasto." };
 
-    const key = `${name.toLowerCase()}|${expense.type}`;
-    const existing = grouped.get(key);
-    if (existing) {
-      existing.amount = Math.round((existing.amount + amount) * 100) / 100;
+    const icon = expense.icon.trim() || "💳";
+
+    if (!expense.amount.trim()) {
+      upsert({ name, icon, type: expense.type, amount: 0 });
       continue;
     }
 
-    grouped.set(key, {
-      name,
-      icon: expense.icon.trim() || "💳",
-      type: expense.type,
-      amount,
-    });
+    const amount = parseMoneyInput(expense.amount);
+    if (amount === null) return { ok: false, error: "Ingresa un monto válido." };
+    if (amount < 0) return { ok: false, error: "El monto no puede ser negativo." };
+    if (amount === 0) {
+      if (!custom) continue;
+      upsert({ name, icon, type: expense.type, amount: 0 });
+      continue;
+    }
+
+    upsert({ name, icon, type: expense.type, amount });
   }
 
   return { ok: true, estimates: [...grouped.values()] };

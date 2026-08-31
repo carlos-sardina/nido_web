@@ -6,6 +6,7 @@ import {
   ONBOARDING_INCOME_DESCRIPTION,
   buildOnboardingEstimates,
   hasOptionalSavings,
+  isCustomOnboardingExpense,
   onboardingEstimateCategoryName,
   planOnboardingFinances,
   selectedEstimatedExpenses,
@@ -184,6 +185,15 @@ describe("onboarding financial plan — savings", () => {
   });
 });
 
+describe("onboarding financial plan — custom vs suggested", () => {
+  it("treats catalog names as suggested unless marked custom", () => {
+    assert.equal(isCustomOnboardingExpense({ name: "Renta" }), false);
+    assert.equal(isCustomOnboardingExpense({ name: "Restaurantes" }), false);
+    assert.equal(isCustomOnboardingExpense({ name: "Renta", custom: true }), true);
+    assert.equal(isCustomOnboardingExpense({ name: "Masajes" }), true);
+  });
+});
+
 describe("onboarding financial plan — estimates", () => {
   it("maps a shared estimate to a household budget payload", () => {
     const data = completeDraft();
@@ -229,12 +239,12 @@ describe("onboarding financial plan — estimates", () => {
     assert.ok(DEFAULT_EXPENSE_CATEGORIES.some((row) => row.name === "Restaurantes"));
   });
 
-  it("skips blank and zero estimates and rejects invalid selected amounts", () => {
+  it("skips blank and zero suggested estimates and rejects invalid selected amounts", () => {
     const data = minimalDraft();
     data.expenses = [
       { name: "Renta", icon: "🏢", selected: true, amount: "", type: "shared", kind: "recurring" },
       { name: "Gym", icon: "🏋️", selected: true, amount: "0", type: "personal", kind: "recurring" },
-      { name: "Spotify", icon: "🎵", selected: false, amount: "200", type: "personal", kind: "recurring" },
+      { name: "Suscripciones", icon: "📱", selected: false, amount: "200", type: "personal", kind: "recurring" },
     ];
     const selected = selectedEstimatedExpenses(data);
     assert.equal(selected.length, 1);
@@ -249,6 +259,39 @@ describe("onboarding financial plan — estimates", () => {
       ],
     });
     assert.equal(invalid.ok, false);
+  });
+
+  it("persists a custom category even when the amount is blank or zero", () => {
+    const data = minimalDraft();
+    data.expenses = [
+      { name: "Renta", icon: "🏢", selected: true, amount: "", type: "shared", kind: "recurring" },
+      { name: "Masajes", icon: "💅", selected: false, amount: "", type: "personal", kind: "variable", custom: true },
+      { name: "Veterinario", icon: "🐾", selected: true, amount: "0", type: "shared", kind: "variable", custom: true },
+    ];
+    const built = buildOnboardingEstimates(data);
+    assert.equal(built.ok, true);
+    if (built.ok === false) return;
+    assert.equal(built.estimates.length, 2);
+    assert.deepEqual(
+      built.estimates.map((row) => ({ name: row.name, amount: row.amount })).sort((a, b) => a.name.localeCompare(b.name)),
+      [
+        { name: "Masajes", amount: 0 },
+        { name: "Veterinario", amount: 0 },
+      ],
+    );
+  });
+
+  it("treats a name outside the onboarding catalog as custom", () => {
+    const data = minimalDraft();
+    data.expenses = [
+      { name: "Spotify", icon: "🎵", selected: false, amount: "", type: "personal", kind: "variable" },
+    ];
+    const built = buildOnboardingEstimates(data);
+    assert.equal(built.ok, true);
+    if (built.ok === false) return;
+    assert.equal(built.estimates.length, 1);
+    assert.equal(built.estimates[0]?.name, "Spotify");
+    assert.equal(built.estimates[0]?.amount, 0);
   });
 
   it("sums two estimates that resolve to the same name and scope", () => {

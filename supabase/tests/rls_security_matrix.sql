@@ -5118,6 +5118,8 @@ DECLARE
   v_renta_count integer;
   v_vivienda_count integer;
   v_restaurantes_count integer;
+  v_masajes_count integer;
+  v_active_expense_count integer;
   v_split public.household_split_method;
   v_retry_id uuid;
   v_foreign_savings integer;
@@ -5192,7 +5194,8 @@ BEGIN
             {"name":"Renta","icon":"🏢","type":"shared","amount":8000},
             {"name":"Gym","icon":"🏋️","type":"personal","amount":800},
             {"name":"Restaurantes","icon":"🍔","type":"shared","amount":1500},
-            {"name":"Spotify","icon":"🎵","type":"personal","amount":200}
+            {"name":"Spotify","icon":"🎵","type":"personal","amount":200},
+            {"name":"Masajes","icon":"💅","type":"personal","amount":0}
           ]'::jsonb
         )
       $sql$
@@ -5264,6 +5267,19 @@ BEGIN
     AND archived_at IS NULL
     AND lower(name) = 'restaurantes';
 
+  SELECT count(*) INTO v_masajes_count
+  FROM public.categories
+  WHERE household_id = v_quinn_nido
+    AND type = 'expense'
+    AND archived_at IS NULL
+    AND lower(name) = 'masajes';
+
+  SELECT count(*) INTO v_active_expense_count
+  FROM public.categories
+  WHERE household_id = v_quinn_nido
+    AND type = 'expense'
+    AND archived_at IS NULL;
+
   PERFORM pg_temp.record_result(
     'OB15', 'Quinn', 'own', 'owner', 'equal split persisted',
     'allow',
@@ -5293,14 +5309,19 @@ BEGIN
     CASE WHEN v_budget_personal = 2 THEN 'allow' ELSE 'deny' END
   );
   PERFORM pg_temp.record_result(
-    'OB20', 'Quinn', 'own', 'owner', 'Renta is a custom category, not Vivienda',
+    'OB20', 'Quinn', 'own', 'owner', 'Renta is a custom category; unused Vivienda is not listed',
     'allow',
-    CASE WHEN v_renta_count = 1 AND v_vivienda_count = 1 THEN 'allow' ELSE 'deny' END
+    CASE WHEN v_renta_count = 1 AND v_vivienda_count = 0 THEN 'allow' ELSE 'deny' END
   );
   PERFORM pg_temp.record_result(
-    'OB21', 'Quinn', 'own', 'owner', 'Restaurantes reused the default category',
+    'OB21', 'Quinn', 'own', 'owner', 'only filled and custom expense categories stay active',
     'allow',
-    CASE WHEN v_restaurantes_count = 1 THEN 'allow' ELSE 'deny' END
+    CASE
+      WHEN v_restaurantes_count = 1
+       AND v_masajes_count = 1
+       AND v_active_expense_count = 5
+      THEN 'allow' ELSE 'deny'
+    END
   );
 
   SELECT b.amount, b.member_id
@@ -5398,6 +5419,12 @@ BEGIN
            AND type = 'expense'
            AND archived_at IS NULL
            AND lower(name) = 'supermercado'
+       ) = 1
+       AND (
+         SELECT count(*) FROM public.categories
+         WHERE household_id = v_rita_nido
+           AND type = 'expense'
+           AND archived_at IS NULL
        ) = 1
        AND (
          SELECT count(*) FROM public.expenses

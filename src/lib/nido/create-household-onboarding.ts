@@ -41,7 +41,7 @@ function estimatePayload(
   const rows: OnboardingEstimatePlan[] = [];
   for (const estimate of estimates) {
     const amount = roundMoney(estimate.amount);
-    if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_MONEY_AMOUNT) {
+    if (!Number.isFinite(amount) || amount < 0 || amount > MAX_MONEY_AMOUNT) {
       return { error: true };
     }
     if (estimate.type !== "personal" && estimate.type !== "shared") {
@@ -62,10 +62,12 @@ function estimatePayload(
 /**
  * Domain mutation used by createHouseholdFromOnboarding().
  *
- * The RPC creates the household, owner membership, default categories,
- * split preference, optional savings stock, initial budgets from
- * estimates, and the onboarding income in one transaction. The client
- * never sends household_id, created_by, member_id, category_id, or a date.
+ * The RPC creates the household, owner membership, default income
+ * catalog, split preference, optional savings stock, categories and
+ * initial budgets from estimates, and the onboarding income in one
+ * transaction. Amount-zero estimates persist the category only. Unused
+ * default expense categories are archived. The client never sends
+ * household_id, created_by, member_id, category_id, or a date.
  */
 export async function createHouseholdFromOnboardingWithAuth(
   input: CreateHouseholdOnboardingRequest,

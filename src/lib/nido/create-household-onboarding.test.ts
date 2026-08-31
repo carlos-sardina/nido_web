@@ -175,13 +175,33 @@ describe("createHouseholdFromOnboardingWithAuth", () => {
       {
         name: "Casa",
         incomeAmount: 1000,
-        estimates: [{ name: "Renta", icon: "🏢", type: "shared", amount: 0 }],
+        estimates: [{ name: "Renta", icon: "🏢", type: "shared", amount: -1 }],
       },
       auth,
     );
     assert.equal(negative.ok, false);
     assert.equal(invalidEstimate.ok, false);
     assert.equal(called, 0);
+  });
+
+  it("allows a zero-amount estimate so the RPC can persist the category", async () => {
+    const result = await createHouseholdFromOnboardingWithAuth(
+      {
+        name: "Casa",
+        incomeAmount: 1000,
+        estimates: [{ name: "Masajes", icon: "💅", type: "personal", amount: 0 }],
+      },
+      {
+        getUserId: async () => "u1",
+        rpc: async (_fn, args) => {
+          assert.deepEqual(args.p_estimates, [
+            { name: "Masajes", icon: "💅", type: "personal", amount: 0 },
+          ]);
+          return { data: household, error: null };
+        },
+      },
+    );
+    assert.equal(result.ok, true);
   });
 
   it("allows a zero savings stock so the RPC can persist it", async () => {

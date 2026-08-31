@@ -678,7 +678,7 @@ export function OnboardingFlow({
                   const name = normalizeCustomExpenseName(customName);
                   if (!name) return;
                   setFieldError(null);
-                  const n = [...data.expenses, { name, icon: customEmoji, selected: false, amount: "", type: customEtype, kind: "variable" as const }];
+                  const n = [...data.expenses, { name, icon: customEmoji, selected: false, amount: "", type: customEtype, kind: "variable" as const, custom: true }];
                   setData(p => ({ ...p, expenses: n, _showAdd: false, _cname: "", _emoji: "💳", _etype: "personal" } as OData));
                 };
 

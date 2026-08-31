@@ -13,6 +13,8 @@ export type OnboardingExpense = {
   amount: string;
   type: "personal" | "shared";
   kind: ExpenseKind;
+  /** True when the user added this row with “Agregar otro gasto”. */
+  custom?: boolean;
 };
 
 export interface OData {

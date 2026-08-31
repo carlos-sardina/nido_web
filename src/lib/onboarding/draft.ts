@@ -97,6 +97,7 @@ function asExpenses(value: unknown): OnboardingExpense[] {
       amount: typeof row.amount === "string" ? row.amount : "",
       type,
       kind: asExpenseKind(row.kind),
+      custom: Boolean(row.custom) || undefined,
     });
   }
   return expenses;

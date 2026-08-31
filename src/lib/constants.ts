@@ -62,3 +62,8 @@ export const EXP_SUGG = [
   { name: "Tarjeta de crédito", icon: "💳", selected: false, amount: "", type: "personal" as const, kind: "variable"  as const },
   { name: "Terapia",            icon: "💆", selected: false, amount: "", type: "personal" as const, kind: "variable"  as const },
 ];
+
+export function isSuggestedOnboardingExpenseName(name: string): boolean {
+  const needle = name.trim().toLowerCase();
+  return Boolean(needle) && EXP_SUGG.some((row) => row.name.toLowerCase() === needle);
+}

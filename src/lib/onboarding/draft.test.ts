@@ -109,6 +109,18 @@ describe("onboarding draft", () => {
     assert.equal(loadOnboardingDraft(), null);
   });
 
+  it("preserves a custom expense flag in the draft", () => {
+    const data = sanitizeOnboardingData({
+      nestName: "Casa",
+      expenses: [
+        { name: "Masajes", amount: "", type: "personal", selected: false, custom: true },
+        { name: "Renta", amount: "8000", type: "shared", selected: true },
+      ],
+    });
+    assert.equal(data?.expenses[0]?.custom, true);
+    assert.equal(data?.expenses[1]?.custom, undefined);
+  });
+
   it("does not turn invalid draft amounts into valid numbers", () => {
     const data = sanitizeOnboardingData({
       nestName: "Casa",
