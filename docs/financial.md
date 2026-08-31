@@ -517,6 +517,8 @@ The create-Nido draft from Fase 8.9 is reused. Finalize does **not** invent move
 
 Atomicity: `create_household_with_onboarding_income` writes household, split preference, optional savings, initial budgets (and custom categories), then income in one Postgres function. If any step fails, the household is rolled back. A second call from an already-active member returns that household and does **not** insert another income, savings row, budget, or category. No `onboarding_id` was added: one active membership plus those unique indexes are the idempotency backstop.
 
+Joiners are asked the same monthly-income question on `/join/<token>` (after name, before accept). Persist uses the existing `create_income` path after `accept_invitation`, not the create-Nido RPC. Category, description, and date match onboarding (**Sueldo**, **Ingreso mensual neto**, today in `America/Mexico_City`). Amount `0` writes no row. Income cannot be written before accept because `create_income` requires active membership and `lookup_invitation` does not return `household_id`. If income persist fails after a successful accept, the membership stands; the member can add the row later from Ingresos.
+
 After success the `nido.onboardingDraft` key is cleared. Home reads the same `useDashboard()` / `fetchDashboardSnapshot()` path. There is no onboarding-only dashboard and no mock figures.
 
 ---

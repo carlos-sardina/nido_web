@@ -234,7 +234,7 @@ Perfil also has **Visibilidad de mis datos personales**: **Visible al Nido** / *
 
 The create-Nido draft stays in `sessionStorage` until finalize. After persist, Home reads live rows. Nest type (`c-type`) is local onboarding UX only; it is not written to the household. Unused draft leftovers (`freelance`, `savingsType`, `nestEmoji`) were removed in 9.4.8.
 
-The onboarding **Ingreso mensual neto** is persisted. Category is the household **Sueldo** catalog row. `occurred_at` is today in `America/Mexico_City`. Description is `Ingreso mensual neto`. Amount `0` creates the Nido and writes no income row.
+The onboarding **Ingreso mensual neto** is persisted. Category is the household **Sueldo** catalog row. `occurred_at` is today in `America/Mexico_City`. Description is `Ingreso mensual neto`. Amount `0` creates the Nido and writes no income row. Joiners are asked the same question on `/join/<token>` and persist with `create_income` after accept.
 
 Personal / shared savings persist as `savings_balances` stock (zero is valid; blank is omitted). Estimated monthly expenses become current-month `budgets` using the estimate name as the category (`Renta` stays `Renta`). `contrib` writes `households.default_split_method`. `capacity` is rejected.
 
@@ -295,7 +295,7 @@ Code lives in `src/lib/nido/`.
 | `leave-household.ts` | `leaveHouseholdWithAuth`, `canSubmitLeave` |
 | `invitations.ts` | `createInvitation`, `listInvitations`, `cancelInvitation`, `lookupInvitation`, `acceptInvitation`, `completeJoinInvitation` |
 | `invitation-actions.ts` | `listInvitationsWithAuth`, `cancelInvitationWithAuth`, `listStatusFromClassification` |
-| `join-invitation.ts` | `joinDisplayNameDecision`, `completeJoinInvitationWithAuth` — name then a single `accept_invitation` |
+| `join-invitation.ts` | `joinDisplayNameDecision`, `joinIncomeDecision`, `completeJoinInvitationWithAuth` — name and income, then a single `accept_invitation`; income row after accept |
 | `profile.ts` | `getMyProfile`, `updateMyDisplayName`, `updatePersonalVisibility` |
 | `update-display-name.ts` | `updateMyDisplayNameWithAuth`, `canSubmitDisplayName` |
 | `personal-visibility.ts` | `PersonalVisibility`, `DEFAULT_PERSONAL_VISIBILITY`, `canReadPersonalFinance` |
@@ -333,14 +333,16 @@ UI components call this layer. They do not query Supabase tables directly.
   → if no session: email/password auth
   → after signup/login (and email confirmation if required): return to /join/<token>
   → if profiles.display_name is still the email local-part fallback: ask for a name
+  → ask for monthly income (same question as create-Nido onboarding)
   → updateMyDisplayName (existing profiles UPDATE self)
   → accept_invitation()
+  → create_income (Sueldo / Ingreso mensual neto) when amount > 0
   → MainApp / live dashboard
 ```
 
 The invitation token is stored in `sessionStorage` (`nido.pendingInvitationToken`) so it survives email confirmation. It is not an auth token and is never written to `localStorage`.
 
-`lookup_invitation` still does not return `household_id`. The join page does **not** guess `already_in_this` vs `already_in_other` from the public preview. `accept_invitation` is the authority: `nido.already_member` → already this Nido; `nido.already_in_nido` → already another Nido. Those codes keep their own copy. If the user cancels before accept, no membership is created. A chosen name is written before accept so a successful join cannot keep the email local-part. A valid existing `display_name` is not overwritten.
+`lookup_invitation` still does not return `household_id`. The join page does **not** guess `already_in_this` vs `already_in_other` from the public preview. `accept_invitation` is the authority: `nido.already_member` → already this Nido; `nido.already_in_nido` → already another Nido. Those codes keep their own copy. If the user cancels before accept, no membership is created. A chosen name is written before accept so a successful join cannot keep the email local-part. A valid existing `display_name` is not overwritten. Monthly income is required (same validation as create-Nido). Amount `0` joins and writes no income row. Amount `> 0` is written with `create_income` after accept, using the household **Sueldo** catalog row and description **Ingreso mensual neto**, dated today in `America/Mexico_City`. A failed income write does not undo the join; the member can add it later from Ingresos.
 
 `handle_new_user` may still insert the email local-part as `profiles.display_name`. Join treats that as fallback via `isFallbackDisplayName` and asks for a real name. The trigger is unchanged.
 

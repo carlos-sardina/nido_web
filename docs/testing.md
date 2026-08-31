@@ -162,10 +162,11 @@ The 60-second cooldown is a UX protection. Real abuse protection remains in Supa
 ## O. Join invitation
 
 1. Unauthenticated `/join/<token>` → sign in or sign up, then return to the invite.
-2. If `profiles.display_name` is still the email local-part fallback, the join page asks for a name before accept. The entered name is written with `updateMyDisplayName` and then `accept_invitation` runs once.
+2. If `profiles.display_name` is still the email local-part fallback, the join page asks for a name before continue. The entered name is written with `updateMyDisplayName` and then `accept_invitation` runs once.
 3. A user who already has a chosen `display_name` is not asked to type it again.
-4. Accept → live dashboard (empty until financial rows exist). `profiles.display_name` is the entered name, not the email local-part.
-5. Malformed / invalid token → **Invitación no válida** without raw database errors.
+4. Before accept, the join page asks **¿Cuánto ganas al mes?** with the same copy and validation as create-Nido onboarding. Amount `> 0` becomes an `incomes` row (Sueldo / Ingreso mensual neto, today in `America/Mexico_City`). Amount `0` joins with no income row.
+5. Accept → live dashboard. `profiles.display_name` is the entered name, not the email local-part. Home / Ingresos / Actividad show the joiner’s income when it was persisted.
+6. Malformed / invalid token → **Invitación no válida** without raw database errors.
 
 ## P. Already-member invitation
 

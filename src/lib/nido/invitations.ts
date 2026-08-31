@@ -1,4 +1,6 @@
 import { nidoErrorFromUnknown, nidoFail, nidoOk, type NidoResult } from "./errors";
+import { todayIso } from "./financial/dates";
+import { createIncome } from "./incomes";
 import {
   cancelInvitationWithAuth,
   listInvitationsWithAuth,
@@ -6,6 +8,7 @@ import {
 import { completeJoinInvitationWithAuth } from "./join-invitation";
 import { getMyMembership } from "./membership";
 import { getMyProfile, updateMyDisplayName } from "./profile";
+import { fetchActiveIncomeCategories } from "./queries/categories";
 import {
   buildInvitationUrl,
   generateInvitationToken,
@@ -154,13 +157,14 @@ export async function acceptInvitation(
 }
 
 export async function completeJoinInvitation(
-  input: { token: string; enteredName?: string | null },
+  input: { token: string; enteredName?: string | null; incomeAmount?: number | null },
   supabase: NidoClient = nidoClient(),
 ): Promise<
   NidoResult<{
     householdId: string;
     householdName: string;
     persistedDisplayName: string | null;
+    persistedIncomeId: string | null;
   }>
 > {
   const auth = await requireUser(supabase);
@@ -176,5 +180,12 @@ export async function completeJoinInvitation(
     },
     updateDisplayName: (name) => updateMyDisplayName(name, auth.data.supabase),
     acceptInvitation: (token) => acceptInvitation(token, auth.data.supabase),
+    listIncomeCategories: async (householdId) => {
+      const result = await fetchActiveIncomeCategories(householdId, auth.data.supabase);
+      if (result.ok === false) return result;
+      return nidoOk(result.data.map((row) => ({ id: row.id, name: row.name })));
+    },
+    createIncome: (request) => createIncome(request, auth.data.supabase),
+    todayIso: () => todayIso(),
   });
 }
