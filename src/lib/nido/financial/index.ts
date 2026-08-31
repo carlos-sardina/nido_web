@@ -125,6 +125,7 @@ export {
   goalDateMessage,
   goalDescriptionMessage,
   goalNameMessage,
+  isGoalScope,
   isGoalType,
   normalizeGoalDescription,
   normalizeGoalName,
@@ -172,14 +173,21 @@ export {
 } from "./recurrence-input.ts";
 export {
   activeGoalProgress,
+  canContributeToGoal,
   canMutateContribution,
   canMutateGoal,
   contributionsTotal,
   emergencyMonthsCovered,
-  featuredSavingGoal,
+  featuredSharedFund,
   formatGoalTargetDate,
+  goalKindLabel,
   goalProgress,
+  goalScopeLabel,
   isActiveContribution,
+  isFund,
+  isSharedFund,
+  sharedFundContributed,
+  sharedFundTarget,
   visibleGoalContributions,
 } from "./goals.ts";
 export { computeHealth, healthLabel } from "./health.ts";

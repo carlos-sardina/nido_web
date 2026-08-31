@@ -22,6 +22,7 @@ function request(overrides: Partial<Parameters<typeof buildCreateGoalPayload>[0]
     name: "Viaje a Japón",
     amount: 80000,
     goalType: "purchase" as const,
+    scope: "shared" as const,
     targetDate: "2027-03-01",
     description: "Primavera en Kioto",
     activeMemberIds: members,
@@ -104,6 +105,7 @@ describe("buildCreateGoalPayload", () => {
     assert.equal(result.data.name, "Viaje a Japón");
     assert.equal(result.data.amount, 80000);
     assert.equal(result.data.goalType, "purchase");
+    assert.equal(result.data.scope, "shared");
     assert.equal(result.data.targetDate, "2027-03-01");
     assert.equal(result.data.description, "Primavera en Kioto");
     assert.equal("currentAmount" in result.data, false);
@@ -156,5 +158,14 @@ describe("buildCreateGoalPayload", () => {
     const result = buildCreateGoalPayload(request({ householdId: "" }), "diana");
     assert.equal(result.ok, false);
     if (result.ok === false) assert.equal(result.error, "not_a_member");
+  });
+
+  it("rejects an invalid scope", () => {
+    const result = buildCreateGoalPayload(
+      request({ scope: "household" as never }),
+      "diana",
+    );
+    assert.equal(result.ok, false);
+    if (result.ok === false) assert.equal(result.error, "invalid_name");
   });
 });

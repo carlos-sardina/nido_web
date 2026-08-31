@@ -1,5 +1,5 @@
 import { clampedPercent, goalProgressRatio, moneyOrZero, sumMoney } from "./money.ts";
-import type { GoalContributionRow, GoalProgress, GoalRow } from "./types.ts";
+import type { ExpenseScope, GoalContributionRow, GoalProgress, GoalRow, GoalType } from "./types.ts";
 
 export function canMutateGoal(
   goal: Pick<GoalRow, "createdBy" | "status">,
@@ -72,6 +72,7 @@ export function goalProgress(goal: GoalRow): GoalProgress {
     id: goal.id,
     name: goal.name,
     goalType: goal.goalType,
+    scope: goal.scope,
     status: goal.status,
     targetAmount,
     contributed,
@@ -83,6 +84,45 @@ export function goalProgress(goal: GoalRow): GoalProgress {
   };
 }
 
+export function isFund(
+  goal: Pick<GoalRow, "goalType"> | Pick<GoalProgress, "goalType">,
+): boolean {
+  return goal.goalType === "saving";
+}
+
+export function isSharedFund(
+  goal: Pick<GoalRow, "goalType" | "scope" | "status">,
+): boolean {
+  return goal.status === "active" && goal.goalType === "saving" && goal.scope === "shared";
+}
+
+export function goalKindLabel(goalType: GoalType): string {
+  return goalType === "saving" ? "Fondo" : "Meta";
+}
+
+export function goalScopeLabel(scope: ExpenseScope): string {
+  return scope === "personal" ? "Personal" : "Compartido";
+}
+
+export function canContributeToGoal(
+  goal: Pick<GoalRow, "status" | "scope" | "createdBy">,
+  userId: string | null | undefined,
+): boolean {
+  if (!userId || goal.status !== "active") return false;
+  if (goal.scope === "shared") return true;
+  return goal.createdBy === userId;
+}
+
+export function sharedFundContributed(goals: GoalRow[]): number {
+  return sumMoney(
+    goals.filter(isSharedFund).map((goal) => contributionsTotal(goal.contributions)),
+  );
+}
+
+export function sharedFundTarget(goals: GoalRow[]): number {
+  return sumMoney(goals.filter(isSharedFund).map((goal) => moneyOrZero(goal.targetAmount)));
+}
+
 export function activeGoalProgress(goals: GoalRow[]): GoalProgress[] {
   return goals
     .filter((goal) => goal.status === "active")
@@ -91,13 +131,13 @@ export function activeGoalProgress(goals: GoalRow[]): GoalProgress[] {
 
 const EMERGENCY_NAME = /emergenc/i;
 
-export function featuredSavingGoal(goals: GoalRow[]): GoalProgress | null {
-  const active = activeGoalProgress(goals);
+/** Active shared funds only. Purchase goals and personal funds never qualify. */
+export function featuredSharedFund(goals: GoalRow[]): GoalProgress | null {
+  const active = activeGoalProgress(goals).filter(
+    (goal) => goal.goalType === "saving" && goal.scope === "shared",
+  );
   if (active.length === 0) return null;
-  const emergency = active.find((goal) => EMERGENCY_NAME.test(goal.name));
-  if (emergency) return emergency;
-  const saving = active.find((goal) => goal.goalType === "saving");
-  return saving ?? active[0];
+  return active.find((goal) => EMERGENCY_NAME.test(goal.name)) ?? active[0];
 }
 
 export function emergencyMonthsCovered(

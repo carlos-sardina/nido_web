@@ -315,6 +315,7 @@ export type GoalQueryRow = {
   name: string;
   description: string | null;
   goal_type: GoalRow["goalType"];
+  scope: GoalRow["scope"];
   target_amount: unknown;
   target_date: string | null;
   status: GoalRow["status"];
@@ -357,6 +358,7 @@ export function mapGoalRow(row: GoalQueryRow): GoalRow {
     name: row.name,
     description: row.description,
     goalType: row.goal_type,
+    scope: row.scope === "personal" ? "personal" : "shared",
     targetAmount: moneyOrZero(row.target_amount),
     targetDate: row.target_date,
     status: row.status,

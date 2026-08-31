@@ -203,11 +203,11 @@ Applies to `incomes`, `recurring_incomes`, `recurring_expenses`, `budgets`, `sav
 
 **`budgets` UPDATE is tighter** (Phase 9.1.4): the writer must be an **active** member, `created_by = auth.uid()`, and the row must not already be soft-deleted. INSERT requires `created_by = auth.uid()` and `member_id` NULL or `auth.uid()`. `create_budget` writes Nido-level (`member_id` NULL) or personal (`member_id = auth.uid()` when `p_personal`). Nido SELECT is a household member. Personal SELECT is the owner or a household member when the owner’s `personal_visibility = nido`. Physical DELETE remains denied. Spent is never stored. 9.4.4 derives consumption from expenses the viewer can already SELECT. A `private` personal expense cannot enter another member’s Nido total.
 
-**`goals` UPDATE is tighter** (Phase 9.1.3A): the writer must be an **active** member, `created_by = auth.uid()`, and the row must not already be archived. Other members may SELECT. Archive uses `status = archived`. Physical DELETE remains denied.
+**`goals` UPDATE is tighter** (Phase 9.1.3A): the writer must be an **active** member, `created_by = auth.uid()`, and the row must not already be archived. Shared SELECT is a household member. Personal SELECT is the owner or a household member when the owner’s `personal_visibility = nido`. Archive uses `status = archived`. Physical DELETE remains denied. `scope` is `shared` (default) or `personal`. `goal_type = saving` is a fondo; `purchase` is a meta.
 
 | Operation | Policy |
 | --- | --- |
-| SELECT | Historical member of `household_id`. **Personal** `expenses` / `budgets` / `savings_balances` also require the owner or `personal_finance_visible(owner)`. Shared / Nido rows do not. |
+| SELECT | Historical member of `household_id`. **Personal** `expenses` / `budgets` / `savings_balances` / `goals` also require the owner or `personal_finance_visible(owner)`. Shared / Nido rows do not. |
 | INSERT | Active member, `created_by = auth.uid()`, subject (`member_id` / `payer_id`) is an active member of the same household when present, and `category_id` belongs to that household when present. **`incomes` / `recurring_incomes` INSERT** also requires `member_id = auth.uid()`. **`recurring_expenses` INSERT** also requires `payer_id = auth.uid()`. **`expenses` INSERT** allows `payer_id` of any active household member. |
 | UPDATE | Active member of the row’s household. Category must remain in that household. **`goals` UPDATE** also requires `created_by = auth.uid()` and `status <> archived`. **`incomes` UPDATE** also requires `created_by = auth.uid()`, `member_id = auth.uid()`, and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`). **`expenses` UPDATE** also requires `created_by = auth.uid()` and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`). Payer may change to another active household member. **`budgets` UPDATE** also requires `created_by = auth.uid()` and `deleted_at IS NULL` (WITH CHECK allows setting `deleted_at`). **`recurring_incomes` / `recurring_expenses` UPDATE** also requires `created_by = auth.uid()` and keeps `member_id` / `payer_id` as `auth.uid()` |
 | DELETE | None. Soft-delete / deactivate / archive instead |
@@ -230,14 +230,14 @@ Applies to `expense_splits`, `expense_refunds`, `expense_refund_splits`, `recurr
 
 **`expense_splits` writes** (Phase 9.1.2B) require `can_mutate_expense(expense_id)`: active membership, `created_by = auth.uid()`, and `deleted_at IS NULL` on the parent. SELECT stays historical-member.
 
-**`goal_contributions` INSERT** (Phase 9.1.3B) requires active membership in the parent goal’s household, `created_by = auth.uid()`, `member_id = auth.uid()`, and `goal_is_active(goal_id)`. SELECT stays historical-member.
+**`goal_contributions` INSERT** (Phase 9.1.3B) requires active membership in the parent goal’s household, `created_by = auth.uid()`, `member_id = auth.uid()`, and `goal_accepts_contribution(goal_id)`: the goal is active, and it is shared or the caller created it. SELECT is historical-member **and** `goal_is_visible(goal_id)` so a private personal goal’s contributions do not leak.
 
 **`goal_contributions` UPDATE** (Phase 9.1.3D) requires the writer to be an **active** member of the parent goal’s household, `created_by = auth.uid()`, `deleted_at IS NULL`, and `goal_is_active(goal_id)`. `WITH CHECK` allows setting `deleted_at` (soft-delete) and keeps `created_by` / `member_id` as `auth.uid()`. Physical DELETE is revoked for `authenticated`; the remaining DELETE policy is creator-only so a restored GRANT cannot let another member hard-delete. Product delete is `soft_delete_goal_contribution`.
 
 | Operation | Policy |
 | --- | --- |
-| SELECT | Historical member of the parent household |
-| INSERT | Parent-household write rule. Split `member_id` must be an active member of that household. **`goal_contributions` INSERT** also requires `member_id = auth.uid()` and an active parent goal |
+| SELECT | Historical member of the parent household. **`goal_contributions` SELECT** also requires `goal_is_visible(goal_id)` |
+| INSERT | Parent-household write rule. Split `member_id` must be an active member of that household. **`goal_contributions` INSERT** also requires `member_id = auth.uid()` and `goal_accepts_contribution` (active shared goal, or own personal goal) |
 | UPDATE | Parent-household write rule. **`goal_contributions` UPDATE** is creator + active member + not deleted + parent goal active |
 | DELETE | Parent-household write rule. **`goal_contributions` DELETE** is creator-only; privilege is revoked for `authenticated` |
 

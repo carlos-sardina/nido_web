@@ -21,6 +21,7 @@ import {
   goalDescriptionMessage,
   goalNameMessage,
   parseGoalAmountInput,
+  type ExpenseScope,
   type GoalRow,
   type GoalType,
 } from "@/lib/nido/financial";
@@ -31,6 +32,7 @@ type FieldErrors = {
   date?: string;
   description?: string;
   type?: string;
+  scope?: string;
   form?: string;
 };
 
@@ -56,7 +58,8 @@ export function GoalFlow({
   );
   const [targetDate, setTargetDate] = useState(() => goal?.targetDate ?? "");
   const [description, setDescription] = useState(() => goal?.description ?? "");
-  const [goalType, setGoalType] = useState<GoalType | null>(() => goal?.goalType ?? "saving");
+  const [goalType, setGoalType] = useState<GoalType | null>(() => goal?.goalType ?? null);
+  const [scope, setScope] = useState<ExpenseScope | null>(() => goal?.scope ?? "shared");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -65,6 +68,7 @@ export function GoalFlow({
   const dateId = `${ids}-date`;
   const descriptionId = `${ids}-description`;
   const typeLabelId = `${ids}-type`;
+  const scopeLabelId = `${ids}-scope`;
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -83,7 +87,8 @@ export function GoalFlow({
     const descriptionMessage = goalDescriptionMessage(description);
     if (descriptionMessage) nextErrors.description = descriptionMessage;
 
-    if (goalType == null) nextErrors.type = "Elige un tipo de meta.";
+    if (goalType == null) nextErrors.type = "Elige si es un fondo o una meta.";
+    if (scope == null) nextErrors.scope = "Elige si es personal o compartido.";
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -91,7 +96,7 @@ export function GoalFlow({
     }
 
     const parsedAmount = parseGoalAmountInput(amount);
-    if (parsedAmount == null || goalType == null) {
+    if (parsedAmount == null || goalType == null || scope == null) {
       setErrors({ amount: "Ingresa un monto válido." });
       return;
     }
@@ -105,6 +110,7 @@ export function GoalFlow({
       name,
       amount: parsedAmount,
       goalType,
+      scope,
       targetDate: targetDate.trim() || null,
       description,
       activeMemberIds: members.map((member) => member.userId),
@@ -127,7 +133,11 @@ export function GoalFlow({
     ? "Guardando…"
     : isEditing
       ? "Guardar cambios"
-      : "Crear meta";
+      : goalType === "saving"
+        ? "Crear fondo"
+        : goalType === "purchase"
+          ? "Crear meta"
+          : "Crear";
 
   return (
     <div className="absolute inset-0 z-30">
@@ -147,11 +157,17 @@ export function GoalFlow({
             <BackLink onClick={onClose} label="Cerrar" />
             <ScreenIntro
               className="mb-6"
-              title={isEditing ? "Editar meta" : "Crear una meta"}
+              title={
+                isEditing
+                  ? goal?.goalType === "saving"
+                    ? "Editar fondo"
+                    : "Editar meta"
+                  : "Crear una meta o un fondo"
+              }
               description={
                 isEditing
                   ? "Los cambios se guardan en tu Nido activo."
-                  : "La meta se guarda en tu Nido activo."
+                  : "Un fondo cubre gastos. Una meta es algo que quieren alcanzar."
               }
             />
           </div>
@@ -238,13 +254,13 @@ export function GoalFlow({
 
             <Field>
               <p id={typeLabelId} className="mb-2 text-label font-semibold text-muted-foreground">
-                Tipo
+                ¿Qué quieres crear?
               </p>
               <div className="space-y-2" role="group" aria-labelledby={typeLabelId}>
                 <ChoiceCard
                   icon="🛡️"
-                  title="Ahorro"
-                  description="Un fondo o reserva."
+                  title="Fondo"
+                  description="Reserva para imprevistos. Solo los compartidos cubren meses de gastos."
                   selected={goalType === "saving"}
                   disabled={submitting}
                   onClick={() => {
@@ -254,8 +270,8 @@ export function GoalFlow({
                 />
                 <ChoiceCard
                   icon="🎯"
-                  title="Compra"
-                  description="Algo que quieren adquirir."
+                  title="Meta"
+                  description="Algo que quieren alcanzar o comprar. No cubre meses de gastos."
                   selected={goalType === "purchase"}
                   disabled={submitting}
                   onClick={() => {
@@ -265,6 +281,41 @@ export function GoalFlow({
                 />
               </div>
               <FieldError id={`${ids}-type-error`}>{errors.type}</FieldError>
+            </Field>
+
+            <Field>
+              <p id={scopeLabelId} className="mb-2 text-label font-semibold text-muted-foreground">
+                ¿Es personal o del Nido?
+              </p>
+              <div className="space-y-2" role="group" aria-labelledby={scopeLabelId}>
+                <ChoiceCard
+                  icon="👤"
+                  title="Personal"
+                  description="Solo te corresponde a ti."
+                  selected={scope === "personal"}
+                  disabled={submitting}
+                  onClick={() => {
+                    setScope("personal");
+                    setErrors((current) => ({ ...current, scope: undefined }));
+                  }}
+                />
+                <ChoiceCard
+                  icon="🏠"
+                  title="Compartido"
+                  description={
+                    goalType === "saving"
+                      ? "Del Nido. Suma a los meses que pueden cubrir con fondos."
+                      : "Del Nido. Cualquier miembro puede aportar."
+                  }
+                  selected={scope === "shared"}
+                  disabled={submitting}
+                  onClick={() => {
+                    setScope("shared");
+                    setErrors((current) => ({ ...current, scope: undefined }));
+                  }}
+                />
+              </div>
+              <FieldError id={`${ids}-scope-error`}>{errors.scope}</FieldError>
             </Field>
           </form>
         </div>

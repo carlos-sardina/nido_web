@@ -40,6 +40,7 @@ export async function createGoalWithAuth(
     p_goal_type: payload.data.goalType,
     p_target_date: payload.data.targetDate,
     p_description: payload.data.description,
+    p_scope: payload.data.scope,
   });
 
   if (error) return nidoFail(nidoErrorFromUnknown(error).code);

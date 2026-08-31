@@ -11,6 +11,8 @@ import {
   canMutateContribution,
   canMutateGoal,
   formatCompactMoney,
+  goalKindLabel,
+  goalScopeLabel,
   formatGoalTargetDate,
   formatRelativeActivityDate,
   formatWholeMoney,
@@ -131,7 +133,11 @@ export function GoalDetail({
             loading={submitting}
             onClick={() => void handleArchive()}
           >
-            {submitting ? "Archivando…" : "Archivar meta"}
+            {submitting
+              ? "Archivando…"
+              : goal.goalType === "saving"
+                ? "Archivar fondo"
+                : "Archivar meta"}
           </Button>
         )}
       </div>
@@ -169,7 +175,9 @@ export function GoalDetail({
                 pendingDelete
                   ? "¿Eliminar esta aportación?"
                   : confirmingArchive
-                    ? "¿Archivar esta meta?"
+                    ? goal.goalType === "saving"
+                      ? "¿Archivar este fondo?"
+                      : "¿Archivar esta meta?"
                     : goal.name
               }
               description={
@@ -220,14 +228,18 @@ export function GoalDetail({
                   </div>
                   {progress.completed ? (
                     <Text size="caption" className="mt-2 font-semibold">
-                      Meta alcanzada
+                      {goal.goalType === "saving" ? "Fondo alcanzado" : "Meta alcanzada"}
                     </Text>
                   ) : null}
                 </div>
 
                 <DetailRow
                   label="Tipo"
-                  value={goal.goalType === "purchase" ? "Compra" : "Ahorro"}
+                  value={goalKindLabel(goal.goalType)}
+                />
+                <DetailRow
+                  label="Alcance"
+                  value={goalScopeLabel(goal.scope)}
                 />
                 <DetailRow
                   label="Objetivo"

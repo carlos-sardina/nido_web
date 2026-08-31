@@ -22,7 +22,7 @@ Nido manages:
 - expenses (personal and shared, one model)
 - budgets (Nido-level and personal)
 - savings stock (personal and shared; `savings_balances`)
-- goals (Nido-level, with member contributions)
+- goals (shared or personal funds and purchase goals, with member contributions)
 - recurring income rules
 - recurring expense rules
 
@@ -408,7 +408,7 @@ Physical DELETE is not granted. Do not hard-delete a budget; set `deleted_at`.
 
 ### 3.13 `goals`
 
-Nido-level objectives.
+Household or personal funds (`goal_type = saving`) and purchase goals (`goal_type = purchase`).
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -416,11 +416,12 @@ Nido-level objectives.
 | `household_id` | `uuid` FK → `households.id` | |
 | `name` | `text` NOT NULL | |
 | `description` | `text` nullable | |
-| `goal_type` | `goal_type` | `saving` or `purchase`. |
+| `goal_type` | `goal_type` | `saving` (fondo) or `purchase` (meta). |
+| `scope` | `expense_scope` | `shared` (Nido, default) or `personal`. Existing rows backfill `shared`. |
 | `target_amount` | `numeric(12,2)` | `> 0`. |
 | `target_date` | `date` nullable | |
 | `status` | `goal_status` | `active`, `completed`, `archived`. |
-| `created_by` | `uuid` FK → `profiles.id` | |
+| `created_by` | `uuid` FK → `profiles.id` | Owner of a personal row. |
 | `created_at` | `timestamptz` | |
 | `updated_at` | `timestamptz` | |
 
@@ -474,10 +475,10 @@ Personal SELECT follows `profiles.personal_visibility` of `member_id` (9.4.3). S
 | --- | --- | --- |
 | `household_role` | `owner`, `member` | `household_members.role` |
 | `household_split_method` | `equal`, `proportional` | `households.default_split_method`. Product names only. Not `capacity`. Maps to `distribution_method` `equal` or `income_based` on new shared expenses. |
-| `personal_visibility` | `nido`, `private` | `profiles.personal_visibility`. Default `nido`. Applies to personal expenses, personal budgets, and personal savings. Shared / Nido rows ignore it. |
+| `personal_visibility` | `nido`, `private` | `profiles.personal_visibility`. Default `nido`. Applies to personal expenses, personal budgets, personal savings, and personal goals/funds. Shared / Nido rows ignore it. |
 | `category_type` | `income`, `expense` | `categories.type` |
 | `recurrence_frequency` | `weekly`, `biweekly`, `monthly`, `yearly` | `recurring_incomes.frequency`, `recurring_expenses.frequency` |
-| `expense_scope` | `personal`, `shared` | `expenses.scope`, `recurring_expenses.scope` |
+| `expense_scope` | `personal`, `shared` | `expenses.scope`, `recurring_expenses.scope`, `goals.scope` |
 | `distribution_method` | `equal`, `percentage`, `fixed`, `income_based` | `expenses.distribution_method`, `recurring_expenses.distribution_method` |
 | `budget_period` | `monthly` | `budgets.period` |
 | `goal_type` | `saving`, `purchase` | `goals.goal_type` |

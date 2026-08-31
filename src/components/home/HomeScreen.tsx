@@ -214,7 +214,7 @@ function DashboardBody({
                     ? { label: "Tasa ahorro", value: `${health.savingsRatePercent}%` }
                     : null,
                   health.emergencyMonths != null
-                    ? { label: "Fondo emerg.", value: `${health.emergencyMonths} mes` }
+                    ? { label: "Fondo compart.", value: `${health.emergencyMonths} mes` }
                     : null,
                   health.budgetUsagePercent != null
                     ? { label: "Presupuesto", value: `${health.budgetUsagePercent}%` }
@@ -470,7 +470,7 @@ function DashboardBody({
       <div className="mb-3">
         <div className="flex items-center justify-between px-6 mb-2">
           <h3 className="text-xs font-semibold" style={{ color: P.text }}>
-            Metas activas
+            Metas y fondos
           </h3>
           <button
             type="button"
@@ -485,8 +485,8 @@ function DashboardBody({
           <div className="px-6">
             <EmptyState
               title="¿Tienen algo en mente?"
-              description="Crea una meta para empezar a construirla juntos."
-              actionLabel="Ver metas"
+              description="Crea un fondo para cubrir gastos o una meta para algo que quieren alcanzar."
+              actionLabel="Ver metas y fondos"
               onAction={() => onNavigate("goals")}
             />
           </div>

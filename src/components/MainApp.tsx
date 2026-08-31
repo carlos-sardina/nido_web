@@ -519,6 +519,7 @@ export function MainApp({
           <ContribFlow
             householdId={household.id}
             members={members}
+            currentUserId={user?.id ?? null}
             goals={dashboard.model?.goals ?? []}
             contribution={editingContribution}
             loading={!dashboard.model && dashboard.isLoading}

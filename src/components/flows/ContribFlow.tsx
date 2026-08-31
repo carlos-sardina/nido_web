@@ -19,6 +19,8 @@ import {
   contributionAmountMessage,
   contributionDateMessage,
   formatCompactMoney,
+  canContributeToGoal,
+  goalKindLabel,
   goalProgress,
   parseContributionAmountInput,
   todayIso,
@@ -37,6 +39,7 @@ type FieldErrors = {
 export function ContribFlow({
   householdId,
   members,
+  currentUserId,
   goals,
   contribution,
   loading = false,
@@ -46,6 +49,7 @@ export function ContribFlow({
 }: {
   householdId: string;
   members: HouseholdMemberView[];
+  currentUserId: string | null;
   goals: GoalRow[];
   contribution?: GoalContributionRow | null;
   loading?: boolean;
@@ -56,7 +60,7 @@ export function ContribFlow({
   const ids = useId();
   const submittingRef = useRef(false);
   const isEditing = Boolean(contribution);
-  const activeGoals = goals.filter((goal) => goal.status === "active");
+  const activeGoals = goals.filter((goal) => canContributeToGoal(goal, currentUserId));
   const [goalId, setGoalId] = useState(() => contribution?.goalId ?? "");
   const [amount, setAmount] = useState(() =>
     contribution ? amountToContributionInput(contribution.amount) : "",
@@ -162,20 +166,20 @@ export function ContribFlow({
               description={
                 isEditing
                   ? "Los cambios se guardan en tu Nido activo."
-                  : "Elige una meta activa de tu Nido."
+                  : "Elige una meta o un fondo activo."
               }
             />
           </div>
 
           {loading ? (
             <Text size="caption" tone="muted" aria-busy="true">
-              Cargando metas…
+              Cargando metas y fondos…
             </Text>
           ) : empty ? (
             <EmptyState
-              title="Todavía no hay metas"
-              description="Crea una meta primero para poder registrar una aportación."
-              actionLabel="Crear una meta"
+              title="Todavía no hay metas ni fondos"
+              description="Crea una meta o un fondo primero para poder registrar una aportación."
+              actionLabel="Crear una meta o un fondo"
               onAction={onCreateGoal}
             />
           ) : (
@@ -191,7 +195,7 @@ export function ContribFlow({
 
               <Field>
                 <p id={goalLabelId} className="mb-2 text-label font-semibold text-muted-foreground">
-                  Meta
+                  Meta o fondo
                 </p>
                 {isEditing ? (
                   <div
@@ -200,10 +204,10 @@ export function ContribFlow({
                     aria-labelledby={goalLabelId}
                   >
                     <Text size="body-sm" className="font-medium">
-                      {editingGoal?.name ?? "Meta"}
+                      {editingGoal?.name ?? "Meta o fondo"}
                     </Text>
                     <Text size="caption" tone="muted" className="mt-0.5">
-                      No se puede cambiar la meta de una aportación.
+                      No se puede cambiar el destino de una aportación.
                     </Text>
                   </div>
                 ) : (
@@ -218,7 +222,7 @@ export function ContribFlow({
                           key={goal.id}
                           icon={goal.goalType === "purchase" ? "🎯" : "🛡️"}
                           title={goal.name}
-                          description={`${formatCompactMoney(progress.contributed)} de ${targetLabel} · ${
+                          description={`${goalKindLabel(goal.goalType)} · ${formatCompactMoney(progress.contributed)} de ${targetLabel} · ${
                             progress.invalidTarget ? "—" : `${progress.percent}%`
                           }`}
                           selected={goalId === goal.id}

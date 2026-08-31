@@ -101,6 +101,7 @@ describe("dashboard view model", () => {
       name: "Fondo de emergencia",
       description: null,
       goalType: "saving",
+      scope: "shared",
       targetAmount: 200000,
       targetDate: null,
       status: "active",
@@ -478,6 +479,7 @@ describe("dashboard view model", () => {
       name: "Vieja",
       description: null,
       goalType: "saving",
+      scope: "shared",
       targetAmount: 100,
       targetDate: null,
       status: "archived",
@@ -524,6 +526,7 @@ describe("dashboard view model", () => {
       name: "Fondo",
       description: null,
       goalType: "saving",
+      scope: "shared",
       targetAmount: 100,
       targetDate: null,
       status: "active",
@@ -585,6 +588,7 @@ describe("dashboard view model", () => {
       name: "Fondo",
       description: null,
       goalType: "saving",
+      scope: "shared",
       targetAmount: 100,
       targetDate: null,
       status: "active",
@@ -606,6 +610,105 @@ describe("dashboard view model", () => {
     assert.equal(model.activeGoals[0].percent, 40);
     assert.equal(model.activity.some((item) => item.id === "goal_contribution:gc-gone"), false);
     assert.equal(model.activity.some((item) => item.id === "goal_contribution:gc-live"), true);
+  });
+
+  it("counts months of support from shared funds only", () => {
+    const expense: ExpenseRow = {
+      id: "e1",
+      householdId: "h1",
+      categoryId: "c1",
+      amount: 10000,
+      description: "Renta",
+      occurredAt: "2026-08-10",
+      payerId: "diana",
+      scope: "shared",
+      distributionMethod: "equal",
+      recurringId: null,
+      createdBy: "diana",
+      createdAt: "2026-08-10T12:00:00.000Z",
+      deletedAt: null,
+      category: { id: "c1", name: "Renta", icon: "🏠" },
+      payer: { id: "diana", displayName: "Diana Vega" },
+      splits: [{ id: "s1", expenseId: "e1", memberId: "diana", amount: 10000, percentage: 100 }],
+    };
+    const sharedFund: GoalRow = {
+      id: "g-shared",
+      householdId: "h1",
+      name: "Reserva",
+      description: null,
+      goalType: "saving",
+      scope: "shared",
+      targetAmount: 50000,
+      targetDate: null,
+      status: "active",
+      createdBy: "diana",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      contributions: [
+        {
+          id: "gc-shared",
+          goalId: "g-shared",
+          memberId: "diana",
+          amount: 30000,
+          contributedAt: "2026-08-02",
+          createdBy: "diana",
+          createdAt: "2026-08-02T12:00:00.000Z",
+          deletedAt: null,
+          member: null,
+        },
+      ],
+    };
+    const personalFund: GoalRow = {
+      ...sharedFund,
+      id: "g-personal",
+      name: "Fondo personal",
+      scope: "personal",
+      contributions: [
+        {
+          ...sharedFund.contributions[0],
+          id: "gc-personal",
+          goalId: "g-personal",
+          amount: 90000,
+        },
+      ],
+    };
+    const purchaseGoal: GoalRow = {
+      ...sharedFund,
+      id: "g-meta",
+      name: "Viaje",
+      goalType: "purchase",
+      contributions: [
+        {
+          ...sharedFund.contributions[0],
+          id: "gc-meta",
+          goalId: "g-meta",
+          amount: 40000,
+        },
+      ],
+    };
+
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        expenses: [expense],
+        periodExpenses: [expense],
+        goals: [sharedFund, personalFund, purchaseGoal],
+        contributions: [
+          ...sharedFund.contributions,
+          ...personalFund.contributions,
+          ...purchaseGoal.contributions,
+        ],
+      }),
+      members,
+      range,
+    });
+
+    assert.equal(model.featuredGoal?.id, "g-shared");
+    assert.equal(model.featuredGoal?.contributed, 30000);
+    assert.equal(model.featuredGoal?.emergencyMonths, 3);
+    assert.equal(model.health.available, true);
+    if (model.health.available) {
+      assert.equal(model.health.emergencyMonths, 3);
+    }
+    assert.equal(model.activeGoals.length, 3);
   });
 
   it("drops a soft-deleted income from totals, period list, and activity", () => {

@@ -27,7 +27,7 @@ const INCOME_SELECT =
   "id, household_id, member_id, category_id, amount, description, occurred_at, recurring_id, created_by, created_at, deleted_at, categories(id, name, icon), member:profiles!incomes_member_id_fkey(id, display_name)";
 
 const GOAL_SELECT =
-  "id, household_id, name, description, goal_type, target_amount, target_date, status, created_by, created_at, goal_contributions(id, goal_id, member_id, amount, contributed_at, created_by, created_at, deleted_at)";
+  "id, household_id, name, description, goal_type, scope, target_amount, target_date, status, created_by, created_at, goal_contributions(id, goal_id, member_id, amount, contributed_at, created_by, created_at, deleted_at)";
 
 const CONTRIBUTION_SELECT =
   "id, goal_id, member_id, amount, contributed_at, created_by, created_at, deleted_at, member:profiles!goal_contributions_member_id_fkey(id, display_name), goals(id, name, household_id)";

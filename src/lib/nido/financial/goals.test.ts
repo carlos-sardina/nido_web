@@ -4,9 +4,11 @@ import {
   activeGoalProgress,
   canMutateContribution,
   canMutateGoal,
+  canContributeToGoal,
   emergencyMonthsCovered,
-  featuredSavingGoal,
+  featuredSharedFund,
   formatGoalTargetDate,
+  sharedFundContributed,
   goalProgress,
   visibleGoalContributions,
 } from "./goals.ts";
@@ -34,6 +36,7 @@ function goal(partial: Partial<GoalRow> & Pick<GoalRow, "name" | "targetAmount">
     householdId: "h1",
     description: null,
     goalType: "saving",
+    scope: "shared",
     targetDate: null,
     status: "active",
     createdBy: "u1",
@@ -218,14 +221,51 @@ describe("goal target date label", () => {
   });
 });
 
-describe("featured saving goal", () => {
-  it("prefers an emergency-named active goal", () => {
-    const featured = featuredSavingGoal([
+describe("featured shared fund", () => {
+  it("prefers an emergency-named active shared fund", () => {
+    const featured = featuredSharedFund([
       goal({ id: "g2", name: "Viaje", targetAmount: 10, goalType: "purchase" }),
       goal({ id: "g3", name: "Fondo de emergencia", targetAmount: 200, contributions: [contribution({ amount: 120 })] }),
     ]);
     assert.equal(featured?.id, "g3");
     assert.equal(featured?.contributed, 120);
+  });
+
+  it("does not treat a purchase goal as a fund", () => {
+    const featured = featuredSharedFund([
+      goal({ id: "g2", name: "Viaje", targetAmount: 10, goalType: "purchase" }),
+    ]);
+    assert.equal(featured, null);
+  });
+
+  it("does not use a personal fund for months of support", () => {
+    const personal = goal({
+      id: "g-p",
+      name: "Fondo de emergencia",
+      targetAmount: 200,
+      scope: "personal",
+      contributions: [contribution({ amount: 120 })],
+    });
+    assert.equal(featuredSharedFund([personal]), null);
+    assert.equal(sharedFundContributed([personal]), 0);
+  });
+
+  it("sums every active shared fund", () => {
+    const funds = [
+      goal({
+        id: "g1",
+        name: "Reserva",
+        targetAmount: 100,
+        contributions: [contribution({ amount: 40 })],
+      }),
+      goal({
+        id: "g2",
+        name: "Colchón",
+        targetAmount: 100,
+        contributions: [contribution({ id: "c2", amount: 80 })],
+      }),
+    ];
+    assert.equal(sharedFundContributed(funds), 120);
   });
 
   it("ignores archived goals in the active list", () => {
@@ -245,5 +285,20 @@ describe("emergency months", () => {
 
   it("divides the contributed amount by this month's spend", () => {
     assert.equal(emergencyMonthsCovered(120000, 30000), 4);
+  });
+});
+
+describe("contribution eligibility", () => {
+  it("allows any member on a shared goal and only the owner on a personal one", () => {
+    const shared = goal({ name: "Fondo", targetAmount: 100, createdBy: "carlos" });
+    const personal = goal({
+      name: "Mío",
+      targetAmount: 100,
+      scope: "personal",
+      createdBy: "carlos",
+    });
+    assert.equal(canContributeToGoal(shared, "diana"), true);
+    assert.equal(canContributeToGoal(personal, "carlos"), true);
+    assert.equal(canContributeToGoal(personal, "diana"), false);
   });
 });

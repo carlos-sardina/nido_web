@@ -68,6 +68,7 @@ describe("query row mapping", () => {
       name: "Japón",
       description: null,
       goal_type: "purchase",
+      scope: "shared",
       target_amount: "80000",
       target_date: "2027-03-01",
       status: "active",
@@ -87,6 +88,7 @@ describe("query row mapping", () => {
       ],
     });
     assert.equal(goal.targetAmount, 80000);
+    assert.equal(goal.scope, "shared");
     assert.equal(goal.contributions[0].amount, 4000);
     assert.equal(goal.contributions[0].deletedAt, null);
   });

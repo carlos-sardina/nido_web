@@ -162,6 +162,7 @@ export type GoalRow = {
   name: string;
   description: string | null;
   goalType: GoalType;
+  scope: ExpenseScope;
   targetAmount: number;
   targetDate: string | null;
   status: GoalStatus;
@@ -202,6 +203,7 @@ export type GoalProgress = {
   id: string;
   name: string;
   goalType: GoalType;
+  scope: ExpenseScope;
   status: GoalStatus;
   targetAmount: number;
   contributed: number;

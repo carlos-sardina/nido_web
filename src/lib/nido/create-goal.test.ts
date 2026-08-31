@@ -7,6 +7,7 @@ const validInput = {
   name: "Fondo de emergencia",
   amount: 200000,
   goalType: "saving" as const,
+  scope: "shared" as const,
   targetDate: null,
   description: "",
   activeMemberIds: ["u1"],
@@ -150,6 +151,7 @@ describe("createGoalWithAuth (unit, mocked auth adapter)", () => {
         assert.equal(args.p_name, "Fondo de emergencia");
         assert.equal(args.p_target_amount, 200000);
         assert.equal(args.p_goal_type, "saving");
+        assert.equal(args.p_scope, "shared");
         assert.equal(args.p_target_date, null);
         assert.equal(args.p_description, null);
         assert.equal("p_current_amount" in args, false);

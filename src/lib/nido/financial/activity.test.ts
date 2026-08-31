@@ -62,6 +62,7 @@ const goal: GoalRow = {
   name: "Viaje a Japón",
   description: null,
   goalType: "purchase",
+  scope: "shared",
   targetAmount: 80000,
   targetDate: "2027-03-01",
   status: "active",

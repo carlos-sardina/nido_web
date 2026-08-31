@@ -71,11 +71,12 @@ Applied to `nido_dev` in 9.4.10 (`supabase db push --linked` after dry-run):
 Applied to `nido_dev` (`supabase db push --linked` after dry-run):
 
 19. `20260822900000_nido_expense_selectable_payer.sql`
+20. `20260823000000_nido_goal_scope.sql`
 
 ```text
-local  = 19
-remote = 19
-db push = YES (selectable expense payer)
+local  = 20
+remote = 20
+db push = YES (goal/fund personal or shared scope)
 ```
 
 9.4.6–9.4.9 added no SQL. 9.4.0–9.4.9 did not push.
@@ -388,7 +389,7 @@ Database types live in `src/lib/supabase/types.ts`.
 
 They follow the official Supabase `Database` shape (`Tables`, `Insert`, `Update`, `Enums`, `Functions`, plus the generated helper types `Tables`, `TablesInsert`, `TablesUpdate`, and `Enums`).
 
-They represent the current **local** migrations (18 files), including:
+They represent the current **local** migrations (20 files), including:
 
 - `profiles`, `households`, `household_members`, `household_invitations`
 - `categories`
@@ -399,7 +400,7 @@ They represent the current **local** migrations (18 files), including:
 - the public enums (`household_split_method`, `personal_visibility`, and the foundation set)
 - the public SQL helpers used by integrity triggers and RLS
 
-Regenerating from `--linked` while remote still has 14 migrations will drop the 9.4 types. Do not overwrite this file from remote until 15–18 are applied.
+Regenerate from `--linked` after applying a migration. Local and remote both have 20.
 
 Do not add parallel domain interfaces that only repeat a table row. Feature-specific types can be added later when a screen needs them.
 

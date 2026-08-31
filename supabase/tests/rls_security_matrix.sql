@@ -5462,6 +5462,7 @@ $$;
 
 -- -----------------------------------------------------------------------------
 -- Phase 9.4.3 — personal visibility (V01–V22)
+-- Goal/fund scope cases V23–V30 reuse this block.
 -- Default is nido, so earlier SELECT cases stay valid until this block
 -- flips Carlos to private and back.
 -- -----------------------------------------------------------------------------
@@ -5481,8 +5482,11 @@ DECLARE
   v_personal_budget uuid := 'f2222222-2222-4222-8222-222222222222';
   v_personal_savings uuid := 'f3333333-3333-4333-8333-333333333333';
   v_shared_savings uuid := 'f4444444-4444-4444-8444-444444444444';
+  v_personal_goal uuid := 'f5555555-5555-4555-8555-555555555555';
+  v_personal_goal_contrib uuid := 'f6666666-6666-4666-8666-666666666666';
   v_created_personal uuid;
   v_created_nido uuid;
+  v_goal_a uuid;
 BEGIN
   SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
   SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
@@ -5493,6 +5497,7 @@ BEGIN
   SELECT id INTO v_expense_a FROM rls_ids WHERE key = 'expense_a';
   SELECT id INTO v_split_a FROM rls_ids WHERE key = 'split_a';
   SELECT id INTO v_budget_a FROM rls_ids WHERE key = 'budget_a';
+  SELECT id INTO v_goal_a FROM rls_ids WHERE key = 'goal_a';
 
   PERFORM pg_temp.clear_auth();
   RESET ROLE;
@@ -5524,6 +5529,18 @@ BEGIN
   ) VALUES
     (v_personal_savings, v_nido_a, v_carlos, 1500, DATE '2026-01-21', v_carlos),
     (v_shared_savings, v_nido_a, NULL, 2000, DATE '2026-01-21', v_carlos);
+
+  INSERT INTO public.goals (
+    id, household_id, name, goal_type, target_amount, status, created_by, scope
+  ) VALUES (
+    v_personal_goal, v_nido_a, 'Fondo personal', 'saving', 3000, 'active', v_carlos, 'personal'
+  );
+
+  INSERT INTO public.goal_contributions (
+    id, goal_id, member_id, amount, contributed_at, created_by
+  ) VALUES (
+    v_personal_goal_contrib, v_personal_goal, v_carlos, 400, DATE '2026-01-21', v_carlos
+  );
 
   PERFORM pg_temp.set_auth(v_carlos);
   PERFORM pg_temp.record_result(
@@ -5677,6 +5694,102 @@ BEGIN
     CASE WHEN pg_temp.expect_count(format(
       'SELECT count(*) FROM public.savings_balances WHERE id = %L', v_personal_savings
     )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'V23', 'Carlos', 'A', 'active', 'owner reads own personal goal after restoring nido',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.goals WHERE id = %L', v_personal_goal
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'V24', 'Diana', 'A', 'active', 'peer reads personal goal when nido',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.goals WHERE id = %L', v_personal_goal
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'V25', 'Diana', 'A', 'active', 'peer still reads shared goal',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.goals WHERE id = %L', v_goal_a
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'V26', 'Diana', 'A', 'active', 'peer cannot contribute to others personal goal',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_goal_contribution(%L::uuid, 50, DATE '2026-01-22')
+      $sql$,
+      v_personal_goal
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'V27', 'Carlos', 'A', 'active', 'owner can contribute to own personal goal',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_goal_contribution(%L::uuid, 50, DATE '2026-01-22')
+      $sql$,
+      v_personal_goal
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'V28', 'Carlos', 'A', 'active', 'owner can hide personal goal again',
+    'allow',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.update_personal_visibility('private')
+      $sql$
+    )
+  );
+
+  PERFORM pg_temp.record_result(
+    'V32', 'Carlos', 'A', 'active', 'owner reads own private personal goal',
+    'allow',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.goals WHERE id = %L', v_personal_goal
+    )) = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'V29', 'Diana', 'A', 'active', 'peer cannot read private personal goal',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.goals WHERE id = %L', v_personal_goal
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.record_result(
+    'V30', 'Diana', 'A', 'active', 'peer cannot read contributions of a private personal goal',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.goal_contributions WHERE id = %L', v_personal_goal_contrib
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'V31', 'Carlos', 'A', 'active', 'owner restores visibility after goal cases',
+    'allow',
+    pg_temp.expect_allow(
+      $sql$
+        SELECT public.update_personal_visibility('nido')
+      $sql$
+    )
   );
 
   PERFORM pg_temp.set_auth(v_luis);

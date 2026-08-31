@@ -6,7 +6,7 @@ import {
   parseExpenseAmountInput,
 } from "./expense-input.ts";
 import { MAX_MONEY_AMOUNT, roundMoney } from "./money.ts";
-import type { GoalType } from "./types.ts";
+import type { ExpenseScope, GoalType } from "./types.ts";
 
 export const GOAL_NAME_MAX = 80;
 export const GOAL_DESCRIPTION_MAX = 160;
@@ -16,6 +16,7 @@ export type CreateGoalRequest = {
   name: string;
   amount: number;
   goalType: GoalType;
+  scope: ExpenseScope;
   targetDate: string | null;
   description: string;
   activeMemberIds: readonly string[];
@@ -26,6 +27,7 @@ export type CreateGoalPayload = {
   name: string;
   amount: number;
   goalType: GoalType;
+  scope: ExpenseScope;
   targetDate: string | null;
   description: string | null;
 };
@@ -85,6 +87,10 @@ export function isGoalType(value: string | null | undefined): value is GoalType 
   return value === "saving" || value === "purchase";
 }
 
+export function isGoalScope(value: string | null | undefined): value is ExpenseScope {
+  return value === "personal" || value === "shared";
+}
+
 export function buildCreateGoalPayload(
   input: CreateGoalRequest,
   userId: string,
@@ -102,6 +108,7 @@ export function buildCreateGoalPayload(
   }
 
   if (!isGoalType(input.goalType)) return { ok: false, error: "invalid_name" };
+  if (!isGoalScope(input.scope)) return { ok: false, error: "invalid_name" };
 
   let targetDate: string | null = null;
   if (input.targetDate != null && input.targetDate.trim()) {
@@ -122,6 +129,7 @@ export function buildCreateGoalPayload(
       name,
       amount,
       goalType: input.goalType,
+      scope: input.scope,
       targetDate,
       description,
     },

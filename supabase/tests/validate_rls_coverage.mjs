@@ -53,6 +53,8 @@ const expectedHelpers = [
   "household_id_for_recurring_expense(",
   "household_id_for_goal(p_goal_id uuid)",
   "personal_finance_visible(p_owner_id uuid)",
+  "goal_is_visible(p_goal_id uuid)",
+  "goal_accepts_contribution(p_goal_id uuid)",
 ];
 
 for (const helper of expectedHelpers) {

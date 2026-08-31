@@ -7,8 +7,10 @@ import { householdSpent, isActiveExpense, visiblePeriodExpenses } from "./expens
 import {
   activeGoalProgress,
   emergencyMonthsCovered,
-  featuredSavingGoal,
+  featuredSharedFund,
   isActiveContribution,
+  sharedFundContributed,
+  sharedFundTarget,
 } from "./goals.ts";
 import { computeHealth } from "./health.ts";
 import { isActiveIncome, periodIncomeTotal, visiblePeriodIncomes } from "./incomes.ts";
@@ -43,9 +45,11 @@ export function buildDashboardViewModel(input: {
   );
   const periodSpent = householdSpent(periodExpenses);
   const activeGoals = activeGoalProgress(snapshot.goals);
-  const featured = featuredSavingGoal(snapshot.goals);
+  const sharedContributed = sharedFundContributed(snapshot.goals);
+  const sharedTarget = sharedFundTarget(snapshot.goals);
+  const featured = featuredSharedFund(snapshot.goals);
   const emergencyMonths = featured
-    ? emergencyMonthsCovered(featured.contributed, periodSpent)
+    ? emergencyMonthsCovered(sharedContributed, periodSpent)
     : null;
 
   const hasAnyFinancialData =
@@ -72,16 +76,19 @@ export function buildDashboardViewModel(input: {
     hasAnyFinancialData,
   });
 
+  const sharedFundCount = snapshot.goals.filter(
+    (goal) =>
+      goal.status === "active" && goal.goalType === "saving" && goal.scope === "shared",
+  ).length;
   const featuredGoal: FeaturedGoalView | null = featured
     ? {
         id: featured.id,
-        name: featured.name,
-        contributed: featured.contributed,
-        targetAmount: featured.targetAmount,
-        percent: featured.invalidTarget
-          ? 0
-          : clampedPercent(featured.contributed, featured.targetAmount),
-        invalidTarget: featured.invalidTarget,
+        name: sharedFundCount > 1 ? "Fondos compartidos" : featured.name,
+        contributed: sharedContributed,
+        targetAmount: sharedTarget,
+        percent:
+          sharedTarget > 0 ? clampedPercent(sharedContributed, sharedTarget) : 0,
+        invalidTarget: !(sharedTarget > 0),
         emergencyMonths,
       }
     : null;

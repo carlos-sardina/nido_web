@@ -99,6 +99,7 @@ There is no product rule that rejects future expense dates. The form defaults to
 | Member balance | paid − owed. Personal expenses do not participate |
 | Settlements | Derived from member balances (`deriveSettlements`). Not persisted. Not a payment. |
 | Goal progress | `SUM(goal_contributions.amount) WHERE deleted_at IS NULL / goals.target_amount` (0 if target ≤ 0) |
+| Months of support | `SUM` of live contributions on **active shared funds** (`goal_type = saving` and `scope = shared`) ÷ period spent. Purchase goals and personal funds are excluded. Null when spend is 0 or there is no shared fund. |
 | Budget spent | `calculateBudgetConsumption()` / `budgetSpent()`: `SUM(netExpense)` of live expenses in the same household, `category_id`, and month. Nido: all visible rows (personal + shared). Personal: `scope = personal` and `created_by = budgets.member_id`. `netExpense = amount − SUM(refunds of that expense)` |
 | Budget remaining | `budgets.amount − spent` (view model only; may be negative) |
 | Budget usage | `spent / budgets.amount * 100` (view model only; unbounded, may exceed 100; null if amount ≤ 0) |
@@ -357,11 +358,11 @@ Double submit: **Guardando…** (`aria-busy`). After create, edit, or delete: `d
 
 ---
 
-## Metas
+## Metas y fondos
 
-The Metas tab lists `model.activeGoals` / `model.goals` from the same `useDashboard()` snapshot. Progress is derived from embedded `goal_contributions`. There is no `current_amount`.
+The Metas tab lists `model.activeGoals` / `model.goals` from the same `useDashboard()` snapshot, grouped as **fondos** (`goal_type = saving`) and **metas** (`goal_type = purchase`). Progress is derived from embedded `goal_contributions`. There is no `current_amount`.
 
-Empty Nido: **Sin metas todavía** + **Crear una meta** (GoalFlow).
+Empty Nido: **Sin metas ni fondos todavía** + **Crear una meta o un fondo** (GoalFlow).
 
 Create / edit fields that exist on `goals`:
 
@@ -369,11 +370,16 @@ Create / edit fields that exist on `goals`:
 - target_amount (required, > 0)
 - target_date (optional)
 - description (optional)
-- goal_type (`saving` | `purchase`)
+- goal_type (`saving` = fondo, `purchase` = meta)
+- scope (`shared` | `personal`). Default `shared`. Existing rows stay shared.
+
+A **fondo** is a reserve. A **meta** is a target to reach or buy. Metas never enter months of support. Only **shared funds** do (`saving` + `shared`). Personal funds stay out of that numerator even when named “emergencia”.
+
+Personal SELECT follows `profiles.personal_visibility` of `created_by`. Shared rows stay visible to household members. Any active member may contribute to a **shared** goal/fund. Only the creator may contribute to a **personal** one.
 
 Archive sets `status = archived`. Contributions remain. Home and Metas hide archived rows.
 
-Only the creator with an active membership may edit or archive. Other members may SELECT. Historical members may SELECT but not mutate.
+Only the creator with an active membership may edit or archive. Historical members may SELECT visible rows but not mutate.
 
 ---
 
@@ -381,7 +387,7 @@ Only the creator with an active membership may edit or archive. Other members ma
 
 Home `+` → **Registrar una aportación** → active goal → amount → date → `createContribution()` → `create_goal_contribution` RPC → `useDashboard().refresh()`.
 
-This is **not** the same authorization as defining a goal. Any **active** member of the Nido may contribute to an **active** goal of that Nido. Who created the goal does not matter.
+This is **not** the same authorization as defining a goal. Any **active** member of the Nido may contribute to an **active shared** goal or fund of that Nido. Who created it does not matter. A **personal** goal or fund accepts contributions only from its creator.
 
 Authority:
 
@@ -445,7 +451,7 @@ Client and RPC both reject:
 - missing goal, archived goal, goal of another Nido
 - missing contribution, already-deleted contribution, not the creator
 
-The form lists only active goals of the current Nido (name, saved amount, target, percent). If none exist: **Todavía no hay metas** + **Crear una meta** (existing GoalFlow).
+The form lists only goals/funds the caller may contribute to (shared, or own personal). If none exist: **Todavía no hay metas ni fondos** + **Crear una meta o un fondo** (existing GoalFlow).
 
 Edit reuses the same amount and date validations. The goal cannot be changed on edit.
 
@@ -531,7 +537,7 @@ After success the `nido.onboardingDraft` key is cleared. Home reads the same `us
 
 No records → empty copy, not prototype numbers.
 
-A newly created Nido has default **expense and income categories**. If the user declared a monthly income greater than zero, Home / Ingresos / Actividad show that one `incomes` row (category **Sueldo**, description **Ingreso mensual neto**, `occurred_at` = today in `America/Mexico_City`). Amount `0` writes no income. Selected estimates become current-month budgets (Nido and personal appear on Presupuestos; Home totals stay Nido-level). Savings stock has no Home metric UI yet. Patrimonio / meses de emergencia are not computed in 9.4.3.
+A newly created Nido has default **expense and income categories**. If the user declared a monthly income greater than zero, Home / Ingresos / Actividad show that one `incomes` row (category **Sueldo**, description **Ingreso mensual neto**, `occurred_at` = today in `America/Mexico_City`). Amount `0` writes no income. Selected estimates become current-month budgets (Nido and personal appear on Presupuestos; Home totals stay Nido-level). Savings stock (`savings_balances`) has no Home metric UI. Months of support come from **shared funds** (`goals.goal_type = saving` and `scope = shared`), not from metas or personal funds.
 
 ---
 

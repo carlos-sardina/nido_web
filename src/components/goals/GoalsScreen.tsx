@@ -8,6 +8,9 @@ import {
   formatCompactMoney,
   formatGoalTargetDate,
   formatWholeMoney,
+  goalKindLabel,
+  goalScopeLabel,
+  isFund,
   sumMoney,
   type GoalProgress,
   type GoalRow,
@@ -28,7 +31,10 @@ export function GoalsScreen({
   const goals = model?.goals ?? [];
   const active = model?.activeGoals ?? [];
   const empty = Boolean(model && active.length === 0);
-  const totalSaved = sumMoney(active.map((goal) => goal.contributed));
+  const funds = active.filter((goal) => isFund(goal));
+  const metas = active.filter((goal) => !isFund(goal));
+  const totalFunds = sumMoney(funds.map((goal) => goal.contributed));
+  const totalMetas = sumMoney(metas.map((goal) => goal.contributed));
 
   return (
     <PullToRefresh
@@ -38,14 +44,17 @@ export function GoalsScreen({
     >
       <div className="px-6 pt-3 pb-1">
         <Heading as="h2" size="h2">
-          Metas
+          Metas y fondos
         </Heading>
         <Text size="caption" tone="muted" className="mt-1">
           {empty
-            ? "Aún no hay metas activas"
-            : active.length === 1
-              ? "1 activa"
-              : `${active.length} activas`}
+            ? "Aún no hay metas ni fondos activos"
+            : [
+                funds.length === 1 ? "1 fondo" : funds.length > 1 ? `${funds.length} fondos` : null,
+                metas.length === 1 ? "1 meta" : metas.length > 1 ? `${metas.length} metas` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
         </Text>
       </div>
 
@@ -69,9 +78,9 @@ export function GoalsScreen({
       ) : empty ? (
         <div className="px-6 pt-4">
           <EmptyState
-            title="Sin metas todavía"
-            description="Crea una meta para empezar a construirla juntos."
-            actionLabel="Crear una meta"
+            title="Sin metas ni fondos todavía"
+            description="Crea un fondo para cubrir gastos o una meta para algo que quieren alcanzar."
+            actionLabel="Crear una meta o un fondo"
             onAction={onCreateGoal}
           />
         </div>
@@ -94,26 +103,65 @@ export function GoalsScreen({
             </div>
           ) : null}
 
-          <div className="rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
-            <Text size="caption" tone="muted">
-              Total en metas
-            </Text>
-            <p className="mt-1 text-[22px] font-bold font-sans" style={{ color: P.text }}>
-              {formatWholeMoney(totalSaved)}
-            </p>
-          </div>
+          {funds.length > 0 ? (
+            <div className="rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
+              <Text size="caption" tone="muted">
+                Total en fondos
+              </Text>
+              <p className="mt-1 text-[22px] font-bold font-sans" style={{ color: P.text }}>
+                {formatWholeMoney(totalFunds)}
+              </p>
+            </div>
+          ) : null}
 
-          {active.map((progress) => {
-            const goal = goals.find((row) => row.id === progress.id);
-            if (!goal) return null;
-            return (
-              <GoalCard
-                key={progress.id}
-                progress={progress}
-                onOpen={() => onOpenGoal(goal)}
-              />
-            );
-          })}
+          {metas.length > 0 ? (
+            <div className="rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
+              <Text size="caption" tone="muted">
+                Total en metas
+              </Text>
+              <p className="mt-1 text-[22px] font-bold font-sans" style={{ color: P.text }}>
+                {formatWholeMoney(totalMetas)}
+              </p>
+            </div>
+          ) : null}
+
+          {funds.length > 0 ? (
+            <div className="space-y-3">
+              <Text size="label" tone="muted">
+                Fondos
+              </Text>
+              {funds.map((progress) => {
+                const goal = goals.find((row) => row.id === progress.id);
+                if (!goal) return null;
+                return (
+                  <GoalCard
+                    key={progress.id}
+                    progress={progress}
+                    onOpen={() => onOpenGoal(goal)}
+                  />
+                );
+              })}
+            </div>
+          ) : null}
+
+          {metas.length > 0 ? (
+            <div className="space-y-3">
+              <Text size="label" tone="muted">
+                Metas
+              </Text>
+              {metas.map((progress) => {
+                const goal = goals.find((row) => row.id === progress.id);
+                if (!goal) return null;
+                return (
+                  <GoalCard
+                    key={progress.id}
+                    progress={progress}
+                    onOpen={() => onOpenGoal(goal)}
+                  />
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       )}
     </PullToRefresh>
@@ -142,13 +190,13 @@ function GoalCard({
             {progress.name}
           </p>
           <Text size="caption" tone="muted" className="mt-0.5">
-            {progress.goalType === "purchase" ? "Compra" : "Ahorro"}
+            {goalKindLabel(progress.goalType)} · {goalScopeLabel(progress.scope)}
             {targetLabel ? ` · ${targetLabel}` : null}
           </Text>
         </div>
         <div className="text-right flex-shrink-0">
           <Text size="caption" tone="muted">
-            Meta
+            Objetivo
           </Text>
           <p className="text-sm font-bold font-sans" style={{ color: P.text }}>
             {progress.invalidTarget ? "—" : formatCompactMoney(progress.targetAmount)}

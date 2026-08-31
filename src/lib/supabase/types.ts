@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -428,6 +428,7 @@ export type Database = {
           household_id: string
           id: string
           name: string
+          scope: Database["public"]["Enums"]["expense_scope"]
           status: Database["public"]["Enums"]["goal_status"]
           target_amount: number
           target_date: string | null
@@ -441,6 +442,7 @@ export type Database = {
           household_id: string
           id?: string
           name: string
+          scope?: Database["public"]["Enums"]["expense_scope"]
           status?: Database["public"]["Enums"]["goal_status"]
           target_amount: number
           target_date?: string | null
@@ -454,6 +456,7 @@ export type Database = {
           household_id?: string
           id?: string
           name?: string
+          scope?: Database["public"]["Enums"]["expense_scope"]
           status?: Database["public"]["Enums"]["goal_status"]
           target_amount?: number
           target_date?: string | null
@@ -1003,9 +1006,9 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      active_household_id_for_user: { Args: never; Returns: string }
       archive_category: { Args: { p_category_id: string }; Returns: string }
       archive_goal: { Args: { p_goal_id: string }; Returns: string }
-      active_household_id_for_user: { Args: never; Returns: string }
       assert_active_household_member: {
         Args: { p_household_id: string; p_user_id: string }
         Returns: undefined
@@ -1045,14 +1048,6 @@ export type Database = {
         Args: { p_category_id: string; p_household_id: string }
         Returns: boolean
       }
-      create_category: {
-        Args: {
-          p_icon?: string
-          p_name: string
-          p_type: Database["public"]["Enums"]["category_type"]
-        }
-        Returns: string
-      }
       create_budget: {
         Args: {
           p_amount: number
@@ -1061,6 +1056,14 @@ export type Database = {
           p_household_id: string
           p_personal?: boolean
           p_start_date: string
+        }
+        Returns: string
+      }
+      create_category: {
+        Args: {
+          p_icon?: string
+          p_name: string
+          p_type: Database["public"]["Enums"]["category_type"]
         }
         Returns: string
       }
@@ -1087,6 +1090,7 @@ export type Database = {
           p_goal_type: Database["public"]["Enums"]["goal_type"]
           p_household_id: string
           p_name: string
+          p_scope?: Database["public"]["Enums"]["expense_scope"]
           p_target_amount: number
           p_target_date: string
         }
@@ -1118,8 +1122,8 @@ export type Database = {
           p_estimates?: Json
           p_income_amount: number
           p_name: string
-          p_savings_personal?: number | null
-          p_savings_shared?: number | null
+          p_savings_personal?: number
+          p_savings_shared?: number
           p_split_method?: Database["public"]["Enums"]["household_split_method"]
         }
         Returns: {
@@ -1187,7 +1191,12 @@ export type Database = {
           name: string
         }[]
       }
+      goal_accepts_contribution: {
+        Args: { p_goal_id: string }
+        Returns: boolean
+      }
       goal_is_active: { Args: { p_goal_id: string }; Returns: boolean }
+      goal_is_visible: { Args: { p_goal_id: string }; Returns: boolean }
       household_has_no_members: {
         Args: { p_household_id: string }
         Returns: boolean
@@ -1243,6 +1252,10 @@ export type Database = {
         Returns: string
       }
       nido_today: { Args: never; Returns: string }
+      personal_finance_visible: {
+        Args: { p_owner_id: string }
+        Returns: boolean
+      }
       rename_category: {
         Args: { p_category_id: string; p_name: string }
         Returns: string
@@ -1266,61 +1279,6 @@ export type Database = {
       transfer_household_ownership: {
         Args: { p_new_owner_id: string }
         Returns: undefined
-      }
-      update_household_default_split_method: {
-        Args: {
-          p_method: Database["public"]["Enums"]["household_split_method"]
-        }
-        Returns: {
-          created_at: string
-          created_by: string
-          default_split_method: Database["public"]["Enums"]["household_split_method"]
-          id: string
-          name: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "households"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      update_personal_visibility: {
-        Args: {
-          p_visibility: Database["public"]["Enums"]["personal_visibility"]
-        }
-        Returns: {
-          avatar_url: string | null
-          created_at: string
-          display_name: string
-          id: string
-          personal_visibility: Database["public"]["Enums"]["personal_visibility"]
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "profiles"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      update_household_name: {
-        Args: { p_name: string }
-        Returns: {
-          created_at: string
-          created_by: string
-          default_split_method: Database["public"]["Enums"]["household_split_method"]
-          id: string
-          name: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "households"
-          isOneToOne: true
-          isSetofReturn: false
-        }
       }
       update_budget: {
         Args: {
@@ -1351,6 +1309,7 @@ export type Database = {
           p_goal_id: string
           p_goal_type: Database["public"]["Enums"]["goal_type"]
           p_name: string
+          p_scope?: Database["public"]["Enums"]["expense_scope"]
           p_target_amount: number
           p_target_date: string
         }
@@ -1364,6 +1323,42 @@ export type Database = {
         }
         Returns: string
       }
+      update_household_default_split_method: {
+        Args: {
+          p_method: Database["public"]["Enums"]["household_split_method"]
+        }
+        Returns: {
+          created_at: string
+          created_by: string
+          default_split_method: Database["public"]["Enums"]["household_split_method"]
+          id: string
+          name: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "households"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_household_name: {
+        Args: { p_name: string }
+        Returns: {
+          created_at: string
+          created_by: string
+          default_split_method: Database["public"]["Enums"]["household_split_method"]
+          id: string
+          name: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "households"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       update_income: {
         Args: {
           p_amount: number
@@ -1373,6 +1368,25 @@ export type Database = {
           p_occurred_at: string
         }
         Returns: string
+      }
+      update_personal_visibility: {
+        Args: {
+          p_visibility: Database["public"]["Enums"]["personal_visibility"]
+        }
+        Returns: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string
+          id: string
+          personal_visibility: Database["public"]["Enums"]["personal_visibility"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       update_recurring_expense: {
         Args: {
