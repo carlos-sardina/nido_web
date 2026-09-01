@@ -213,7 +213,7 @@ The 60-second cooldown is a UX protection. Real abuse protection remains in Supa
 Requires migration `20260821000000_nido_categories_and_create_expense.sql` on the linked project. Unit tests do **not** replace this checklist. SQL RLS cases `X01`–`X07` in `supabase/tests/rls_security_matrix.sql` also need a real Supabase database.
 
 1. Create or open an active Nido. Confirm it has default expense categories (Vivienda, Despensa, …).
-2. Home `+` → bottom sheet with Registrar un gasto, Crear una meta, Registrar una aportación.
+2. Home `+` → bottom sheet with Registrar un gasto, Registrar un ingreso, Crear un presupuesto, Registrar una aportación.
 3. **Registrar una aportación** → form with the Nido’s active goals. If none exist, **Todavía no hay metas** + **Crear una meta**.
 4. **Registrar un gasto** opens the form. Categories are the Nido’s active expense categories, not another household’s.
 5. Empty amount, `0`, negative, and malformed amounts are rejected in Spanish. Invalid input is not coerced to `0`.
@@ -262,7 +262,7 @@ Manual runs actually executed for this checklist: none in this phase.
 Requires migration `20260821180000_nido_goal_mutations.sql` on the linked project (plus prior financial migrations). Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. SQL cases `Y01`–`Y12` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). The manual UI checklist below was **not** executed in a live app session.
 
 A. **Empty state** — Nido sin metas ni fondos: **Sin metas ni fondos todavía** + **Crear una meta o un fondo**. Home **¿Tienen algo en mente?** no muestra números prototipo.
-B. **Crear meta o fondo** — Home `+` → Crear una meta o un fondo. Nombre obligatorio, monto > 0, fecha y descripción opcionales, tipo fondo/meta, alcance personal/compartido. Aparece en Metas. Solo un **fondo compartido** entra en meses de soporte.
+B. **Crear meta o fondo** — Metas vacío → **Crear una meta o un fondo**, or Home `+` → Registrar una aportación → **Crear una meta o un fondo** / **Crear otra meta o fondo**. Nombre obligatorio, monto > 0, fecha y descripción opcionales, tipo fondo/meta, alcance personal/compartido. Aparece en Metas. Solo un **fondo compartido** entra en meses de soporte.
 C. **Progreso** — `SUM(goal_contributions.amount) / target_amount`. Sin contribuciones: 0%. Al 100% se muestra 100%. Si las aportaciones exceden, el porcentaje se capea a 100% y el monto ahorrado sigue siendo la suma real. No hay `current_amount`.
 D. **Editar como creador** — detalle → Editar; mismas validaciones.
 E. **Archivar como creador** — **¿Archivar esta meta?** / **Dejará de aparecer en Metas y en el inicio. Las aportaciones se conservan.** Cancelar (ghost) + Archivar meta (danger).
@@ -280,7 +280,7 @@ Manual runs actually executed for this checklist: none in this phase.
 
 Requires migration `20260821200000_nido_goal_contribution_mutations.sql` on the linked project (plus prior financial and goal migrations). Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. SQL cases `Z01`–`Z11` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). The manual UI checklist below was **not** executed in a live app session.
 
-A. **Empty state** — Nido sin metas/fondos a los que pueda aportar: **Todavía no hay metas ni fondos** + **Crear una meta o un fondo** reutiliza GoalFlow.
+A. **Empty state** — Nido sin metas/fondos a los que pueda aportar: **Todavía no hay metas ni fondos** + **Crear una meta o un fondo** reutiliza GoalFlow. If goals already exist: **Crear otra meta o fondo** under the list, same GoalFlow. After create, return to the contribution form.
 B. **Crear aportación** — Home `+` → Registrar una aportación. Meta o fondo activo (compartido, o personal propio), monto > 0, fecha (hoy por default en America/Mexico_City).
 C. **Progreso** — `SUM(goal_contributions.amount) / target_amount`. Home, Metas, detalle y actividad se actualizan con `dashboard.refresh()`. No hay `current_amount`.
 D. **Otro miembro** — puede aportar a un **compartido** que no creó. No puede aportar a un **personal** ajeno. El progreso suma ambas aportaciones en el compartido.

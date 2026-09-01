@@ -364,7 +364,7 @@ Double submit: **Guardando…** (`aria-busy`). After create, edit, or delete: `d
 
 The Metas tab lists `model.activeGoals` / `model.goals` from the same `useDashboard()` snapshot, grouped as **fondos** (`goal_type = saving`) and **metas** (`goal_type = purchase`). Progress is derived from embedded `goal_contributions`. There is no `current_amount`.
 
-Empty Nido: **Sin metas ni fondos todavía** + **Crear una meta o un fondo** (GoalFlow).
+Empty Nido: **Sin metas ni fondos todavía** + **Crear una meta o un fondo** (GoalFlow). Creating another goal also lives on **Registrar una aportación**: **Crear otra meta o fondo** when the list has items. The Home `+` sheet no longer has a dedicated create-goal action.
 
 Create / edit fields that exist on `goals`:
 
@@ -453,7 +453,7 @@ Client and RPC both reject:
 - missing goal, archived goal, goal of another Nido
 - missing contribution, already-deleted contribution, not the creator
 
-The form lists only goals/funds the caller may contribute to (shared, or own personal). If none exist: **Todavía no hay metas ni fondos** + **Crear una meta o un fondo** (existing GoalFlow).
+The form lists only goals/funds the caller may contribute to (shared, or own personal). If none exist: **Todavía no hay metas ni fondos** + **Crear una meta o un fondo**. If some exist: **Crear otra meta o fondo** under the list. Both open the existing GoalFlow and return to this form after create or cancel.
 
 Edit reuses the same amount and date validations. The goal cannot be changed on edit.
 

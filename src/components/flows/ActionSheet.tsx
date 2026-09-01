@@ -17,7 +17,6 @@ export function ActionSheet({
     { flow: "expense", emoji: "💸", label: "Registrar un gasto", sub: "Compartido o personal" },
     { flow: "income", emoji: "💰", label: "Registrar un ingreso", sub: "Sueldo u extra" },
     { flow: "budget", emoji: "📊", label: "Crear un presupuesto", sub: "Límite por categoría este mes" },
-    { flow: "goal", emoji: "🎯", label: "Crear una meta o un fondo", sub: "Personal o del Nido" },
     { flow: "contrib", emoji: "💰", label: "Registrar una aportación", sub: "Agrega a una meta o un fondo" },
   ];
 

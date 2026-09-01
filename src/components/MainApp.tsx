@@ -84,6 +84,7 @@ export function MainApp({
   const [selectedGoal, setSelectedGoal] = useState<GoalRow | null>(null);
   const [editingGoal, setEditingGoal] = useState<GoalRow | null>(null);
   const [editingContribution, setEditingContribution] = useState<GoalContributionRow | null>(null);
+  const [creatingGoalFromContrib, setCreatingGoalFromContrib] = useState(false);
   const [showBudgets, setShowBudgets] = useState(false);
   const [showIncomes, setShowIncomes] = useState(false);
   const [showBalance, setShowBalance] = useState(false);
@@ -132,6 +133,7 @@ export function MainApp({
     setEditingGoal(null);
     setSelectedGoal(null);
     setEditingContribution(null);
+    setCreatingGoalFromContrib(false);
     setEditingBudget(null);
     setSelectedBudget(null);
     setCreatingRecurringExpense(false);
@@ -148,6 +150,7 @@ export function MainApp({
     setEditingIncome(null);
     setEditingGoal(null);
     setEditingContribution(null);
+    setCreatingGoalFromContrib(false);
     setEditingBudget(null);
     setSelectedBudget(null);
     setActiveFlow(flow);
@@ -172,7 +175,14 @@ export function MainApp({
     setSelectedGoal(null);
     setEditingGoal(null);
     setEditingContribution(null);
+    setCreatingGoalFromContrib(false);
     setActiveFlow("goal");
+  };
+
+  const openGoalCreateFromContrib = () => {
+    setEditingGoal(null);
+    setSelectedGoal(null);
+    setCreatingGoalFromContrib(true);
   };
 
   const openBudgetCreate = () => {
@@ -317,7 +327,7 @@ export function MainApp({
           />
         )}
 
-        {liveSelectedGoal && activeFlow !== "goal" && activeFlow !== "contrib" && (
+        {liveSelectedGoal && activeFlow !== "goal" && activeFlow !== "contrib" && !creatingGoalFromContrib && (
           <GoalDetail
             goal={liveSelectedGoal}
             members={members}
@@ -438,19 +448,6 @@ export function MainApp({
           />
         )}
 
-        {activeFlow === "goal" && (
-          <GoalFlow
-            householdId={household.id}
-            members={members}
-            goal={editingGoal}
-            onClose={() => {
-              setActiveFlow(null);
-              setEditingGoal(null);
-            }}
-            onDone={handleFlowDone}
-          />
-        )}
-
         {showRecurringExpenses && !creatingRecurringExpense && !editingRecurringExpense && !selectedRecurringExpense && (
           <RecurringExpensesScreen
             householdId={household.id}
@@ -552,13 +549,40 @@ export function MainApp({
             onClose={() => {
               setActiveFlow(null);
               setEditingContribution(null);
+              setCreatingGoalFromContrib(false);
             }}
             onDone={() => {
               setActiveFlow(null);
               setEditingContribution(null);
+              setCreatingGoalFromContrib(false);
               void dashboard.refresh();
             }}
-            onCreateGoal={openGoalCreate}
+            onCreateGoal={openGoalCreateFromContrib}
+          />
+        )}
+
+        {(activeFlow === "goal" || creatingGoalFromContrib) && (
+          <GoalFlow
+            householdId={household.id}
+            members={members}
+            goal={creatingGoalFromContrib ? null : editingGoal}
+            onClose={() => {
+              setEditingGoal(null);
+              if (creatingGoalFromContrib) {
+                setCreatingGoalFromContrib(false);
+                return;
+              }
+              setActiveFlow(null);
+            }}
+            onDone={() => {
+              if (creatingGoalFromContrib) {
+                setCreatingGoalFromContrib(false);
+                setEditingGoal(null);
+                void dashboard.refresh();
+                return;
+              }
+              handleFlowDone();
+            }}
           />
         )}
 

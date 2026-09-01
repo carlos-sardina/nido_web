@@ -140,7 +140,7 @@ export function GoalFlow({
           : "Crear";
 
   return (
-    <div className="absolute inset-0 z-30 overflow-hidden">
+    <div className="absolute inset-0 z-40 overflow-hidden">
       <FlowScreen
         lockViewport
         className="h-full min-h-0"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/nido/Button";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
 import { EmptyState } from "@/components/nido/EmptyState";
@@ -70,6 +70,21 @@ export function ContribFlow({
   );
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
+  const knownGoalIdsRef = useRef<Set<string> | null>(null);
+  const activeGoalIds = activeGoals.map((goal) => goal.id).join("\0");
+
+  useEffect(() => {
+    const ids = activeGoalIds ? activeGoalIds.split("\0") : [];
+    if (knownGoalIdsRef.current == null) {
+      knownGoalIdsRef.current = new Set(ids);
+      return;
+    }
+    const added = ids.filter((id) => !knownGoalIdsRef.current!.has(id));
+    knownGoalIdsRef.current = new Set(ids);
+    if (isEditing || added.length !== 1) return;
+    setGoalId(added[0]);
+    setErrors((current) => ({ ...current, goal: undefined }));
+  }, [activeGoalIds, isEditing]);
 
   const amountId = `${ids}-amount`;
   const dateId = `${ids}-date`;
@@ -231,6 +246,14 @@ export function ContribFlow({
                         />
                       );
                     })}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={submitting}
+                      onClick={onCreateGoal}
+                    >
+                      Crear otra meta o fondo
+                    </Button>
                   </div>
                 )}
                 <FieldError id={`${ids}-goal-error`}>{errors.goal}</FieldError>
