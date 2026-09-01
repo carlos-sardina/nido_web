@@ -23,6 +23,7 @@ import {
   RECURRENCE_FREQUENCIES,
   frequencyLabel,
   todayIso,
+  withCurrentCategory,
   type ExpenseScope,
   type HouseholdCategory,
   type RecurrenceFrequency,
@@ -94,7 +95,20 @@ export function RecurringExpenseFlow({
         setLoadingCategories(false);
         return;
       }
-      setCategories(result.data);
+      const current = template?.category
+        ? {
+            id: template.categoryId,
+            householdId,
+            name: template.category.name,
+            icon: template.category.icon,
+            type: "expense" as const,
+            isDefault: false,
+            archivedAt: result.data.some((row) => row.id === template.categoryId)
+              ? null
+              : "archived",
+          }
+        : null;
+      setCategories(withCurrentCategory(result.data, current));
       setLoadingCategories(false);
     })();
     return () => {
@@ -286,7 +300,9 @@ export function RecurringExpenseFlow({
             </Field>
 
             <Field>
-              <p className="mb-2 text-label font-semibold text-muted-foreground">Categoría</p>
+              <p id={`${ids}-category`} className="mb-2 text-label font-semibold text-muted-foreground">
+                Categoría
+              </p>
               <CategoryPicker
                 householdId={householdId}
                 type="expense"
@@ -294,6 +310,7 @@ export function RecurringExpenseFlow({
                 selectedId={categoryId}
                 loading={loadingCategories}
                 disabled={submitting}
+                labelledBy={`${ids}-category`}
                 fallbackIcon="💸"
                 onSelect={(id) => {
                   setCategoryId(id);

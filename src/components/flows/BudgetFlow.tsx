@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { cn } from "@/app/components/ui/utils";
+import { CategoryPicker } from "@/components/flows/CategoryPicker";
 import { Button } from "@/components/nido/Button";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
-import { EmptyState } from "@/components/nido/EmptyState";
 import {
   Field,
   FieldError,
@@ -13,7 +12,6 @@ import {
   TextInput,
 } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
-import { Text } from "@/components/nido/Typography";
 import { canSubmitBudget, createBudget, updateBudget } from "@/lib/nido/budgets";
 import {
   amountToBudgetInput,
@@ -23,6 +21,7 @@ import {
   getCurrentMonthRange,
   parseBudgetAmountInput,
   parseBudgetMonthInput,
+  withCurrentCategory,
   type HouseholdCategory,
 } from "@/lib/nido/financial";
 import { fetchActiveExpenseCategories } from "@/lib/nido/queries/categories";
@@ -41,6 +40,8 @@ export type BudgetFormValue = {
   amount: number;
   startDate: string;
   memberId?: string | null;
+  name?: string;
+  icon?: string | null;
 };
 
 export function BudgetFlow({
@@ -88,7 +89,20 @@ export function BudgetFlow({
         setLoadingCategories(false);
         return;
       }
-      setCategories(result.data);
+      const current = budget
+        ? {
+            id: budget.categoryId,
+            householdId,
+            name: budget.name?.trim() || "Categoría",
+            icon: budget.icon ?? "📌",
+            type: "expense" as const,
+            isDefault: false,
+            archivedAt: result.data.some((row) => row.id === budget.categoryId)
+              ? null
+              : "archived",
+          }
+        : null;
+      setCategories(withCurrentCategory(result.data, current));
       setLoadingCategories(false);
     })();
 
@@ -262,52 +276,21 @@ export function BudgetFlow({
               <p id={categoryLabelId} className="mb-2 text-label font-semibold text-muted-foreground">
                 Categoría
               </p>
-              {loadingCategories ? (
-                <Text size="caption" tone="muted">
-                  Cargando categorías…
-                </Text>
-              ) : categories.length === 0 ? (
-                <EmptyState
-                  plain
-                  title="No hay categorías disponibles."
-                  description="No se pueden crear presupuestos hasta que tu Nido tenga categorías de gasto."
-                />
-              ) : (
-                <div
-                  className="grid grid-cols-2 gap-2"
-                  role="group"
-                  aria-labelledby={categoryLabelId}
-                >
-                  {categories.map((category) => {
-                    const selected = categoryId === category.id;
-                    return (
-                      <button
-                        key={category.id}
-                        type="button"
-                        aria-pressed={selected}
-                        disabled={submitting}
-                        onClick={() => {
-                          setCategoryId(category.id);
-                          setErrors((current) => ({ ...current, category: undefined }));
-                        }}
-                        className={cn(
-                          "flex items-center gap-2 p-3 rounded-2xl border-2 text-left transition-all",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                          "disabled:cursor-not-allowed disabled:opacity-70",
-                          selected ? "border-primary bg-card" : "border-border bg-card",
-                        )}
-                      >
-                        <span className="text-body flex-shrink-0" aria-hidden="true">
-                          {category.icon ?? "📌"}
-                        </span>
-                        <Text as="span" size="label" className="min-w-0 truncate">
-                          {category.name}
-                        </Text>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <CategoryPicker
+                householdId={householdId}
+                type="expense"
+                categories={categories}
+                selectedId={categoryId}
+                loading={loadingCategories}
+                disabled={submitting}
+                labelledBy={categoryLabelId}
+                fallbackIcon="📌"
+                onSelect={(id) => {
+                  setCategoryId(id);
+                  setErrors((current) => ({ ...current, category: undefined }));
+                }}
+                onCategoriesChange={setCategories}
+              />
               <FieldError id={`${ids}-category-error`}>{errors.category}</FieldError>
             </Field>
           </form>

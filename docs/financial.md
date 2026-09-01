@@ -59,17 +59,17 @@ Categories are **household-scoped**. There is no global catalog table.
 
 Default expense names live in `public.default_expense_category_catalog()` and `src/lib/nido/financial/categories.ts`:
 
-Vivienda, Despensa, Restaurantes, Transporte, Mascotas, Servicios, Limpieza, Entretenimiento, Salud, Educación, Trabajo, Otros.
+🏠 Vivienda, 🛒 Despensa, 🍔 Restaurantes, 🚗 Transporte, 🐶 Mascotas, ⚡ Servicios, 🧹 Limpieza, 🎬 Entretenimiento, ❤️ Salud, 🎓 Educación, 💼 Trabajo, ➕ Otros.
 
 Default income names live in `public.default_income_category_catalog()` and the same TypeScript module:
 
-Sueldo, Extra.
+💰 Sueldo, ✨ Extra.
 
 Income categories are a **fixed catalog**. Members cannot create, rename, or archive them. **Sueldo** is the recurring salary. **Extra** is registered as a one-time `incomes` row each time it happens; it cannot be a `recurring_incomes` template.
 
 `create_household` inserts expense **and** income rows in the same transaction as the household and owner membership. Existing households are backfilled by `20260821000000_nido_categories_and_create_expense.sql` (expenses) and `20260821220000_nido_income_mutations.sql` (incomes). `20260831120000_nido_income_sueldo_extra.sql` archives Freelance / Otros / custom income rows and keeps Sueldo + Extra. Reopening a form does not insert again. Expense names are unique per household and type, including archived rows.
 
-The expense form only lists **active expense** categories of the active Nido, and can create custom expense categories. The income form only lists **Sueldo** and **Extra**. Recurring income only lists **Sueldo**. If none exist, it shows **No hay categorías disponibles.** and does not create rows.
+The expense, recurring-expense, and budget forms list **active expense** categories of the active Nido and can create custom expense categories (name + emoji). The income form only lists **Sueldo** and **Extra**. Recurring income only lists **Sueldo**. Income categories are a fixed catalog: members cannot create, rename, or archive them from those forms. If no expense categories exist, those forms show the create fields instead of blocking. If no income categories exist, the form shows **No hay categorías disponibles.** and does not create rows.
 
 ---
 
@@ -181,7 +181,7 @@ Home `+` → **Crear un presupuesto**, or Home **Presupuesto del mes** → Presu
 | Field | Representation |
 | --- | --- |
 | Limit | `budgets.amount` `numeric(12,2)`, must be `> 0` |
-| Category | `category_id` of an active **expense** category in the same household |
+| Category | `category_id` of an active **expense** category in the same household. The form can create a custom category (name + emoji) before saving. |
 | Period | monthly only: `start_date` = first calendar day, `end_date` = last calendar day |
 | Scope | Nido (`member_id` NULL) or personal (`member_id = auth.uid()` when `p_personal`). The client never sends another member’s id. |
 | created_by | `auth.uid()` |
@@ -220,7 +220,7 @@ Home `+` → **Registrar un gasto** → form → `createExpense()` → `create_e
 | --- | --- |
 | Amount | `expenses.amount` `numeric(12,2)`, must be `> 0` |
 | Description | trimmed text, required in this phase, max 80 |
-| Category | `category_id` of an active expense category in the same household |
+| Category | `category_id` of an active expense category in the same household. The form can create a custom category (name + emoji) before saving. |
 | Date | `occurred_at` calendar date |
 | Payer | `expenses.payer_id` of an **active** household member. The form defaults to the writer (titular). Shared expenses may pick another member. `created_by` stays `auth.uid()`. |
 | Personal | `scope = personal`, `distribution_method = fixed`, exactly one split at 100% for the payer (the writer) |

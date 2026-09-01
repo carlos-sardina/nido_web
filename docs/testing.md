@@ -342,7 +342,7 @@ Manual runs actually executed for this checklist: none in this phase.
 Requires migration `20260821230000_nido_budget_mutations.sql` on the linked project (plus prior financial migrations). Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. SQL cases `K01`–`K16` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). The manual UI checklist below was **not** executed in a live app session. Prefix **K** is used because **B01–B09** already exist as Luis / never-member cases and **P01–P07** already exist as child-table SELECT / profile cases. Mapping to the requested B01–B16 list is 1:1.
 
 A. **Empty state** — Nido sin presupuesto del mes: **Sin presupuestos este mes** + **Crear un presupuesto**. Home muestra la misma empty copy.
-B. **Crear** — Home `+` → Crear un presupuesto. Categoría de gasto activa, monto > 0, mes calendario (America/Mexico_City). `member_id` NULL.
+B. **Crear** — Home `+` → Crear un presupuesto. Categoría de gasto activa o **Nueva categoría** (nombre + emoji), monto > 0, mes calendario (America/Mexico_City). `member_id` NULL.
 C. **Listado** — overlay Presupuestos desde Home. Límite, gastado derivado, restante, porcentaje, excedido.
 D. **Editar como creador** — Editar visible; mismas validaciones; `created_by` / `household_id` no se envían como autorización.
 E. **Eliminar como creador** — confirmación. Soft-delete (`deleted_at`). Los gastos no se eliminan.
