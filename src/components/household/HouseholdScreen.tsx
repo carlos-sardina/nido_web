@@ -21,7 +21,7 @@ import { Button } from "@/components/nido/Button";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { TextLink } from "@/components/nido/TextLink";
-import { Text } from "@/components/nido/Typography";
+import { Heading, Text } from "@/components/nido/Typography";
 import { P } from "@/lib/palette";
 
 const LIST_STATUS_LABEL: Record<ListedInvitation["status"], string> = {
@@ -168,8 +168,12 @@ export function HouseholdScreen({
       className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20"
     >
       <div className="px-6 pt-3 pb-1">
-        <h2 className="text-[22px] font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{household.name}</h2>
-        <p className="text-xs" style={{ color: P.muted }}>{memberLabel}</p>
+        <Heading as="h2" size="h2">
+          Hogar
+        </Heading>
+        <Text size="caption" tone="muted" className="mt-1">
+          {memberLabel}
+        </Text>
       </div>
       <HouseholdNameCard household={household} onSaved={onHouseholdUpdated} />
       <div className="px-6 my-3 space-y-2">
