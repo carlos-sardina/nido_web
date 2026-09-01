@@ -179,7 +179,7 @@ export function RecurringExpenseFlow({
   };
 
   return (
-    <div className="absolute inset-0 z-30">
+    <div className="absolute inset-0 z-30 overflow-hidden">
       <FlowScreen
         lockViewport
         className="h-full min-h-0"

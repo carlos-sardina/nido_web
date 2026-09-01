@@ -5,11 +5,15 @@ import {
   applyAppViewport,
   isViewportZoomed,
   readAppViewport,
+  resolveShellOffsetTop,
 } from "@/lib/nido/viewport";
 
 function syncAppViewport() {
   const metrics = readAppViewport(window.visualViewport, window.innerHeight);
-  applyAppViewport(document.documentElement, metrics);
+  applyAppViewport(document.documentElement, {
+    height: metrics.height,
+    offsetTop: resolveShellOffsetTop(metrics),
+  });
   if (isViewportZoomed(metrics.scale)) {
     window.scrollTo(0, 0);
   }

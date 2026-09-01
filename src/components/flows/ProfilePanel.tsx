@@ -155,8 +155,8 @@ export function ProfilePanel({
   };
 
   return (
-    <div className="absolute inset-0 z-40 flex flex-col" style={{ backgroundColor: P.bgL }}>
-      <div className="relative z-10 flex shrink-0 items-center px-6 pt-4 pb-2" style={{ backgroundColor: P.bgL }}>
+    <div className="absolute inset-0 z-40 flex flex-col overflow-hidden" style={{ backgroundColor: P.bgL }}>
+      <div className="relative z-10 flex shrink-0 items-center px-6 pt-[max(1rem,env(safe-area-inset-top))] pb-2" style={{ backgroundColor: P.bgL }}>
         <button
           type="button"
           onClick={onClose}
@@ -171,7 +171,7 @@ export function ProfilePanel({
       <PullToRefresh
         onRefresh={handleRefresh}
         refreshing={refreshing}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-6"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-[max(1.5rem,env(safe-area-inset-bottom))]"
       >
         <h2
           className="px-6 pt-2 pb-2 text-center text-sm font-bold"

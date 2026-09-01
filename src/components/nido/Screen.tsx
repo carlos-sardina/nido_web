@@ -38,16 +38,16 @@ export function FlowScreen({
     >
       {lockViewport ? (
         <FlowScrollRefContext.Provider value={scrollRef}>
-            {header ? (
-              <div className={cn("relative z-10 shrink-0 bg-card px-6 pt-4", columnClass)}>
-                {header}
-              </div>
-            ) : null}
+          {header ? (
+            <div className={cn("relative z-10 shrink-0 bg-card px-6 pt-[max(1rem,env(safe-area-inset-top))]", columnClass)}>
+              {header}
+            </div>
+          ) : null}
           <div
             ref={scrollRef}
             className={cn(
               "flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-6 pb-[max(2rem,env(safe-area-inset-bottom))]",
-              !header && "pt-4",
+              !header && "pt-[max(1rem,env(safe-area-inset-top))]",
               columnClass,
             )}
           >
@@ -56,7 +56,7 @@ export function FlowScreen({
           </div>
         </FlowScrollRefContext.Provider>
       ) : (
-        <div className={cn("flex min-h-dvh flex-col px-6 pt-4 pb-8", columnClass)}>
+        <div className={cn("flex min-h-dvh flex-col px-6 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]", columnClass)}>
           {header}
           {children}
           {footer}

@@ -33,6 +33,12 @@ export function isViewportZoomed(scale: number, epsilon = 0.01): boolean {
   return Math.abs(scale - 1) > epsilon;
 }
 
+export function resolveShellOffsetTop(
+  viewport: Pick<VisualViewportMetrics, "offsetTop" | "scale">,
+): number {
+  return isViewportZoomed(viewport.scale) ? viewport.offsetTop : 0;
+}
+
 export function shouldPreventPinchZoom(touchCount: number): boolean {
   return touchCount > 1;
 }

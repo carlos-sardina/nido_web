@@ -189,14 +189,14 @@ export function HouseholdScreen({
   };
 
   return (
-    <div className="absolute inset-0 z-30 flex flex-col" style={{ backgroundColor: P.bgL }}>
-      <div className="relative z-10 shrink-0 px-6 pt-3" style={{ backgroundColor: P.bgL }}>
+    <div className="absolute inset-0 z-30 flex flex-col overflow-hidden" style={{ backgroundColor: P.bgL }}>
+      <div className="relative z-10 shrink-0 px-6 pt-[max(0.75rem,env(safe-area-inset-top))]" style={{ backgroundColor: P.bgL }}>
         <BackLink onClick={onClose} label="Cerrar" />
       </div>
       <PullToRefresh
         onRefresh={handleRefresh}
         refreshing={refreshing}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-8"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-[max(2rem,env(safe-area-inset-bottom))]"
       >
       <div className="px-6 pb-1">
         <Heading as="h2" size="h2">

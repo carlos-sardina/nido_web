@@ -52,7 +52,7 @@ export function ExpenseEntryModal({
   return (
     <div className="fixed left-0 top-[var(--app-offset-top,0px)] z-50 flex h-[var(--app-height,100dvh)] w-full flex-col overflow-hidden bg-white font-sans">
       <div className="mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col">
-        <div className="relative z-10 flex shrink-0 justify-end bg-white px-6 pt-6 pb-2">
+        <div className="relative z-10 flex shrink-0 justify-end bg-white px-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-2">
           <button
             type="button"
             onClick={onClose}
@@ -141,7 +141,7 @@ export function ExpenseEntryModal({
             </div>
           </div>
 
-          <div className="px-6 pb-8 pt-8">
+          <div className="px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-8">
             {error && (
               <FieldError className="mb-3 text-center">{error}</FieldError>
             )}

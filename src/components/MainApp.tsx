@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BarChart2, Clock, Home, Plus, Target,
 } from "lucide-react";
@@ -182,9 +182,19 @@ export function MainApp({
     setActiveFlow("budget");
   };
 
+  useEffect(() => {
+    const html = document.documentElement;
+    html.classList.add("nido-app-shell");
+    return () => html.classList.remove("nido-app-shell");
+  }, []);
+
   return (
     <div className="fixed left-0 top-[var(--app-offset-top,0px)] flex h-[var(--app-height,100dvh)] w-full flex-col overflow-hidden overscroll-none"
-      style={{ backgroundColor: P.bgL, fontFamily: "Figtree, sans-serif" }}>
+      style={{
+        backgroundColor: P.bgL,
+        fontFamily: "Figtree, sans-serif",
+        paddingTop: "env(safe-area-inset-top)",
+      }}>
         <div className="min-h-0 flex-1 overflow-hidden">
           {tab === "home"      && (
             <HomeScreen
@@ -232,7 +242,16 @@ export function MainApp({
         </div>
 
         {/* Bottom nav */}
-        <div className="flex-shrink-0 border-t" style={{ backgroundColor: "rgba(255,252,250,0.96)", backdropFilter: "blur(20px)", borderColor: P.border, paddingBottom: "1.25rem" }}>
+        <div
+          className="relative z-10 flex-shrink-0 border-t overscroll-none"
+          style={{
+            backgroundColor: "rgba(255,252,250,0.96)",
+            backdropFilter: "blur(20px)",
+            borderColor: P.border,
+            paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))",
+            touchAction: "none",
+          }}
+        >
           <div className="flex items-center justify-around pt-1.5">
             {tabs.map(({ id, icon: Icon, label }) => (
               <button key={id} onClick={() => { setTab(id); setShowSheet(false); }}

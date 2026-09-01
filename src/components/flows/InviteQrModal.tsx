@@ -60,7 +60,7 @@ export function InviteQrModal({
   return (
     <>
       <div className="fixed inset-0 z-50" style={{ backgroundColor: "rgba(47,42,40,0.40)" }} onClick={onClose} />
-      <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-[2rem] pt-3 pb-8 font-sans" style={{ backgroundColor: P.card }}>
+      <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-[2rem] pt-3 pb-[max(2rem,env(safe-area-inset-bottom))] font-sans" style={{ backgroundColor: P.card }}>
         <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ backgroundColor: P.sub }} />
         <div className="w-full px-6">
           <div className="flex items-center justify-between mb-2">
