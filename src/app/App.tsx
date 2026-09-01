@@ -121,7 +121,7 @@ export default function App() {
   if (!isBooting) {
     if (nido.error && appUser && nido.status !== "active") {
       content = (
-        <FlowScreen>
+        <FlowScreen constrained>
           <div className="flex-1 flex flex-col items-center justify-center">
             <Text size="body-sm" tone="danger" className="text-center mb-6">
               {nido.error.message}

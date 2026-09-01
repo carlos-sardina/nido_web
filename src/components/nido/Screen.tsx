@@ -1,55 +1,76 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/app/components/ui/utils";
 import { Heading, Text } from "@/components/nido/Typography";
+
+const FlowLayoutContext = createContext(false);
 
 export function FlowScreen({
   children,
   footer,
   className,
   lockViewport = false,
+  constrained = false,
 }: {
   children: ReactNode;
   footer?: ReactNode;
   className?: string;
   lockViewport?: boolean;
+  constrained?: boolean;
 }) {
   return (
-    <div
-      className={cn(
-        "relative flex flex-col bg-card font-sans",
-        lockViewport
-          ? "h-[var(--app-height,100dvh)] min-h-0 overflow-x-hidden overflow-y-hidden"
-          : "min-h-dvh overflow-x-clip",
-        className,
-      )}
-    >
+    <FlowLayoutContext.Provider value={constrained}>
       <div
         className={cn(
-          "flex flex-col",
-          lockViewport && "min-h-0 flex-1 overflow-hidden",
+          "relative flex flex-col bg-card font-sans",
+          lockViewport
+            ? "h-[var(--app-height,100dvh)] min-h-0 overflow-x-hidden overflow-y-hidden"
+            : "min-h-dvh overflow-x-clip",
+          className,
         )}
       >
         <div
           className={cn(
-            "mx-auto flex w-full max-w-md flex-col px-6 pt-4",
-            lockViewport ? "min-h-0 flex-1 pb-0" : "min-h-dvh pb-8",
+            "flex flex-col",
+            lockViewport && "min-h-0 flex-1 overflow-hidden",
           )}
         >
-          {children}
+          <div
+            className={cn(
+              "flex w-full flex-col px-6 pt-4",
+              constrained && "mx-auto max-w-md",
+              lockViewport ? "min-h-0 flex-1 pb-0" : "min-h-dvh pb-8",
+            )}
+          >
+            {children}
+          </div>
         </div>
+        {footer}
       </div>
-      {footer}
-    </div>
+    </FlowLayoutContext.Provider>
   );
 }
 
-export function ScreenFooter({ children }: { children: ReactNode }) {
+export function ScreenFooter({
+  children,
+  constrained: constrainedProp,
+}: {
+  children: ReactNode;
+  constrained?: boolean;
+}) {
+  const constrainedFromParent = useContext(FlowLayoutContext);
+  const constrained = constrainedProp ?? constrainedFromParent;
+
   return (
     <div className="flex-shrink-0 border-t border-border bg-card">
-      <div className="mx-auto w-full max-w-md px-6 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <div
+        className={cn(
+          "w-full px-6 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))]",
+          constrained && "mx-auto max-w-md",
+        )}
+      >
         {children}
       </div>
     </div>

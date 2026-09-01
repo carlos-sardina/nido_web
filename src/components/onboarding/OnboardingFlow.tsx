@@ -312,6 +312,7 @@ export function OnboardingFlow({
 
   return (
     <FlowScreen
+      constrained
       lockViewport={step === "p-expenses"}
       footer={step === "p-expenses" ? (
         <ScreenFooter>

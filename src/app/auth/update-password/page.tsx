@@ -53,7 +53,7 @@ export default function UpdatePasswordPage() {
   };
 
   return (
-    <FlowScreen>
+    <FlowScreen constrained>
       <div className="flex-1 flex flex-col justify-center">
         <ScreenIntro
           className="mb-8"

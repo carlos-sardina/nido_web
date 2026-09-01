@@ -42,8 +42,9 @@ Use Tailwind spacing: 4, 8, 12, 16, 20, 24, 32, 40, 48.
 Shared shell: `FlowScreen`.
 
 - Background: cream card (`bg-card`)
-- Max width: `max-w-md` (28rem), centered
-- Default: `min-h-dvh`, document scroll. Do not use `h-dvh` + `overflow-hidden` on normal screens.
+- Default: full width with `px-6` gutters, matching Home and the other tabs
+- `constrained`: centered `max-w-md` (28rem) column — only for auth/onboarding
+- Default scroll: `min-h-dvh`, document scroll. Do not use `h-dvh` + `overflow-hidden` on normal screens.
 - `lockViewport`: only for screens that need an internal scroll region and a persistent footer (e.g. Gastos).
 - Structure: back → heading + supporting text → content → primary action → secondary/text actions
 

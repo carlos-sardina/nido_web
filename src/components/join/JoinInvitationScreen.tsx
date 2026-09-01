@@ -194,7 +194,7 @@ export function JoinInvitationScreen({ token }: { token: string }) {
 
   if (showIncome) {
     return (
-      <FlowScreen>
+      <FlowScreen constrained>
         <BackLink
           onClick={() => {
             if (busy) return;
@@ -244,7 +244,7 @@ export function JoinInvitationScreen({ token }: { token: string }) {
   }
 
   return (
-    <FlowScreen>
+    <FlowScreen constrained>
       <div className="flex-1 flex flex-col items-center justify-center text-center">
         <NidoHouse />
         <ScreenIntro
