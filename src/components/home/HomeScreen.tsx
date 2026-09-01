@@ -10,6 +10,7 @@ import {
   type BudgetItemView,
 } from "@/lib/nido/financial";
 import type { DashboardQuery } from "@/lib/nido/use-dashboard";
+import { formatHomeNidoName } from "@/lib/nido/format-nido-name";
 import { P } from "@/lib/palette";
 import type { Tab } from "@/lib/types";
 import { Button } from "@/components/nido/Button";
@@ -74,6 +75,7 @@ export function HomeScreen({
   currentUserId: string | null;
 }) {
   const { isLoading, refreshing, error, model, refresh } = dashboard;
+  const nidoLabel = householdName ? formatHomeNidoName(householdName) : "";
 
   return (
     <PullToRefresh
@@ -81,20 +83,24 @@ export function HomeScreen({
       refreshing={refreshing}
       className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20"
     >
-      <div className="px-6 pt-3 pb-1 flex items-center justify-between">
-        <div>
+      <div className="px-6 pt-3 pb-1 flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-medium" style={{ color: P.muted }}>
             {model?.greeting ?? "Buenos días"}
           </p>
           <h1
-            className="text-[22px] font-bold"
+            className="text-[22px] font-bold truncate"
             style={{ fontFamily: "Fraunces, serif", color: P.text }}
           >
             {identity ? `${identity.firstName} 👋` : "Hola 👋"}
           </h1>
-          {householdName ? (
-            <p className="text-[11px] mt-0.5" style={{ color: P.muted }}>
-              {householdName}
+          {nidoLabel ? (
+            <p
+              className="text-[11px] mt-0.5 break-words [overflow-wrap:anywhere] line-clamp-2"
+              title={nidoLabel}
+              style={{ color: P.muted }}
+            >
+              {nidoLabel}
             </p>
           ) : null}
         </div>
@@ -102,7 +108,7 @@ export function HomeScreen({
           type="button"
           onClick={onProfileOpen}
           aria-label="Abrir perfil"
-          className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm active:scale-95 transition-transform overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm active:scale-95 transition-transform overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           style={{ backgroundColor: P.sage }}
         >
           {identity?.avatarUrl ? (
