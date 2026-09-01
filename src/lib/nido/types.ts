@@ -71,6 +71,8 @@ export type NidoErrorCode =
   | "last_owner"
   | "cannot_transfer_to_self"
   | "invalid_transfer_target"
+  | "cannot_remove_self"
+  | "invalid_remove_target"
   | "forbidden"
   | "invalid_amount"
   | "invalid_description"

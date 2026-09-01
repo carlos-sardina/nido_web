@@ -2,7 +2,7 @@
 
 This document describes household (Nido) creation, membership, leaving, invitations, and the pre-dashboard flow. Phase 8.10.2 hardens the signup confirmation copy so an ambiguous `signUp()` success is not treated as proof that an email was sent.
 
-The schema in [database.md](./database.md) remains the source of truth. RLS in [security.md](./security.md) is unchanged: clients still cannot UPDATE `household_members`. Owner transfer is a new SECURITY DEFINER RPC. It does not change tables or weaken policies.
+The schema in [database.md](./database.md) remains the source of truth. RLS in [security.md](./security.md) is unchanged: clients still cannot UPDATE `household_members`. Owner transfer and owner-initiated remove are SECURITY DEFINER RPCs. They do not change tables or weaken policies.
 
 Phase 9.1.1 connects the Home dashboard to live Supabase reads. Phase 9.1.2A adds household default expense categories and **Registrar un gasto**. Phase 9.2.2 persists the onboarding monthly income with the new Nido. Phase 9.2.3 re-audited that stack on `nido_dev` and did not add product surfaces. Auth, recovery, and RLS policies are unchanged. See [financial.md](./financial.md). Auth and onboarding visuals use the tokens in [design-system.md](./design-system.md).
 
@@ -121,6 +121,30 @@ After leaving, the user returns to Nido selection and may create or join another
 
 ---
 
+## Removing a member
+
+An active owner can remove another **active member** of the same Nido. This is not self-leave.
+
+`removeHouseholdMember(targetUserId)` calls `public.remove_household_member(p_target_user_id)`.
+
+| Actor | Remove member |
+| --- | --- |
+| Current owner | Yes, an active **member** of the same Nido |
+| Active non-owner | No (`nido.forbidden`) |
+| Historical member | No (`nido.not_a_member`) |
+| Other Nido / unknown / historical target | No (`nido.invalid_remove_target`) |
+| Self | No (`nido.cannot_remove_self`); use **Salir del Nido** |
+| An owner | No (`nido.invalid_remove_target`); transfer first if they should leave |
+| Unauthenticated | No (`nido.unauthenticated`) |
+
+Remove sets `left_at = now()` on the target row. The row is not deleted. The household is not deleted. Historical financial rows stay attached to the original `household_id` and `profiles.id`. The target’s `recurring_incomes` in that Nido are deactivated, same as `leave_household`.
+
+The RPC takes only `p_target_user_id`. It does not take `household_id`, `owner_id`, or `user_id`. `auth.uid()` is the actor. Clients still cannot `UPDATE` `household_members`.
+
+**Eliminar** on Hogar is owner-only, hidden for self and for owners, asks for confirmation, and shows success or error.
+
+---
+
 ## Owner transfer
 
 Ownership is `household_members.role = owner` with `left_at IS NULL`. There is no `households.owner_id`. `households.created_by` is the original creator and does **not** change on transfer.
@@ -143,7 +167,7 @@ The RPC takes only `p_new_owner_id`. It does not take `household_id`, `owner_id`
 
 Financial rows are unchanged: `expenses`, `expense_splits`, `incomes`, `budgets`, `goals`, and `goal_contributions` keep their `household_id` and `profiles.id` FKs. Creator-only mutation rules stay. History is not rewritten.
 
-The Hogar tab shows who is owner. **Transferir propiedad** is owner-only, asks for confirmation, lists other active members (not self), and shows success or error. Profile **Salir del Nido** tells a last owner to transfer first; it does not add a second transfer CTA.
+The Hogar tab shows who is owner. **Transferir propiedad** is owner-only, asks for confirmation, lists other active members (not self), and shows success or error. **Eliminar** on a member row is owner-only, excludes self, and asks for confirmation. Profile **Salir del Nido** tells a last owner to transfer first; it does not add a second transfer CTA.
 
 ---
 
@@ -154,7 +178,7 @@ The Hogar tab shows who is owner. **Transferir propiedad** is owner-only, asks f
 | `owner` | First member of a newly created Nido, or the target of `transfer_household_ownership` |
 | `member` | Invitation acceptance, or the previous owner after a transfer |
 
-Active owners may create, read, and revoke invitations (existing RLS). Active members may read household identity and leave, subject to the last-owner rule.
+Active owners may create, read, and revoke invitations (existing RLS), and remove another active member. Active members may read household identity and leave, subject to the last-owner rule.
 
 ---
 
@@ -208,6 +232,7 @@ Accepted invitations stay accepted even if they would also be expired.
 | Display name | `profiles.display_name` |
 | Invitation | `household_invitations` (token, expiry, accepted_at). `email` is historical and unused by the product. |
 | Leave | `household_members.left_at` |
+| Owner remove member | `household_members.left_at` via `remove_household_member` (owner-only; not self) |
 | Owner transfer | `household_members.role` swapped atomically (`transfer_household_ownership`) |
 | Default expense and income categories | `categories` (`is_default = true`) via `create_household` |
 | Custom / renamed / archived **expense** categories | `categories` via `create_category` / `rename_category` / `archive_category` (9.4.1). Income is Sueldo + Extra only. No hard delete. |
@@ -275,9 +300,10 @@ The PostgREST client cannot run a multi-statement transaction. These operations 
 | `lookup_invitation(p_token)` | `SECURITY DEFINER` | Invitation SELECT is owner-only. Invitees and anonymous users need a name/status preview. |
 | `accept_invitation(p_token)` | `SECURITY DEFINER` | No client UPDATE on invitations and no client INSERT of a non-owner membership. |
 | `leave_household()` | `SECURITY DEFINER` | No client UPDATE on `household_members`. Last owner cannot leave. |
+| `remove_household_member(p_target_user_id)` | `SECURITY DEFINER` | No client UPDATE on `household_members`. Owner-only. Sets `left_at` on another active member of the same Nido. Cannot remove self or an owner. |
 | `transfer_household_ownership(p_new_owner_id)` | `SECURITY DEFINER` | No client UPDATE on `household_members`. Two role writes must be atomic. INVOKER would require an UPDATE policy that could leave a Nido without an owner. |
 
-`create_household` and `create_expense` live in `supabase/migrations/20260818000000_nido_household_lifecycle.sql` and `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`. Phase 9.4.1 (`20260822500000_nido_household_categories_split.sql`) adds `households.default_split_method` and the name / category / split RPCs, and updates `create_expense` for the household preference. Phase 9.4.2 (`20260822600000_nido_onboarding_savings_budgets.sql`) adds `savings_balances` and extends `create_household_with_onboarding_income`. Phase 9.4.3 (`20260822700000_nido_personal_visibility.sql`) adds `profiles.personal_visibility`, `personal_finance_visible`, `update_personal_visibility`, and the personal path of `create_budget`. Phase 9.4.5 (`20260822800000_nido_expense_refunds.sql`) adds `expense_refunds`, `expense_refund_splits`, and `create_expense_refund`. Onboarding income persist was introduced in `supabase/migrations/20260822300000_nido_onboarding_financial.sql`. Owner transfer lives in `supabase/migrations/20260822000000_nido_owner_transfer.sql`. `SECURITY DEFINER` functions set `search_path = public`, require `auth.uid()`, and never take a user-supplied actor `user_id`. They do not bypass the one-active-Nido unique index.
+`create_household` and `create_expense` live in `supabase/migrations/20260818000000_nido_household_lifecycle.sql` and `supabase/migrations/20260821000000_nido_categories_and_create_expense.sql`. Phase 9.4.1 (`20260822500000_nido_household_categories_split.sql`) adds `households.default_split_method` and the name / category / split RPCs, and updates `create_expense` for the household preference. Phase 9.4.2 (`20260822600000_nido_onboarding_savings_budgets.sql`) adds `savings_balances` and extends `create_household_with_onboarding_income`. Phase 9.4.3 (`20260822700000_nido_personal_visibility.sql`) adds `profiles.personal_visibility`, `personal_finance_visible`, `update_personal_visibility`, and the personal path of `create_budget`. Phase 9.4.5 (`20260822800000_nido_expense_refunds.sql`) adds `expense_refunds`, `expense_refund_splits`, and `create_expense_refund`. Onboarding income persist was introduced in `supabase/migrations/20260822300000_nido_onboarding_financial.sql`. Owner transfer lives in `supabase/migrations/20260822000000_nido_owner_transfer.sql`. Owner-initiated remove lives in `supabase/migrations/20260831180000_nido_remove_household_member.sql`. `SECURITY DEFINER` functions set `search_path = public`, require `auth.uid()`, and never take a user-supplied actor `user_id`. They do not bypass the one-active-Nido unique index.
 
 There is no service-role client.
 
@@ -290,8 +316,9 @@ Code lives in `src/lib/nido/`.
 | Module | Functions |
 | --- | --- |
 | `household.ts` | `createHousehold`, `createHouseholdFromOnboarding` |
-| `membership.ts` | `getMyActiveHousehold`, `getMyMembership`, `getMyNidoState`, `getHouseholdMembers`, `leaveHousehold`, `transferHouseholdOwnership` |
+| `membership.ts` | `getMyActiveHousehold`, `getMyMembership`, `getMyNidoState`, `getHouseholdMembers`, `leaveHousehold`, `transferHouseholdOwnership`, `removeHouseholdMember` |
 | `transfer-ownership.ts` | `transferOwnershipWithAuth`, `canSubmitTransfer` |
+| `remove-member.ts` | `removeMemberWithAuth`, `canSubmitRemove` |
 | `leave-household.ts` | `leaveHouseholdWithAuth`, `canSubmitLeave` |
 | `invitations.ts` | `createInvitation`, `listInvitations`, `cancelInvitation`, `lookupInvitation`, `acceptInvitation`, `completeJoinInvitation` |
 | `invitation-actions.ts` | `listInvitationsWithAuth`, `cancelInvitationWithAuth`, `listStatusFromClassification` |
@@ -377,4 +404,4 @@ Do **not** treat these as pending 9.4: Google OAuth, image avatars, notification
 
 This phase applied `20260822300000_nido_onboarding_financial.sql` to linked `nido_dev` (`pxfdvhavcddqmhuljxlf`). Types were regenerated with `npx supabase gen types typescript --linked`.
 
-`leave_household` now deactivates the leaving member’s `recurring_incomes` in that Nido. Recurring expense templates and already-materialized movements stay. A departed creator cannot materialize.
+`leave_household` now deactivates the leaving member’s `recurring_incomes` in that Nido. `remove_household_member` does the same for a member the owner removes. Recurring expense templates and already-materialized movements stay. A departed creator cannot materialize.

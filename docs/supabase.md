@@ -277,7 +277,7 @@ This phase does **not**:
 
 Nido does not support email invitations. Owners share `/join/<token>` with a link, a QR, and Web Share when available.
 
-Create, join, leave, invitation accept, and owner transfer are documented in [nido.md](./nido.md). The manual end-to-end checklist is in [testing.md](./testing.md).
+Create, join, leave, invitation accept, owner-initiated remove, and owner transfer are documented in [nido.md](./nido.md). The manual end-to-end checklist is in [testing.md](./testing.md).
 
 ---
 
@@ -377,7 +377,7 @@ Architectural principle:
 - **Server:** anon/publishable key + authenticated user's session + RLS
 - **Service role:** not introduced
 
-Do not use service-role access for normal application operations. Invitation accept, leave, and owner transfer use narrowly scoped RPCs under the authenticated session, as documented in [nido.md](./nido.md) and [security.md](./security.md).
+Do not use service-role access for normal application operations. Invitation accept, leave, owner-initiated remove, and owner transfer use narrowly scoped RPCs under the authenticated session, as documented in [nido.md](./nido.md) and [security.md](./security.md).
 
 When server-side identity is required, obtain it from the authenticated Supabase session (`getUser()`). Do not trust a client-provided user id.
 

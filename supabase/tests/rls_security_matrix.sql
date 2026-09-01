@@ -12,7 +12,8 @@
 --      budget mutations, owner transfer, recurrence mutations,
 --      onboarding financial persist, household categories/split,
 --      onboarding savings / budgets, personal visibility,
---      budget consumption visibility, expense refunds)
+--      budget consumption visibility, expense refunds,
+--      remove household member)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -1432,6 +1433,162 @@ BEGIN
       WHEN v_carlos_role = 'owner' AND v_diana_role = 'member'
       THEN 'allow' ELSE 'deny'
     END
+  );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Owner remove-member deny cases (Carlos still owner of A; no membership change)
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_eva uuid;
+  v_nido_a uuid;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_eva FROM rls_ids WHERE key = 'eva';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+
+  PERFORM pg_temp.set_auth(v_diana);
+  PERFORM pg_temp.record_result(
+    'RM01', 'Diana', 'A', 'active member', 'non-owner cannot remove a member',
+    'nido.forbidden',
+    pg_temp.expect_exception(format(
+      'SELECT public.remove_household_member(%L::uuid)', v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'RM02', 'Luis', 'B', 'other nido', 'other nido cannot remove a member of A',
+    'nido.invalid_remove_target',
+    pg_temp.expect_exception(format(
+      'SELECT public.remove_household_member(%L::uuid)', v_diana
+    ))
+  );
+
+  PERFORM pg_temp.clear_auth();
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.record_result(
+    'RM03', 'none', '-', 'none', 'unauthenticated cannot remove a member',
+    'nido.unauthenticated',
+    pg_temp.expect_exception(format(
+      'SELECT public.remove_household_member(%L::uuid)', v_diana
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'RM04', 'Carlos', 'A', 'active owner', 'cannot remove self',
+    'nido.cannot_remove_self',
+    pg_temp.expect_exception(format(
+      'SELECT public.remove_household_member(%L::uuid)', v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'RM05', 'Carlos', 'A', 'active owner', 'cannot remove a member of another nido',
+    'nido.invalid_remove_target',
+    pg_temp.expect_exception(format(
+      'SELECT public.remove_household_member(%L::uuid)', v_luis
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'RM06', 'Carlos', 'A', 'active owner', 'cannot remove a null target',
+    'nido.invalid_remove_target',
+    pg_temp.expect_exception('SELECT public.remove_household_member(NULL)')
+  );
+
+  PERFORM pg_temp.record_result(
+    'RM07', 'Carlos', 'A', 'active owner', 'cannot remove a historical member',
+    'nido.invalid_remove_target',
+    pg_temp.expect_exception(format(
+      'SELECT public.remove_household_member(%L::uuid)', v_eva
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_eva);
+  PERFORM pg_temp.record_result(
+    'RM08', 'Eva', 'A', 'historical', 'historical member cannot remove',
+    'nido.not_a_member',
+    pg_temp.expect_exception(format(
+      'SELECT public.remove_household_member(%L::uuid)', v_diana
+    ))
+  );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Owner remove-member allow case (throwaway member Fran; Diana stays for transfer)
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_fran uuid := '55555555-5555-5555-5555-555555555555';
+  v_nido_a uuid;
+  v_fran_left timestamptz;
+  v_fran_rows integer;
+  v_diana_active integer;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+
+  PERFORM pg_temp.clear_auth();
+  PERFORM pg_temp.create_auth_user(v_fran, 'fran-rls@example.test', 'Fran');
+  INSERT INTO public.household_members (
+    household_id, user_id, role, joined_at, left_at
+  ) VALUES (
+    v_nido_a, v_fran, 'member',
+    timestamptz '2026-02-01 00:00:00+00',
+    NULL
+  );
+  INSERT INTO rls_ids (key, id) VALUES ('fran', v_fran);
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'RM09', 'Carlos', 'A', 'active owner', 'owner can remove an active member',
+    'allow',
+    pg_temp.expect_allow(format(
+      'SELECT public.remove_household_member(%L::uuid)', v_fran
+    ))
+  );
+
+  SELECT left_at INTO v_fran_left
+  FROM public.household_members
+  WHERE household_id = v_nido_a AND user_id = v_fran;
+  SELECT count(*) INTO v_fran_rows
+  FROM public.household_members
+  WHERE household_id = v_nido_a AND user_id = v_fran;
+  SELECT count(*) INTO v_diana_active
+  FROM public.household_members
+  WHERE household_id = v_nido_a AND user_id = v_diana AND left_at IS NULL;
+
+  PERFORM pg_temp.record_result(
+    'RM10', 'Carlos', 'A', 'active owner', 'remove sets left_at and keeps the row',
+    'allow',
+    CASE
+      WHEN v_fran_left IS NOT NULL AND v_fran_rows = 1 AND v_diana_active = 1
+      THEN 'allow' ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.set_auth(v_fran);
+  PERFORM pg_temp.record_result(
+    'RM11', 'Fran', 'A', 'historical after remove', 'removed member cannot remove others',
+    'nido.not_a_member',
+    pg_temp.expect_exception(format(
+      'SELECT public.remove_household_member(%L::uuid)', v_diana
+    ))
   );
 END;
 $$;
@@ -3736,6 +3893,14 @@ BEGIN
     'nido.forbidden',
     pg_temp.expect_exception(format(
       'SELECT public.transfer_household_ownership(%L::uuid)', v_diana
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'RM12', 'Carlos', 'A', 'member after transfer', 'former owner cannot remove a member',
+    'nido.forbidden',
+    pg_temp.expect_exception(format(
+      'SELECT public.remove_household_member(%L::uuid)', v_diana
     ))
   );
 

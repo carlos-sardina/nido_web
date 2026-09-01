@@ -21,7 +21,7 @@ Authorization uses Supabase Auth with email and password. Google OAuth is not en
 - `profiles.id` is the same UUID as `auth.users.id`.
 - Policies apply to the `authenticated` role.
 - `anon` has no table privileges.
-- `service_role` has full table privileges and bypasses RLS. The application does not use a service-role client. Invitation accept, leave, and owner transfer use narrowly scoped RPCs (`accept_invitation`, `leave_household`, `transfer_household_ownership`).
+- `service_role` has full table privileges and bypasses RLS. The application does not use a service-role client. Invitation accept, leave, owner transfer, and owner-initiated remove use narrowly scoped RPCs (`accept_invitation`, `leave_household`, `transfer_household_ownership`, `remove_household_member`).
 
 Unauthenticated requests see no application rows.
 
@@ -161,7 +161,7 @@ RLS does not guarantee that a household always has an owner. Creating a househol
 
 Clients cannot change `user_id`, `household_id`, `role`, `joined_at`, or `left_at` on existing rows.
 
-Leave and invitation accept are application RPCs (`leave_household`, `accept_invitation`). Owner transfer is `transfer_household_ownership`. They set `left_at` or `role`; they do not delete membership. There is no service-role client. There is still no client UPDATE policy on `household_members`.
+Leave and invitation accept are application RPCs (`leave_household`, `accept_invitation`). Owner transfer is `transfer_household_ownership`. Owner-initiated remove is `remove_household_member`. They set `left_at` or `role`; they do not delete membership. There is no service-role client. There is still no client UPDATE policy on `household_members`.
 
 The first-owner INSERT is the only client write. A historical creator cannot re-insert themselves as owner after members already exist.
 
@@ -257,10 +257,11 @@ Same-household integrity triggers from the foundation schema remain authoritativ
 | Delete household | Active owner | RLS DELETE (not a supported product path) |
 | Accept invitation | `accept_invitation` RPC | No client UPDATE policy |
 | Leave | `leave_household` RPC | No client UPDATE/DELETE on `household_members` |
+| Remove member | `remove_household_member` RPC | No client UPDATE on `household_members`. Owner-only. Sets `left_at` on another active member. Cannot remove self or an owner |
 | Transfer owner | `transfer_household_ownership` RPC | No client UPDATE on `household_members`. Caller becomes `member`; target becomes `owner` |
-| Guarantee at least one owner | `leave_household` rejects the last owner; transfer requires an active member target | Not an RLS invariant |
+| Guarantee at least one owner | `leave_household` rejects the last owner; transfer requires an active member target; remove cannot target an owner | Not an RLS invariant |
 
-Active non-owner members can update household name and household financial/planning data. They cannot manage memberships or invitations.
+Active non-owner members can update household name and household financial/planning data. They cannot manage memberships or invitations. They cannot remove another member.
 
 ---
 
@@ -286,6 +287,7 @@ Still application/service work:
 - Household create + first owner row in one transaction (`create_household`)
 - Onboarding finalize + income + split + savings + initial budgets in one transaction (`create_household_with_onboarding_income`; INVOKER; no client household_id or identity)
 - Leave / invite accept (`leave_household`, `accept_invitation`)
+- Owner-initiated remove (`remove_household_member`; owner-only; sets `left_at`)
 - Owner transfer (`transfer_household_ownership`; atomic demote + promote)
 - At-least-one-owner invariant (enforced on leave and transfer; not an RLS trigger)
 - Expense + all splits in one transaction, including sum and personal-expense cardinality (`create_expense`, `update_expense`). For new shared expenses, `create_expense` (SECURITY INVOKER) reads `households.default_split_method` and does not accept a client method.
@@ -514,7 +516,7 @@ Phase 9.3.5 did not add a migration, table, column, RPC, or RLS policy. Perfil w
 npx supabase db query --linked -f supabase/tests/rls_security_matrix.sql
 ```
 
-It impersonates Carlos, Diana, Luis, and Eva with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, expense mutation cases `X01`–`X14`, goal mutation cases `Y01`–`Y12`, contribution cases `Z01`–`Z22`, and owner-transfer / leave cases `T01`–`T13` and `T20`–`T30`.
+It impersonates Carlos, Diana, Luis, and Eva with `auth.uid()` via JWT claims, then asserts SELECT / INSERT / UPDATE outcomes for scenarios A–H, owner restrictions, child-table inheritance, one-active-Nido, post-leave historical read, expense mutation cases `X01`–`X14`, goal mutation cases `Y01`–`Y12`, contribution cases `Z01`–`Z22`, and owner-transfer / leave cases `T01`–`T13` and `T20`–`T30`. Owner-initiated remove cases `RM01`–`RM12` require `20260831180000`.
 
 `X08`–`X14` (creator update, non-creator deny, creator soft-delete, non-creator delete deny, other household, historical member, already-deleted) require migration `20260821120000`. `Y01`–`Y12` (create/update/archive goals, non-creator deny, other household, historical member, already-archived) require migration `20260821180000`. `Z01`–`Z11` (create contribution, other member, other household, archived goal, attributed member_id, over-target, missing goal, unauthenticated, after leave) require migration `20260821200000`. `Z12`–`Z22` (creator update/delete, non-creator deny, other household, deleted row, archived goal, other Nido goal, unauthenticated, historical member, member who left) require migration `20260821210000`. `I01`–`I13` require `20260821220000`. `K01`–`K16` (budget create/update/soft-delete, non-creator deny, other household, historical member, deleted row, spent derivation; 1:1 with the requested B01–B16 list) require `20260821230000`. Prefix **K** is used because **B01–B09** already cover Luis / never-member and **P01–P07** already cover child-table SELECT. `T01`–`T13` and `T20`–`T30` (owner transfer, last-owner leave, historical / other-Nido / unauthenticated deny, atomic role swap, privilege change after transfer) require `20260822000000`. `OB01`–`OB11` (onboarding persist: unauthenticated, no membership, invalid amount, double execution, already-active member, historical member, other Nido) require `20260822300000`. `OB12`–`OB28` (savings stock, estimates → budgets, split method, capacity reject, retry, other-Nido deny) require `20260822600000`. `V01`–`V22` (personal visibility, private/nido SELECT of expenses, budgets, and savings, create_budget personal path) require `20260822700000`. `HS01`–`HS20` (household name, categories, default_split_method, proportional create_expense) require `20260822500000`. `BC01`–`BC06` (budget consumption aggregates: private personal expense omitted from a peer SUM, owner SUM includes it, visible personal expense enters the peer Nido SUM) reuse the same policies; there is no consumption RPC. `RF01`–`RF12` (refund create/read, private/visible/other-household/anon, splits inherit visibility) require `20260822800000`. They are runtime SQL, not unit mocks. `R01` remains the membership-helper recursion smoke; refund cases use the `RF` prefix. Goal cases remain `Y01`–`Y12`; historical-member cases remain `C01`–`C17`.
 

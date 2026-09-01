@@ -82,6 +82,33 @@ export function transferableMembers<T extends { userId: string; role: HouseholdR
   return members.filter((member) => member.userId !== actorUserId && member.role === "member");
 }
 
+export function canRemoveMember(input: {
+  actorUserId: string | null;
+  actorRole: HouseholdRole | null;
+  isActiveMember: boolean;
+  targetUserId: string | null;
+  targetIsActiveSameHousehold: boolean;
+  targetRole: HouseholdRole | null;
+}): NidoErrorCode | null {
+  if (!input.actorUserId || !input.isActiveMember || !input.actorRole) {
+    return "not_a_member";
+  }
+  if (input.actorRole !== "owner") return "forbidden";
+  const targetId = input.targetUserId?.trim() ?? "";
+  if (!targetId) return "invalid_remove_target";
+  if (targetId === input.actorUserId) return "cannot_remove_self";
+  if (!input.targetIsActiveSameHousehold) return "invalid_remove_target";
+  if (input.targetRole !== "member") return "invalid_remove_target";
+  return null;
+}
+
+export function removableMembers<T extends { userId: string; role: HouseholdRole }>(
+  members: ReadonlyArray<T>,
+  actorUserId: string,
+): T[] {
+  return members.filter((member) => member.userId !== actorUserId && member.role === "member");
+}
+
 export function applyOwnershipTransfer<T extends { userId: string; role: HouseholdRole }>(
   members: ReadonlyArray<T>,
   actorUserId: string,

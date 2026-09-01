@@ -1256,6 +1256,10 @@ export type Database = {
         Args: { p_owner_id: string }
         Returns: boolean
       }
+      remove_household_member: {
+        Args: { p_target_user_id: string }
+        Returns: undefined
+      }
       rename_category: {
         Args: { p_category_id: string; p_name: string }
         Returns: string

@@ -356,17 +356,18 @@ L. **9.1.5 recurrencias** is live. Actividad no registra eventos de presupuesto 
 
 ## Owner transfer y ciclo de vida (Phase 9.2)
 
-Requires migration `20260822000000_nido_owner_transfer.sql` on the linked project. SQL cases `T01`–`T13` and `T20`–`T30` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. The manual UI checklist below was **not** executed in a live app session.
+Requires migration `20260822000000_nido_owner_transfer.sql` on the linked project. SQL cases `T01`–`T13` and `T20`–`T30` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). Owner-initiated remove (`RM01`–`RM12`) requires `20260831180000_nido_remove_household_member.sql`. Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. The manual UI checklist below was **not** executed in a live app session.
 
 A. **Hogar** — cada miembro muestra **Propietario** o **Miembro**.
 B. **Transferir** — visible solo para el owner, y solo si hay otro miembro activo. Confirmación. No aparece uno mismo en la lista.
-C. **Éxito / error** — copy clara; el antiguo owner pasa a Miembro; el nuevo puede invitar.
-D. **Miembro / histórico / otro Nido / no autenticado** — no pueden transferir (RPC).
-E. **Salir como owner** — Perfil explica que primero debe transferir. No hay un segundo CTA de transferencia.
-F. **Salir como único miembro** — no puede salir ni transferir.
-G. **Salir después de transferir** — el historial se conserva; el Nido sigue teniendo owner.
-H. **Doble tap** — un solo request.
-I. **Error de red** — copy en español, sin PostgREST.
+C. **Eliminar integrante** — visible solo para el owner, en filas de otros miembros (no en la propia ni en un propietario). Confirmación. El historial se conserva.
+D. **Éxito / error** — copy clara; el antiguo owner pasa a Miembro; el nuevo puede invitar.
+E. **Miembro / histórico / otro Nido / no autenticado** — no pueden transferir ni eliminar integrantes (RPC).
+F. **Salir como owner** — Perfil explica que primero debe transferir. No hay un segundo CTA de transferencia.
+G. **Salir como único miembro** — no puede salir ni transferir.
+H. **Salir después de transferir** — el historial se conserva; el Nido sigue teniendo owner.
+I. **Doble tap** — un solo request.
+J. **Error de red** — copy en español, sin PostgREST.
 
 Manual runs actually executed for this checklist: none in this phase.
 

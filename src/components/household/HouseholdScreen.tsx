@@ -9,8 +9,9 @@ import {
 } from "@/lib/nido/invitation-actions";
 import { canShowInvitationQr, invitationDestination } from "@/lib/nido/invitation-qr";
 import { cancelInvitation, createInvitation, listInvitations } from "@/lib/nido/invitations";
-import { transferHouseholdOwnership } from "@/lib/nido/membership";
-import { transferableMembers } from "@/lib/nido/rules";
+import { removeHouseholdMember, transferHouseholdOwnership } from "@/lib/nido/membership";
+import { canSubmitRemove } from "@/lib/nido/remove-member";
+import { removableMembers, transferableMembers } from "@/lib/nido/rules";
 import { canSubmitTransfer } from "@/lib/nido/transfer-ownership";
 import type { Household, HouseholdMember, HouseholdMemberView, ListedInvitation } from "@/lib/nido/types";
 import { HouseholdCategoriesCard } from "@/components/household/HouseholdCategoriesCard";
@@ -65,6 +66,10 @@ export function HouseholdScreen({
   const [transferring, setTransferring] = useState(false);
   const [transferError, setTransferError] = useState<string | null>(null);
   const [transferSuccess, setTransferSuccess] = useState<string | null>(null);
+  const [confirmingRemoveUserId, setConfirmingRemoveUserId] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [removeSuccess, setRemoveSuccess] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [categoryRefreshKey, setCategoryRefreshKey] = useState(0);
   const invitationsRef = useRef(invitations);
@@ -72,6 +77,7 @@ export function HouseholdScreen({
   const householdRefreshInFlight = useRef(false);
   const isOwner = membership.role === "owner";
   const candidates = transferableMembers(members, membership.user_id);
+  const removable = removableMembers(members, membership.user_id);
   const selectedTarget = candidates.find((member) => member.userId === selectedTargetId) ?? null;
   const memberLabel = members.length === 1 ? "1 miembro" : `${members.length} miembros`;
 
@@ -164,6 +170,24 @@ export function HouseholdScreen({
     await loadInvitations();
   };
 
+  const handleConfirmRemove = async (userId: string) => {
+    if (!canSubmitRemove(removing)) return;
+    setRemoving(true);
+    setRemoveError(null);
+    const result = await removeHouseholdMember(userId);
+    setRemoving(false);
+    if (result.ok === false) {
+      setRemoveError(result.error.message);
+      return;
+    }
+    const removed = members.find((member) => member.userId === userId);
+    setConfirmingRemoveUserId(null);
+    setRemoveSuccess(
+      removed ? `${removed.displayName} ya no pertenece al Nido.` : "Integrante eliminado del Nido.",
+    );
+    await onRefresh();
+  };
+
   return (
     <div className="absolute inset-0 z-30" style={{ backgroundColor: P.bgL }}>
       <PullToRefresh
@@ -182,19 +206,76 @@ export function HouseholdScreen({
       </div>
       <HouseholdNameCard household={household} onSaved={onHouseholdUpdated} />
       <div className="px-6 my-3 space-y-2">
-        {members.map((member) => (
-          <div key={member.userId} className="rounded-[1.5rem] p-4 shadow-sm flex items-center gap-3" style={{ backgroundColor: P.card }}>
-            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold overflow-hidden" style={{ backgroundColor: P.sage }}>
-              {member.avatarUrl
-                ? <img src={member.avatarUrl} alt="" className="w-full h-full object-cover" />
-                : initialsFromName(member.displayName)}
+        {removeSuccess && (
+          <Text size="caption" tone="brand" role="status">{removeSuccess}</Text>
+        )}
+        {members.map((member) => {
+          const canRemove = isOwner && removable.some((row) => row.userId === member.userId);
+          const confirmingRemove = confirmingRemoveUserId === member.userId;
+          return (
+            <div key={member.userId} className="rounded-[1.5rem] p-4 shadow-sm space-y-3" style={{ backgroundColor: P.card }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold overflow-hidden" style={{ backgroundColor: P.sage }}>
+                  {member.avatarUrl
+                    ? <img src={member.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    : initialsFromName(member.displayName)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate" style={{ color: P.text }}>{member.displayName}</p>
+                  <p className="text-[10px]" style={{ color: P.muted }}>{member.role === "owner" ? "Propietario" : "Miembro"}</p>
+                </div>
+              </div>
+              {canRemove && confirmingRemove ? (
+                <div className="space-y-2">
+                  <Text size="caption" className="leading-relaxed">
+                    ¿Eliminar a {member.displayName} del Nido?
+                  </Text>
+                  <Text size="caption" tone="muted" className="leading-relaxed">
+                    Dejará de ser miembro activo. Su historial se conservará.
+                  </Text>
+                  {removeError && (
+                    <Text size="caption" tone="danger" role="alert">{removeError}</Text>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={removing}
+                      onClick={() => {
+                        if (removing) return;
+                        setConfirmingRemoveUserId(null);
+                        setRemoveError(null);
+                      }}
+                      className="flex-1 py-3 rounded-2xl text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      style={{ borderColor: P.border, color: P.muted }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canSubmitRemove(removing)}
+                      onClick={() => { void handleConfirmRemove(member.userId); }}
+                      className="flex-1 py-3 rounded-2xl text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      style={{ backgroundColor: P.danger, color: "#fff", opacity: removing ? 0.7 : 1 }}
+                    >
+                      {removing ? "Eliminando…" : "Eliminar"}
+                    </button>
+                  </div>
+                </div>
+              ) : canRemove ? (
+                <TextLink
+                  tone="muted"
+                  onClick={() => {
+                    setRemoveSuccess(null);
+                    setRemoveError(null);
+                    setConfirmingRemoveUserId(member.userId);
+                  }}
+                >
+                  Eliminar
+                </TextLink>
+              ) : null}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate" style={{ color: P.text }}>{member.displayName}</p>
-              <p className="text-[10px]" style={{ color: P.muted }}>{member.role === "owner" ? "Propietario" : "Miembro"}</p>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <HouseholdSplitCard household={household} onSaved={onHouseholdUpdated} />
       <HouseholdCategoriesCard householdId={household.id} refreshKey={categoryRefreshKey} />
@@ -327,7 +408,7 @@ export function HouseholdScreen({
             <>
               <Text size="label">Propiedad del Nido</Text>
               <Text size="caption" tone="muted" className="leading-relaxed">
-                Solo el propietario puede invitar y transferir la propiedad.
+                Solo el propietario puede invitar, eliminar integrantes y transferir la propiedad.
               </Text>
               {transferSuccess && (
                 <Text size="caption" tone="brand" role="status">{transferSuccess}</Text>
