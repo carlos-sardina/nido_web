@@ -59,6 +59,7 @@ export function RecurringIncomeDetail({
       <FlowScreen
         lockViewport
         className="h-full min-h-0"
+        header={<BackLink onClick={onClose} label="Recurrencias" />}
         footer={
           canMutate ? (
             <ScreenFooter>
@@ -87,17 +88,13 @@ export function RecurringIncomeDetail({
           ) : undefined
         }
       >
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="shrink-0">
-            <BackLink onClick={onClose} label="Recurrencias" />
-            <ScreenIntro
-              className="mb-4"
-              title={template.description?.trim() || template.category?.name || "Ingreso recurrente"}
-              description="Plantilla. No es un ingreso contabilizado."
-            />
-          </div>
+        <ScreenIntro
+          className="mb-4"
+          title={template.description?.trim() || template.category?.name || "Ingreso recurrente"}
+          description="Plantilla. No es un ingreso contabilizado."
+        />
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6 space-y-3">
+        <div className="space-y-3">
             {error ? <FieldError id={`${ids}-error`}>{error}</FieldError> : null}
 
             <div className="rounded-2xl p-4" style={{ backgroundColor: P.card }}>
@@ -130,7 +127,6 @@ export function RecurringIncomeDetail({
                 Solo quien creó esta recurrencia puede editarla o registrarla.
               </Text>
             )}
-          </div>
         </div>
       </FlowScreen>
     </div>

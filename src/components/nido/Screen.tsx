@@ -1,80 +1,73 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useRef, type ReactNode, type RefObject } from "react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/app/components/ui/utils";
 import { Heading, Text } from "@/components/nido/Typography";
 
-const FlowLayoutContext = createContext(false);
+export const FlowScrollRefContext =
+  createContext<RefObject<HTMLDivElement | null> | null>(null);
 
 export function FlowScreen({
   children,
+  header,
   footer,
   className,
   lockViewport = false,
   constrained = false,
 }: {
   children: ReactNode;
+  header?: ReactNode;
   footer?: ReactNode;
   className?: string;
   lockViewport?: boolean;
   constrained?: boolean;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const columnClass = cn("w-full", constrained && "mx-auto max-w-md");
+
   return (
-    <FlowLayoutContext.Provider value={constrained}>
-      <div
-        className={cn(
-          "relative flex flex-col bg-card font-sans",
-          lockViewport
-            ? "h-[var(--app-height,100dvh)] min-h-0 overflow-x-hidden overflow-y-hidden"
-            : "min-h-dvh overflow-x-clip",
-          className,
-        )}
-      >
-        <div
-          className={cn(
-            "flex flex-col",
-            lockViewport && "min-h-0 flex-1 overflow-hidden",
-          )}
-        >
+    <div
+      className={cn(
+        "relative flex flex-col bg-card font-sans",
+        lockViewport
+          ? "h-[var(--app-height,100dvh)] min-h-0 overflow-x-hidden overflow-y-hidden"
+          : "min-h-dvh overflow-x-clip",
+        className,
+      )}
+    >
+      {lockViewport ? (
+        <FlowScrollRefContext.Provider value={scrollRef}>
+            {header ? (
+              <div className={cn("relative z-10 shrink-0 bg-card px-6 pt-4", columnClass)}>
+                {header}
+              </div>
+            ) : null}
           <div
+            ref={scrollRef}
             className={cn(
-              "flex w-full flex-col px-6 pt-4",
-              constrained && "mx-auto max-w-md",
-              lockViewport ? "min-h-0 flex-1 pb-0" : "min-h-dvh pb-8",
+              "flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-6 pb-[max(2rem,env(safe-area-inset-bottom))]",
+              !header && "pt-4",
+              columnClass,
             )}
           >
             {children}
+            {footer}
           </div>
+        </FlowScrollRefContext.Provider>
+      ) : (
+        <div className={cn("flex min-h-dvh flex-col px-6 pt-4 pb-8", columnClass)}>
+          {header}
+          {children}
+          {footer}
         </div>
-        {footer}
-      </div>
-    </FlowLayoutContext.Provider>
+      )}
+    </div>
   );
 }
 
-export function ScreenFooter({
-  children,
-  constrained: constrainedProp,
-}: {
-  children: ReactNode;
-  constrained?: boolean;
-}) {
-  const constrainedFromParent = useContext(FlowLayoutContext);
-  const constrained = constrainedProp ?? constrainedFromParent;
-
-  return (
-    <div className="flex-shrink-0 border-t border-border bg-card">
-      <div
-        className={cn(
-          "w-full px-6 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))]",
-          constrained && "mx-auto max-w-md",
-        )}
-      >
-        {children}
-      </div>
-    </div>
-  );
+export function ScreenFooter({ children }: { children: ReactNode }) {
+  return <div className="mt-8">{children}</div>;
 }
 
 export function BackLink({

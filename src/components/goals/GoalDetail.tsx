@@ -158,39 +158,38 @@ export function GoalDetail({
       <FlowScreen
         lockViewport
         className="h-full min-h-0"
+        header={
+          <BackLink
+            onClick={() => {
+              if (submitting) return;
+              onClose();
+            }}
+            label="Cerrar"
+          />
+        }
         footer={footer}
       >
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="shrink-0">
-            <BackLink
-              onClick={() => {
-                if (submitting) return;
-                onClose();
-              }}
-              label="Cerrar"
-            />
-            <ScreenIntro
-              className="mb-6"
-              title={
-                pendingDelete
-                  ? "¿Eliminar esta aportación?"
-                  : confirmingArchive
-                    ? goal.goalType === "saving"
-                      ? "¿Archivar este fondo?"
-                      : "¿Archivar esta meta?"
-                    : goal.name
-              }
-              description={
-                pendingDelete
-                  ? "Esta acción quitará la aportación del progreso y de la actividad."
-                  : confirmingArchive
-                    ? "Dejará de aparecer en Metas y en el inicio. Las aportaciones se conservan."
-                    : undefined
-              }
-            />
-          </div>
+        <ScreenIntro
+          className="mb-6"
+          title={
+            pendingDelete
+              ? "¿Eliminar esta aportación?"
+              : confirmingArchive
+                ? goal.goalType === "saving"
+                  ? "¿Archivar este fondo?"
+                  : "¿Archivar esta meta?"
+                : goal.name
+          }
+          description={
+            pendingDelete
+              ? "Esta acción quitará la aportación del progreso y de la actividad."
+              : confirmingArchive
+                ? "Dejará de aparecer en Metas y en el inicio. Las aportaciones se conservan."
+                : undefined
+          }
+        />
 
-          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-6 space-y-4">
+        <div className="space-y-4">
             {error ? <FieldError id={`${ids}-error`}>{error}</FieldError> : null}
 
             {confirming ? null : (
@@ -321,7 +320,6 @@ export function GoalDetail({
                 </div>
               </>
             )}
-          </div>
         </div>
       </FlowScreen>
     </div>

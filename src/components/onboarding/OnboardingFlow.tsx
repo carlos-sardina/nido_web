@@ -314,6 +314,9 @@ export function OnboardingFlow({
     <FlowScreen
       constrained
       lockViewport={step === "p-expenses"}
+      header={step === "p-expenses" ? (
+        <BackLink onClick={() => goTo(PERSONAL[pIdx-1]||"c-name")} />
+      ) : undefined}
       footer={step === "p-expenses" ? (
         <ScreenFooter>
           <Button
@@ -529,18 +532,23 @@ export function OnboardingFlow({
           )}
 
           {isPers && (
-            <div className={step === "p-expenses" ? "flex min-h-0 flex-1 flex-col" : undefined}>
-              <div className={step === "p-expenses" ? "shrink-0" : undefined}>
-                <BackLink onClick={() => goTo(data.flow==="join"&&step==="p-name"?"join":PERSONAL[pIdx-1]||"c-name")} />
-                <OProgress2 step={pIdx+2} total={CREATE_STEPS} />
-                {step === "p-expenses" && (
+            <div>
+              {step !== "p-expenses" && (
+                <>
+                  <BackLink onClick={() => goTo(data.flow==="join"&&step==="p-name"?"join":PERSONAL[pIdx-1]||"c-name")} />
+                  <OProgress2 step={pIdx+2} total={CREATE_STEPS} />
+                </>
+              )}
+              {step === "p-expenses" && (
+                <>
+                  <OProgress2 step={pIdx+2} total={CREATE_STEPS} />
                   <ScreenIntro
                     className="mb-4"
                     title="Gastos mensuales estimados"
                     description="Toca un gasto para agregar el monto mensual y definir si es personal o compartido."
                   />
-                )}
-              </div>
+                </>
+              )}
 
               {step === "p-name" && (
                 <>
@@ -731,11 +739,7 @@ export function OnboardingFlow({
                   .filter(({ exp }) => exp.type === "personal");
 
                 return (
-                  <div
-                    className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-6"
-                    role="region"
-                    aria-label="Lista de gastos mensuales"
-                  >
+                  <div role="region" aria-label="Lista de gastos mensuales">
                     {nido.length > 0 && (
                       <>
                         <SectionLabel>Nido</SectionLabel>

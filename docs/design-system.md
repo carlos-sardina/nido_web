@@ -45,7 +45,9 @@ Shared shell: `FlowScreen`.
 - Default: full width with `px-6` gutters, matching Home and the other tabs
 - `constrained`: centered `max-w-md` (28rem) column — only for auth/onboarding
 - Default scroll: `min-h-dvh`, document scroll. Do not use `h-dvh` + `overflow-hidden` on normal screens.
-- `lockViewport`: only for screens that need an internal scroll region and a persistent footer (e.g. Gastos).
+- `lockViewport`: overlay screens that must not scroll the shell behind them. One internal scroll region. The back/close control stays pinned; title, body, and CTA scroll with the content.
+- `header`: optional back/close slot, pinned at the top when `lockViewport` is on.
+- `footer`: optional primary actions, rendered at the end of the scroll content (not stuck to the bottom of the viewport).
 - Structure: back → heading + supporting text → content → primary action → secondary/text actions
 
 ## Buttons

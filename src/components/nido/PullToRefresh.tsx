@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, Loader2 } from "lucide-react";
 import { cn } from "@/app/components/ui/utils";
+import { FlowScrollRefContext } from "@/components/nido/Screen";
 import {
   applyPullResistance,
   canBeginPull,
@@ -30,7 +31,8 @@ export function PullToRefresh({
   className?: string;
   children: ReactNode;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const flowScrollRef = useContext(FlowScrollRefContext);
+  const localRef = useRef<HTMLDivElement>(null);
   const [pullDistance, setPullDistance] = useState(0);
   const trackingRef = useRef(false);
   const startYRef = useRef(0);
@@ -55,7 +57,7 @@ export function PullToRefresh({
   }, [refreshing]);
 
   useEffect(() => {
-    const el = scrollRef.current;
+    const el = flowScrollRef?.current ?? localRef.current;
     if (!el) return;
 
     const onStart = (event: TouchEvent) => {
@@ -121,7 +123,7 @@ export function PullToRefresh({
       el.removeEventListener("touchend", onEnd);
       el.removeEventListener("touchcancel", onEnd);
     };
-  }, []);
+  }, [flowScrollRef]);
 
   const progress = pullProgress(pullDistance);
   const indicatorHeight = refreshing
@@ -130,7 +132,7 @@ export function PullToRefresh({
   const visible = refreshing || pullDistance > 0;
 
   return (
-    <div ref={scrollRef} className={cn(className)}>
+    <div ref={flowScrollRef ? undefined : localRef} className={cn(flowScrollRef ? undefined : className)}>
       <div
         className="flex items-center justify-center overflow-hidden"
         style={{

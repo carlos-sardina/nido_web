@@ -156,13 +156,16 @@ export function ProfilePanel({
 
   return (
     <div className="absolute inset-0 z-40 flex flex-col" style={{ backgroundColor: P.bgL }}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 pt-4 pb-3 flex-shrink-0 border-b" style={{ borderColor: P.border }}>
-        <button onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform" style={{ backgroundColor: P.sub }}>
+      <div className="relative z-10 flex shrink-0 items-center px-6 pt-4 pb-2" style={{ backgroundColor: P.bgL }}>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar"
+          className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+          style={{ backgroundColor: P.sub }}
+        >
           <ChevronLeft size={18} style={{ color: P.text }} />
         </button>
-        <h2 className="text-sm font-bold" style={{ fontFamily: "Fraunces, serif", color: P.text }}>Mi perfil</h2>
-        <div className="w-9" />
       </div>
 
       <PullToRefresh
@@ -170,6 +173,13 @@ export function ProfilePanel({
         refreshing={refreshing}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-6"
       >
+        <h2
+          className="px-6 pt-2 pb-2 text-center text-sm font-bold"
+          style={{ fontFamily: "Fraunces, serif", color: P.text }}
+        >
+          Mi perfil
+        </h2>
+
         {/* User identity */}
         <div className="flex flex-col items-center py-6 px-6">
           <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-bold mb-3 shadow-md overflow-hidden" style={{ backgroundColor: P.sage }}>

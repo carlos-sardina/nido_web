@@ -111,14 +111,16 @@ export function BalanceScreen({
   const { isLoading, refreshing, error, balance, range, canGoNext, goPrev, goNext, refresh } = query;
 
   return (
-    <div className="absolute inset-0 z-30" style={{ backgroundColor: P.bgL }}>
+    <div className="absolute inset-0 z-30 flex flex-col" style={{ backgroundColor: P.bgL }}>
+      <div className="relative z-10 shrink-0 px-6 pt-3" style={{ backgroundColor: P.bgL }}>
+        <BackLink onClick={onClose} label="Cerrar" />
+      </div>
       <PullToRefresh
         onRefresh={refresh}
         refreshing={refreshing}
-        className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden"
       >
-        <div className="px-6 pt-3 pb-1">
-          <BackLink onClick={onClose} label="Cerrar" />
+        <div className="px-6 pb-1">
           <Heading as="h2" size="h2">
             Balance
           </Heading>

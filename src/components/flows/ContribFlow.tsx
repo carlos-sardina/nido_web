@@ -147,6 +147,7 @@ export function ContribFlow({
       <FlowScreen
         lockViewport
         className="h-full min-h-0"
+        header={<BackLink onClick={onClose} label="Cerrar" />}
         footer={
           empty || loading ? undefined : (
             <ScreenFooter>
@@ -157,21 +158,17 @@ export function ContribFlow({
           )
         }
       >
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="shrink-0">
-            <BackLink onClick={onClose} label="Cerrar" />
-            <ScreenIntro
-              className="mb-6"
-              title={isEditing ? "Editar aportación" : "Registrar una aportación"}
-              description={
-                isEditing
-                  ? "Los cambios se guardan en tu Nido activo."
-                  : "Elige una meta o un fondo activo."
-              }
-            />
-          </div>
+        <ScreenIntro
+          className="mb-6"
+          title={isEditing ? "Editar aportación" : "Registrar una aportación"}
+          description={
+            isEditing
+              ? "Los cambios se guardan en tu Nido activo."
+              : "Elige una meta o un fondo activo."
+          }
+        />
 
-          {loading ? (
+        {loading ? (
             <Text size="caption" tone="muted" aria-busy="true">
               Cargando metas y fondos…
             </Text>
@@ -185,7 +182,7 @@ export function ContribFlow({
           ) : (
             <form
               id={`${ids}-form`}
-              className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-6 space-y-4"
+              className="space-y-4"
               onSubmit={handleSubmit}
               noValidate
             >
@@ -274,7 +271,6 @@ export function ContribFlow({
               </Field>
             </form>
           )}
-        </div>
       </FlowScreen>
     </div>
   );

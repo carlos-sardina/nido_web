@@ -129,6 +129,15 @@ export function ExpenseDetail({
       <FlowScreen
         lockViewport
         className="h-full min-h-0"
+        header={
+          <BackLink
+            onClick={() => {
+              if (submitting) return;
+              onClose();
+            }}
+            label="Cerrar"
+          />
+        }
         footer={
           canMutate ? (
             <ScreenFooter>
@@ -192,35 +201,25 @@ export function ExpenseDetail({
           ) : undefined
         }
       >
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="shrink-0">
-            <BackLink
-              onClick={() => {
-                if (submitting) return;
-                onClose();
-              }}
-              label="Cerrar"
-            />
-            <ScreenIntro
-              className="mb-6"
-              title={
-                confirming
-                  ? "¿Eliminar este gasto?"
-                  : refunding
-                    ? "Devolver dinero"
-                    : expense.description?.trim() || expense.category?.name || "Gasto"
-              }
-              description={
-                confirming
-                  ? "Esta acción quitará el gasto de tus totales y actividad."
-                  : refunding
-                    ? `Disponible para devolver: ${formatCompactMoney(remaining)}`
-                    : undefined
-              }
-            />
-          </div>
+        <ScreenIntro
+          className="mb-6"
+          title={
+            confirming
+              ? "¿Eliminar este gasto?"
+              : refunding
+                ? "Devolver dinero"
+                : expense.description?.trim() || expense.category?.name || "Gasto"
+          }
+          description={
+            confirming
+              ? "Esta acción quitará el gasto de tus totales y actividad."
+              : refunding
+                ? `Disponible para devolver: ${formatCompactMoney(remaining)}`
+                : undefined
+          }
+        />
 
-          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-6 space-y-4">
+        <div className="space-y-4">
             {error ? <FieldError id={`${ids}-error`}>{error}</FieldError> : null}
 
             {confirming ? null : refunding ? (
@@ -352,7 +351,6 @@ export function ExpenseDetail({
                 ) : null}
               </>
             )}
-          </div>
         </div>
       </FlowScreen>
     </div>

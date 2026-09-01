@@ -69,27 +69,22 @@ export function RecurringIncomesScreen({
       <FlowScreen
         lockViewport
         className="h-full min-h-0"
+        header={<BackLink onClick={onClose} label="Ingresos" />}
         footer={
           <ScreenFooter>
             <Button onClick={onCreate}>Nueva recurrencia</Button>
           </ScreenFooter>
         }
       >
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="shrink-0">
-            <BackLink onClick={onClose} label="Ingresos" />
-            <ScreenIntro
-              className="mb-4"
-              title="Ingresos recurrentes"
-              description="El sueldo se confirma por periodo. El extra se registra como ingreso cada vez que entra."
-            />
-          </div>
-
-          <PullToRefresh
-            onRefresh={load}
-            refreshing={refreshing}
-            className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6"
-          >
+        <PullToRefresh
+          onRefresh={load}
+          refreshing={refreshing}
+        >
+          <ScreenIntro
+            className="mb-4"
+            title="Ingresos recurrentes"
+            description="El sueldo se confirma por periodo. El extra se registra como ingreso cada vez que entra."
+          />
             {loading && !templates ? (
               <Text size="caption" tone="muted">Cargando recurrencias…</Text>
             ) : error && !templates ? (
@@ -143,7 +138,6 @@ export function RecurringIncomesScreen({
               </div>
             )}
           </PullToRefresh>
-        </div>
       </FlowScreen>
     </div>
   );

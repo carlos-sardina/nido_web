@@ -167,6 +167,7 @@ export function IncomeFlow({
       <FlowScreen
         lockViewport
         className="h-full min-h-0"
+        header={<BackLink onClick={onClose} label="Cerrar" />}
         footer={
           <ScreenFooter>
             <Button
@@ -180,23 +181,19 @@ export function IncomeFlow({
           </ScreenFooter>
         }
       >
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="shrink-0">
-            <BackLink onClick={onClose} label="Cerrar" />
-            <ScreenIntro
-              className="mb-6"
-              title={isEditing ? "Editar ingreso" : "Registrar un ingreso"}
-              description={
-                isEditing
-                  ? "Los cambios se guardan en tu Nido activo."
-                  : "Sueldo o extra. El extra se suma cada vez que lo registras, no como recurrencia."
-              }
-            />
-          </div>
+        <ScreenIntro
+          className="mb-6"
+          title={isEditing ? "Editar ingreso" : "Registrar un ingreso"}
+          description={
+            isEditing
+              ? "Los cambios se guardan en tu Nido activo."
+              : "Sueldo o extra. El extra se suma cada vez que lo registras, no como recurrencia."
+          }
+        />
 
-          <form
-            id={`${ids}-form`}
-            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-6 space-y-4"
+        <form
+          id={`${ids}-form`}
+          className="space-y-4"
             onSubmit={handleSubmit}
             noValidate
           >
@@ -309,7 +306,6 @@ export function IncomeFlow({
               <FieldError id={`${ids}-category-error`}>{errors.category}</FieldError>
             </Field>
           </form>
-        </div>
       </FlowScreen>
     </div>
   );

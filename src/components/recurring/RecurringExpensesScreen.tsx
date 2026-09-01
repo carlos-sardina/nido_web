@@ -69,27 +69,22 @@ export function RecurringExpensesScreen({
       <FlowScreen
         lockViewport
         className="h-full min-h-0"
+        header={<BackLink onClick={onClose} label="Gastos" />}
         footer={
           <ScreenFooter>
             <Button onClick={onCreate}>Nueva recurrencia</Button>
           </ScreenFooter>
         }
       >
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="shrink-0">
-            <BackLink onClick={onClose} label="Gastos" />
-            <ScreenIntro
-              className="mb-4"
-              title="Gastos recurrentes"
-              description="Las plantillas no se suman a tus gastos. Solo cuentan los periodos que registres."
-            />
-          </div>
-
-          <PullToRefresh
-            onRefresh={load}
-            refreshing={refreshing}
-            className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6"
-          >
+        <PullToRefresh
+          onRefresh={load}
+          refreshing={refreshing}
+        >
+          <ScreenIntro
+            className="mb-4"
+            title="Gastos recurrentes"
+            description="Las plantillas no se suman a tus gastos. Solo cuentan los periodos que registres."
+          />
             {loading && !templates ? (
               <Text size="caption" tone="muted">Cargando recurrencias…</Text>
             ) : error && !templates ? (
@@ -143,7 +138,6 @@ export function RecurringExpensesScreen({
               </div>
             )}
           </PullToRefresh>
-        </div>
       </FlowScreen>
     </div>
   );

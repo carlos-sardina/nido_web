@@ -491,7 +491,7 @@ If Supabase reports email-not-confirmed on login:
 
 Default Auth/Onboarding/Join screens use document scroll (`min-h-dvh`). Do **not** require selecting text to move the page. Wheel, trackpad, touch swipe, and keyboard must work when content exceeds the viewport.
 
-**Registrar un gasto** (Phase 9.1.2A): internal scroll + sticky **Guardar gasto** (safe-area footer). Wheel, trackpad, and touch must move the fields. The footer must not cover the last field.
+**Registrar un gasto** (Phase 9.1.2A): one internal scroll. Title, fields, and **Guardar gasto** travel with the content. Only **Cerrar** stays pinned. Wheel, trackpad, and touch must move the whole form. The CTA must not cover the last field and must not stay glued to the bottom of the viewport.
 
 For each screen below, check a short desktop viewport, a large desktop viewport, and mobile. If content is taller than the viewport, scroll directly.
 
@@ -508,8 +508,8 @@ Onboarding:
 - ¿Cómo te llamas?
 - Ingreso
 - Ahorros
-- Gastos mensuales estimados (internal scroll + sticky CTA)
-- Registrar un gasto (internal scroll + sticky Guardar gasto)
+- Gastos mensuales estimados (internal scroll; only Atrás pinned; Continuar at the end of the list)
+- Registrar un gasto (internal scroll; only Cerrar pinned; Guardar at the end of the form)
 - División
 - Invitaciones
 - Crear mi Nido

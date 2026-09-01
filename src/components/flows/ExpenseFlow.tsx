@@ -247,6 +247,7 @@ export function ExpenseFlow({
       <FlowScreen
         lockViewport
         className="h-full min-h-0"
+        header={<BackLink onClick={onClose} label="Cerrar" />}
         footer={
           <ScreenFooter>
             <Button
@@ -260,23 +261,19 @@ export function ExpenseFlow({
           </ScreenFooter>
         }
       >
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="shrink-0">
-            <BackLink onClick={onClose} label="Cerrar" />
-            <ScreenIntro
-              className="mb-6"
-              title={isEditing ? "Editar gasto" : "Registrar un gasto"}
-              description={
-                isEditing
-                  ? "Los cambios se guardan en tu Nido activo."
-                  : "El gasto se guarda en tu Nido activo."
-              }
-            />
-          </div>
+        <ScreenIntro
+          className="mb-6"
+          title={isEditing ? "Editar gasto" : "Registrar un gasto"}
+          description={
+            isEditing
+              ? "Los cambios se guardan en tu Nido activo."
+              : "El gasto se guarda en tu Nido activo."
+          }
+        />
 
-          <form
-            id={`${ids}-form`}
-            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-6 space-y-4"
+        <form
+          id={`${ids}-form`}
+          className="space-y-4"
             onSubmit={handleSubmit}
             noValidate
           >
@@ -468,7 +465,6 @@ export function ExpenseFlow({
               </Field>
             ) : null}
           </form>
-        </div>
       </FlowScreen>
     </div>
   );
