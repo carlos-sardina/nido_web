@@ -409,7 +409,7 @@ function DashboardBody({
             </button>
             {budget.categories.length > 0 ? (
               <div className="flex gap-2 mt-4 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-                {budget.categories.slice(0, 5).map((category) => {
+                {budget.categories.map((category) => {
                   const item = budget.items.find((row) => row.categoryId === category.categoryId);
                   return (
                     <button
@@ -419,16 +419,17 @@ function DashboardBody({
                         if (item) onOpenBudget(item);
                         else onOpenBudgets();
                       }}
+                      title={category.name}
                       aria-label={`Ver presupuesto de ${category.name}`}
-                      className="flex-shrink-0 rounded-xl px-3 py-2 text-center min-w-[68px] active:scale-[0.97] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="flex-none w-[4.75rem] rounded-xl px-1.5 py-2 text-center overflow-hidden active:scale-[0.97] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       style={{ backgroundColor: P.sub }}
                     >
                       <div className="text-sm mb-0.5">{category.icon}</div>
-                      <div className="text-[9px] mb-0.5" style={{ color: P.muted }}>
-                        {category.name.split(" ")[0]}
+                      <div className="text-[9px] mb-0.5 truncate" style={{ color: P.muted }}>
+                        {category.name}
                       </div>
                       <div
-                        className="text-[10px] font-bold font-sans"
+                        className="text-[10px] font-bold font-sans truncate"
                         style={{
                           color:
                             category.budget > 0 && category.spent > category.budget
