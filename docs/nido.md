@@ -275,7 +275,7 @@ Not in this product and not pending 9.4 ([future.md](./future.md)):
 - push / notification delivery
 - Supabase Realtime subscriptions
 
-Hogar no longer shows the prototype contribution-model block (`D_INC` / `TOT_B`, Persona A / Persona B). Phase 9.4.1 adds live Hogar surfaces for the Nido name, `default_split_method` (`equal` / `proportional`; `capacity` is not a product value), and category create / rename / archive. Initials use first letter of the first token and, when there are two or more words, the first letter of the last token (`Carlos` → `C`, `Carlos Sardina` → `CS`).
+Hogar no longer shows the prototype contribution-model block (`D_INC` / `TOT_B`, Persona A / Persona B). Phase 9.4.1 adds live Hogar surfaces for the Nido name, `default_split_method` (`equal` / `proportional`; `capacity` is not a product value), and **expense** category create / rename / archive. Income categories are fixed (Sueldo and Extra) and are not listed in that card. Initials use first letter of the first token and, when there are two or more words, the first letter of the last token (`Carlos` → `C`, `Carlos Sardina` → `CS`).
 
 Perfil no longer shows prototype personal-expense lists (`DIANA_ITEMS` / `DIANA_EXTRAS`). Those sections were removed; they were not replaced with another financial model.
 

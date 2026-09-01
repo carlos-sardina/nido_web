@@ -7,7 +7,10 @@ import {
   DEFAULT_INCOME_CATEGORIES,
   EXTRA_INCOME_CATEGORY_NAME,
   SUELDO_INCOME_CATEGORY_NAME,
+  CATEGORY_NAME_ARCHIVED,
+  CATEGORY_NAME_TAKEN,
   categoryNameMessage,
+  categoryRenameConflictMessage,
   isExtraIncomeCategory,
   isSueldoIncomeCategory,
   recurringIncomeCategories,
@@ -111,6 +114,21 @@ describe("findArchivedCategoryByNormalizedName", () => {
     const existing = [{ id: "a", name: "Salud", archivedAt: null }, archived];
     assert.equal(findArchivedCategoryByNormalizedName("  vivienda  ", existing), archived);
     assert.equal(findArchivedCategoryByNormalizedName("Salud", existing), null);
+  });
+});
+
+describe("categoryRenameConflictMessage", () => {
+  it("allows renaming to the same name and rejects active or archived collisions", () => {
+    const existing = [
+      { id: "c1", name: "Uber", archivedAt: null },
+      { id: "c2", name: "Vivienda", archivedAt: null },
+      { id: "c3", name: "Spotify", archivedAt: "2026-08-01T00:00:00.000Z" },
+    ];
+    assert.equal(categoryRenameConflictMessage("uber", existing, "c1"), null);
+    assert.equal(categoryRenameConflictMessage("  Uber  ", existing, "c1"), null);
+    assert.equal(categoryRenameConflictMessage("Transporte", existing, "c1"), null);
+    assert.equal(categoryRenameConflictMessage("vivienda", existing, "c1"), CATEGORY_NAME_TAKEN);
+    assert.equal(categoryRenameConflictMessage("spotify", existing, "c1"), CATEGORY_NAME_ARCHIVED);
   });
 });
 

@@ -80,6 +80,25 @@ export function isDuplicateActiveCategoryName(
   );
 }
 
+export const CATEGORY_NAME_TAKEN = "Ya existe una categoría con ese nombre.";
+export const CATEGORY_NAME_ARCHIVED =
+  "Hay una categoría archivada con ese nombre. Créala de nuevo para reactivarla.";
+
+export function categoryRenameConflictMessage(
+  name: string,
+  existing: ReadonlyArray<{ id?: string; name: string; archivedAt?: string | null }>,
+  categoryId?: string,
+): string | null {
+  const others = existing.filter((row) => row.id !== categoryId);
+  if (findArchivedCategoryByNormalizedName(name, others)) {
+    return CATEGORY_NAME_ARCHIVED;
+  }
+  if (isDuplicateActiveCategoryName(name, others)) {
+    return CATEGORY_NAME_TAKEN;
+  }
+  return null;
+}
+
 export function findArchivedCategoryByNormalizedName<
   T extends { name: string; archivedAt?: string | null },
 >(name: string, existing: ReadonlyArray<T>): T | null {

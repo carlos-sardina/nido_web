@@ -178,7 +178,7 @@ Household-scoped classification for income and expense.
 | `archived_at` | `timestamptz` nullable | Archive instead of delete. |
 | `is_default` | `boolean` | Default `false`. True for catalog rows seeded at household creation. |
 
-Active category names are unique per household and type. Creating a category whose normalized name matches an archived row **reactivates** that row instead of inserting a duplicate. Names cannot repeat, including archived rows.
+Active category names are unique per household and type. Creating a category whose normalized name matches an archived row **reactivates** that row instead of inserting a duplicate. Renaming onto an active or archived name is rejected; create is the path to reactivate. Names cannot repeat, including archived rows.
 
 Using an archived category on a **new** transaction is allowed at the database level and is rejected by `create_expense` and the application.
 

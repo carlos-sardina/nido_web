@@ -7,6 +7,7 @@ import {
   renameCategoryWithAuth,
   type CategoryMutationAuth,
 } from "./category-mutations.ts";
+import { CATEGORY_NAME_ARCHIVED, CATEGORY_NAME_TAKEN } from "./financial/categories.ts";
 
 function auth(input: {
   userId?: string | null;
@@ -127,7 +128,10 @@ describe("renameCategoryWithAuth", () => {
       auth({ onRpc: () => { called += 1; } }),
     );
     assert.equal(result.ok, false);
-    if (result.ok === false) assert.equal(result.error.code, "conflict");
+    if (result.ok === false) {
+      assert.equal(result.error.code, "conflict");
+      assert.equal(result.error.message, CATEGORY_NAME_TAKEN);
+    }
     assert.equal(called, 0);
   });
 
@@ -145,7 +149,10 @@ describe("renameCategoryWithAuth", () => {
       auth({ onRpc: () => { called += 1; } }),
     );
     assert.equal(result.ok, false);
-    if (result.ok === false) assert.equal(result.error.code, "conflict");
+    if (result.ok === false) {
+      assert.equal(result.error.code, "conflict");
+      assert.equal(result.error.message, CATEGORY_NAME_ARCHIVED);
+    }
     assert.equal(called, 0);
   });
 });

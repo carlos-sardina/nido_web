@@ -7,20 +7,14 @@ import { Text } from "@/components/nido/Typography";
 import { archiveCategory, canSubmitCategory, createCategory, renameCategory } from "@/lib/nido/categories";
 import {
   categoryNameMessage,
+  categoryRenameConflictMessage,
   findArchivedCategoryByNormalizedName,
-  selectableIncomeCategories,
   type HouseholdCategory,
 } from "@/lib/nido/financial/categories";
 import { fetchHouseholdCategories } from "@/lib/nido/queries/categories";
 import { P } from "@/lib/palette";
 
-type CategoryType = "expense" | "income";
 type RowMode = "view" | "rename" | "archive";
-
-const TYPE_LABEL: Record<CategoryType, string> = {
-  expense: "Gastos",
-  income: "Ingresos",
-};
 
 export function HouseholdCategoriesCard({
   householdId,
@@ -32,7 +26,6 @@ export function HouseholdCategoriesCard({
   const [categories, setCategories] = useState<HouseholdCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
-  const [type, setType] = useState<CategoryType>("expense");
   const [newName, setNewName] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
@@ -45,6 +38,9 @@ export function HouseholdCategoriesCard({
   const busyRef = useRef(false);
   const categoriesRef = useRef(categories);
   categoriesRef.current = categories;
+
+  const expenses = categories.filter((row) => row.type === "expense");
+  const visible = expenses.filter((row) => row.archivedAt == null);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = Boolean(opts?.silent && categoriesRef.current.length > 0);
@@ -68,11 +64,6 @@ export function HouseholdCategoriesCard({
     void load({ silent: refreshKey > 0 });
   }, [load, refreshKey]);
 
-  const ofType = categories.filter((row) => row.type === type);
-  const visible = type === "income"
-    ? selectableIncomeCategories(ofType, householdId)
-    : ofType.filter((row) => row.archivedAt == null);
-
   const handleCreate = async () => {
     if (!canSubmitCategory(creating) || creatingRef.current) return;
     const message = categoryNameMessage(newName);
@@ -88,9 +79,9 @@ export function HouseholdCategoriesCard({
     setCreateSuccess(null);
     const result = await createCategory({
       name: newName,
-      type,
+      type: "expense",
       householdId,
-      existing: ofType,
+      existing: expenses,
     });
     creatingRef.current = false;
     setCreating(false);
@@ -98,7 +89,7 @@ export function HouseholdCategoriesCard({
       setCreateError(result.error.message);
       return;
     }
-    const reactivated = findArchivedCategoryByNormalizedName(newName, ofType);
+    const reactivated = findArchivedCategoryByNormalizedName(newName, expenses);
     setNewName("");
     setCreateSuccess(reactivated ? "Categoría reactivada." : "Categoría creada.");
     await load();
@@ -107,7 +98,8 @@ export function HouseholdCategoriesCard({
   const handleRename = async (category: HouseholdCategory) => {
     if (!canSubmitCategory(busyId != null) || busyRef.current) return;
     const draft = rowDraft[category.id] ?? category.name;
-    const message = categoryNameMessage(draft);
+    const message = categoryNameMessage(draft)
+      ?? categoryRenameConflictMessage(draft, expenses, category.id);
     if (message) {
       setRowError((current) => ({ ...current, [category.id]: message }));
       return;
@@ -125,7 +117,7 @@ export function HouseholdCategoriesCard({
       name: draft,
       householdId,
       type: category.type,
-      existing: ofType,
+      existing: expenses,
     });
     busyRef.current = false;
     setBusyId(null);
@@ -156,31 +148,8 @@ export function HouseholdCategoriesCard({
     <div className="mx-6 mb-3 rounded-[1.5rem] p-4 space-y-3" style={{ backgroundColor: P.card }}>
       <Text size="label">Categorías</Text>
       <Text size="caption" tone="muted" className="leading-relaxed">
-        {type === "income"
-          ? "Sueldo y Extra son fijos. El extra se registra cada vez que entra, no como recurrencia."
-          : "Puedes crear, renombrar o archivar. Archivar no borra los movimientos que ya la usan."}
+        Puedes crear, renombrar o archivar. Archivar no borra los movimientos que ya la usan.
       </Text>
-      <div className="flex gap-2">
-        {(["expense", "income"] as const).map((next) => (
-          <button
-            key={next}
-            type="button"
-            onClick={() => {
-              setType(next);
-              setCreateError(null);
-              setCreateSuccess(null);
-            }}
-            className="flex-1 py-2 rounded-2xl text-xs font-semibold border"
-            style={{
-              borderColor: type === next ? P.sage : P.border,
-              backgroundColor: type === next ? P.sagePl : P.sub,
-              color: P.text,
-            }}
-          >
-            {TYPE_LABEL[next]}
-          </button>
-        ))}
-      </div>
       {loading && categories.length === 0 && <Text size="caption" tone="muted">Cargando categorías…</Text>}
       {listError && <Text size="caption" tone="danger" role="alert">{listError}</Text>}
       {!loading && !listError && visible.length === 0 && (
@@ -199,10 +168,15 @@ export function HouseholdCategoriesCard({
                   disabled={busy}
                   maxLength={80}
                   onChange={(event) => {
-                    setRowDraft((current) => ({ ...current, [category.id]: event.target.value }));
+                    const value = event.target.value;
+                    setRowDraft((current) => ({ ...current, [category.id]: value }));
+                    const conflict = categoryNameMessage(value)
+                      ? null
+                      : categoryRenameConflictMessage(value, expenses, category.id);
                     setRowError((current) => {
                       const next = { ...current };
-                      delete next[category.id];
+                      if (conflict) next[category.id] = conflict;
+                      else delete next[category.id];
                       return next;
                     });
                   }}
@@ -219,7 +193,14 @@ export function HouseholdCategoriesCard({
                   <TextLink
                     tone="muted"
                     disabled={busy}
-                    onClick={() => setRowMode((current) => ({ ...current, [category.id]: "view" }))}
+                    onClick={() => {
+                      setRowMode((current) => ({ ...current, [category.id]: "view" }));
+                      setRowError((current) => {
+                        const next = { ...current };
+                        delete next[category.id];
+                        return next;
+                      });
+                    }}
                   >
                     Cancelar
                   </TextLink>
@@ -247,68 +228,74 @@ export function HouseholdCategoriesCard({
                 </div>
               </>
             ) : (
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 min-h-11">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold truncate" style={{ color: P.text }}>
-                    {category.icon ? `${category.icon} ${category.name}` : category.name}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    {category.icon ? (
+                      <span className="shrink-0 leading-none" aria-hidden="true">{category.icon}</span>
+                    ) : null}
+                    <p className="text-xs font-semibold truncate leading-none" style={{ color: P.text }}>
+                      {category.name}
+                    </p>
+                  </div>
                   {category.isDefault && (
-                    <p className="text-[10px]" style={{ color: P.muted }}>Catálogo del Nido</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: P.muted }}>Catálogo del Nido</p>
                   )}
                 </div>
-                {type === "expense" ? (
-                  <div className="flex flex-wrap gap-3 shrink-0">
-                    <TextLink
-                      onClick={() => {
-                        setRowDraft((current) => ({ ...current, [category.id]: category.name }));
-                        setRowMode((current) => ({ ...current, [category.id]: "rename" }));
-                      }}
-                    >
-                      Renombrar
-                    </TextLink>
-                    <TextLink
-                      tone="muted"
-                      onClick={() => setRowMode((current) => ({ ...current, [category.id]: "archive" }))}
-                    >
-                      Archivar
-                    </TextLink>
-                  </div>
-                ) : null}
+                <div className="flex items-center gap-3 shrink-0">
+                  <TextLink
+                    onClick={() => {
+                      setRowDraft((current) => ({ ...current, [category.id]: category.name }));
+                      setRowMode((current) => ({ ...current, [category.id]: "rename" }));
+                      setRowError((current) => {
+                        const next = { ...current };
+                        delete next[category.id];
+                        return next;
+                      });
+                    }}
+                  >
+                    Renombrar
+                  </TextLink>
+                  <TextLink
+                    tone="muted"
+                    onClick={() => setRowMode((current) => ({ ...current, [category.id]: "archive" }))}
+                  >
+                    Archivar
+                  </TextLink>
+                </div>
               </div>
             )}
           </div>
         );
       })}
-      {type === "expense" ? (
-        <div className="space-y-2 pt-1">
-          <label htmlFor="new-category-name" className="sr-only">Nueva categoría</label>
-          <input
-            id="new-category-name"
-            type="text"
-            value={newName}
-            disabled={creating}
-            maxLength={80}
-            placeholder={`Nueva categoría de ${TYPE_LABEL[type].toLowerCase()}`}
-            onChange={(event) => {
-              setNewName(event.target.value);
-              setCreateError(null);
-              setCreateSuccess(null);
-            }}
-            className="w-full h-12 px-4 rounded-2xl text-sm outline-none border-2"
-            style={{ backgroundColor: P.sub, color: P.text, borderColor: createError ? P.danger : P.border }}
-          />
-          {createError && <Text size="caption" tone="danger" role="alert">{createError}</Text>}
-          {createSuccess && <Text size="caption" tone="brand" role="status">{createSuccess}</Text>}
-          <Button
-            size="compact"
-            loading={creating}
-            disabled={!canSubmitCategory(creating)}
-            onClick={() => { void handleCreate(); }}
-          >
-            {creating ? "Creando…" : "Crear categoría"}
-          </Button>
-        </div>
-      ) : null}
+      <div className="space-y-2 pt-1">
+        <label htmlFor="new-category-name" className="sr-only">Nueva categoría</label>
+        <input
+          id="new-category-name"
+          type="text"
+          value={newName}
+          disabled={creating}
+          maxLength={80}
+          placeholder="Nueva categoría"
+          onChange={(event) => {
+            setNewName(event.target.value);
+            setCreateError(null);
+            setCreateSuccess(null);
+          }}
+          className="w-full h-12 px-4 rounded-2xl text-sm outline-none border-2"
+          style={{ backgroundColor: P.sub, color: P.text, borderColor: createError ? P.danger : P.border }}
+        />
+        {createError && <Text size="caption" tone="danger" role="alert">{createError}</Text>}
+        {createSuccess && <Text size="caption" tone="brand" role="status">{createSuccess}</Text>}
+        <Button
+          size="compact"
+          loading={creating}
+          disabled={!canSubmitCategory(creating)}
+          onClick={() => { void handleCreate(); }}
+        >
+          {creating ? "Creando…" : "Crear categoría"}
+        </Button>
+      </div>
     </div>
   );
 }
