@@ -183,7 +183,7 @@ export function MainApp({
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden overscroll-none"
+    <div className="fixed left-0 top-[var(--app-offset-top,0px)] flex h-[var(--app-height,100dvh)] w-full flex-col overflow-hidden overscroll-none"
       style={{ backgroundColor: P.bgL, fontFamily: "Figtree, sans-serif" }}>
         <div className="min-h-0 flex-1 overflow-hidden">
           {tab === "home"      && (

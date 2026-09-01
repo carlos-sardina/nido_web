@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ViewportLock } from "@/components/nido/ViewportLock";
 import "../styles/index.css";
 
 export const metadata: Metadata = {
@@ -27,7 +28,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  userScalable: true,
+  minimumScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   themeColor: "#F8F5F0",
 };
@@ -42,7 +45,10 @@ export default function RootLayout({
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
-      <body className="min-h-dvh m-0 font-sans">{children}</body>
+      <body className="min-h-dvh m-0 font-sans">
+        <ViewportLock />
+        {children}
+      </body>
     </html>
   );
 }

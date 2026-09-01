@@ -21,7 +21,7 @@ export function FlowScreen({
       className={cn(
         "relative flex flex-col bg-card font-sans",
         lockViewport
-          ? "h-dvh min-h-dvh overflow-x-hidden overflow-y-hidden"
+          ? "h-[var(--app-height,100dvh)] min-h-0 overflow-x-hidden overflow-y-hidden"
           : "min-h-dvh overflow-x-clip",
         className,
       )}

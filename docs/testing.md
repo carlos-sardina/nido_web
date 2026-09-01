@@ -248,7 +248,7 @@ K. **Desaparece de actividad normal** — no aparece en Home ni en la pestaña A
 L. **Intentar eliminar como otro miembro** — no hay botón; RPC/RLS rechaza.
 M. **Refresh** — los gastos reales siguen; el soft-deleted no vuelve.
 N. **Logout/login** — misma lista y totales.
-O. **Mobile** — scroll, safe-area, footer 56px, pinch-to-zoom habilitado.
+O. **Mobile** — scroll, safe-area, footer 56px, pinch-to-zoom bloqueado.
 P. **Empty state** — Nido sin gastos: **Sin gastos todavía** + **Registrar un gasto** abre el mismo ExpenseFlow.
 Q. **Error de red** — copy en español, sin PostgREST.
 R. **Doble tap** — Guardar / Eliminar: un solo request, botones disabled + loading.

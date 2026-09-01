@@ -50,8 +50,8 @@ export function ExpenseEntryModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto overscroll-contain bg-white font-sans">
-      <div className="mx-auto w-full max-w-md flex flex-col min-h-dvh">
+    <div className="fixed left-0 top-[var(--app-offset-top,0px)] z-50 flex h-[var(--app-height,100dvh)] w-full flex-col overflow-y-auto overscroll-contain bg-white font-sans">
+      <div className="mx-auto w-full max-w-md flex flex-col min-h-full">
         <div className="flex items-center justify-between px-6 pt-6 pb-2 flex-shrink-0">
           <div className="w-11 h-11" />
           <div className="flex flex-col items-center gap-1">

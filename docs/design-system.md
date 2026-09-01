@@ -97,4 +97,4 @@ Empty states use `EmptyState` (`rounded-2xl` card, body-sm title, caption descri
 
 Loading uses pulse skeletons in the same card geometry. Errors use Spanish `NidoError` copy and **Reintentar**, never raw Supabase text.
 
-The Home scroll region is the inner `h-full overflow-y-auto` pane. The shell keeps `overflow-hidden` only because that pane scrolls. `user-scalable=yes` is unchanged.
+The Home scroll region is the inner `h-full overflow-y-auto` pane. The shell keeps `overflow-hidden` only because that pane scrolls. Pinch-to-zoom is disabled (`user-scalable=no`, `maximum-scale=1`).

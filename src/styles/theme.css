@@ -169,10 +169,19 @@
 
   body {
     @apply bg-background text-foreground font-sans;
+    touch-action: pan-x pan-y;
+    overscroll-behavior: none;
+    overflow-x: hidden;
   }
 
   html {
     font-size: var(--font-size);
+    --app-height: 100dvh;
+    --app-offset-top: 0px;
+    touch-action: pan-x pan-y;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overflow-x: hidden;
   }
 
   h1 {
