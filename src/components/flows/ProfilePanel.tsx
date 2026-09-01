@@ -295,7 +295,7 @@ export function ProfilePanel({
             <div className="rounded-2xl p-4 border" style={{ borderColor: P.border, backgroundColor: P.card }}>
               <p className="text-xs mb-3 leading-relaxed" style={{ color: P.muted }}>
                 {hasOtherActiveMembers
-                  ? "No puedes salir siendo el propietario. Transfiere la propiedad a otro miembro desde Hogar y después podrás salir."
+                  ? "No puedes salir siendo el propietario. Transfiere la propiedad a otro miembro desde Configuración y después podrás salir."
                   : "No puedes salir siendo el único miembro del Nido. Invita a alguien y transfiere la propiedad antes de salir."}
               </p>
               <button

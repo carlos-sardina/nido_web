@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  BarChart2, Clock, Home, Plus, Target, Users,
+  BarChart2, Clock, Home, Plus, Target,
 } from "lucide-react";
 import { ActivityScreen } from "@/components/activity/ActivityScreen";
 import { BalanceScreen } from "@/components/balance/BalanceScreen";
@@ -76,6 +76,7 @@ export function MainApp({
   const [showSheet, setShowSheet] = useState(false);
   const [activeFlow, setActiveFlow] = useState<Flow>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<ExpenseRow | null>(null);
   const [editingExpense, setEditingExpense] = useState<ExpenseRow | null>(null);
   const [selectedIncome, setSelectedIncome] = useState<IncomeRow | null>(null);
@@ -119,7 +120,6 @@ export function MainApp({
     { id: "home"      as Tab, icon: Home,      label: "Inicio"    },
     { id: "budget"    as Tab, icon: BarChart2, label: "Gastos"    },
     { id: "goals"     as Tab, icon: Target,    label: "Metas"    },
-    { id: "household" as Tab, icon: Users,     label: "Hogar"    },
     { id: "activity"  as Tab, icon: Clock,     label: "Actividad"},
   ];
 
@@ -192,6 +192,7 @@ export function MainApp({
               householdName={liveHousehold.name}
               dashboard={dashboard}
               onProfileOpen={() => setProfileOpen(true)}
+              onSettingsOpen={() => setShowSettings(true)}
               onNavigate={t => { setTab(t); setShowSheet(false); }}
               onOpenBudgets={() => setShowBudgets(true)}
               onOpenIncomes={() => setShowIncomes(true)}
@@ -215,19 +216,6 @@ export function MainApp({
               dashboard={dashboard}
               onOpenGoal={setSelectedGoal}
               onCreateGoal={openGoalCreate}
-            />
-          )}
-          {tab === "household" && (
-            <HouseholdScreen
-              household={liveHousehold}
-              membership={membership}
-              members={members}
-              onOwnershipTransferred={onNidoChanged}
-              onRefresh={onNidoChanged}
-              onHouseholdUpdated={(next) => setHouseholdPatch({
-                name: next.name,
-                default_split_method: next.default_split_method,
-              })}
             />
           )}
           {tab === "activity"  && (
@@ -337,6 +325,21 @@ export function MainApp({
             householdId={liveHousehold.id}
             members={members}
             onClose={() => setShowBalance(false)}
+          />
+        )}
+
+        {showSettings && (
+          <HouseholdScreen
+            household={liveHousehold}
+            membership={membership}
+            members={members}
+            onClose={() => setShowSettings(false)}
+            onOwnershipTransferred={onNidoChanged}
+            onRefresh={onNidoChanged}
+            onHouseholdUpdated={(next) => setHouseholdPatch({
+              name: next.name,
+              default_split_method: next.default_split_method,
+            })}
           />
         )}
 

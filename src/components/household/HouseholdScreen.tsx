@@ -20,6 +20,7 @@ import { InviteQrModal } from "@/components/flows/InviteQrModal";
 import { Button } from "@/components/nido/Button";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
+import { BackLink } from "@/components/nido/Screen";
 import { TextLink } from "@/components/nido/TextLink";
 import { Heading, Text } from "@/components/nido/Typography";
 import { P } from "@/lib/palette";
@@ -34,6 +35,7 @@ export function HouseholdScreen({
   household,
   membership,
   members,
+  onClose,
   onOwnershipTransferred,
   onHouseholdUpdated,
   onRefresh,
@@ -41,6 +43,7 @@ export function HouseholdScreen({
   household: Household;
   membership: HouseholdMember;
   members: HouseholdMemberView[];
+  onClose: () => void;
   onOwnershipTransferred: () => void;
   onHouseholdUpdated: (household: Household) => void;
   onRefresh: () => void | Promise<void>;
@@ -162,14 +165,16 @@ export function HouseholdScreen({
   };
 
   return (
-    <PullToRefresh
-      onRefresh={handleRefresh}
-      refreshing={refreshing}
-      className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20"
-    >
+    <div className="absolute inset-0 z-30" style={{ backgroundColor: P.bgL }}>
+      <PullToRefresh
+        onRefresh={handleRefresh}
+        refreshing={refreshing}
+        className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-8"
+      >
       <div className="px-6 pt-3 pb-1">
+        <BackLink onClick={onClose} label="Cerrar" />
         <Heading as="h2" size="h2">
-          Hogar
+          Configuración
         </Heading>
         <Text size="caption" tone="muted" className="mt-1">
           {memberLabel}
@@ -419,6 +424,7 @@ export function HouseholdScreen({
           onClose={() => setQrInvitation(null)}
         />
       )}
-    </PullToRefresh>
+      </PullToRefresh>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Shield } from "lucide-react";
+import { ChevronRight, Settings, Shield } from "lucide-react";
 import type { AuthIdentity } from "@/lib/auth/identity";
 import {
   compactBalanceCopy,
@@ -54,6 +54,7 @@ export function HomeScreen({
   householdName,
   dashboard,
   onProfileOpen,
+  onSettingsOpen,
   onNavigate,
   onOpenBudgets,
   onOpenIncomes,
@@ -66,6 +67,7 @@ export function HomeScreen({
   householdName: string;
   dashboard: DashboardQuery;
   onProfileOpen: () => void;
+  onSettingsOpen: () => void;
   onNavigate: (tab: Tab) => void;
   onOpenBudgets: () => void;
   onOpenIncomes: () => void;
@@ -104,19 +106,30 @@ export function HomeScreen({
             </p>
           ) : null}
         </div>
-        <button
-          type="button"
-          onClick={onProfileOpen}
-          aria-label="Abrir perfil"
-          className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm active:scale-95 transition-transform overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          style={{ backgroundColor: P.sage }}
-        >
-          {identity?.avatarUrl ? (
-            <img src={identity.avatarUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            (identity?.initials ?? "?")
-          )}
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            type="button"
+            onClick={onSettingsOpen}
+            aria-label="Abrir configuración"
+            className="w-9 h-9 rounded-full flex items-center justify-center shadow-sm active:scale-95 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            style={{ backgroundColor: P.sub }}
+          >
+            <Settings size={18} strokeWidth={1.75} style={{ color: P.text }} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={onProfileOpen}
+            aria-label="Abrir perfil"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm active:scale-95 transition-transform overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            style={{ backgroundColor: P.sage }}
+          >
+            {identity?.avatarUrl ? (
+              <img src={identity.avatarUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              (identity?.initials ?? "?")
+            )}
+          </button>
+        </div>
       </div>
 
       {isLoading && !model ? (
