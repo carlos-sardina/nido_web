@@ -1,7 +1,7 @@
 export type AppMode = "onboarding" | "app";
 export type OStep   = "welcome"|"auth"|"select"|"join"|"c-type"|"c-name"|"c-invite"|
                "p-name"|"p-income"|"p-savings"|"p-expenses"|"p-contrib"|"nest-ready";
-export type Tab     = "home"|"incomes"|"budget"|"goals"|"household"|"activity";
+export type Tab     = "home"|"budget"|"goals"|"household"|"activity";
 export type Model   = "equal"|"proportional";
 export type Flow    = null|"expense"|"income"|"goal"|"contrib"|"budget";
 export type ExpenseKind = "recurring" | "variable";

@@ -55,6 +55,7 @@ export function HomeScreen({
   onProfileOpen,
   onNavigate,
   onOpenBudgets,
+  onOpenIncomes,
   onOpenBudget,
   onCreateBudget,
   onOpenBalance,
@@ -66,6 +67,7 @@ export function HomeScreen({
   onProfileOpen: () => void;
   onNavigate: (tab: Tab) => void;
   onOpenBudgets: () => void;
+  onOpenIncomes: () => void;
   onOpenBudget: (budget: BudgetItemView) => void;
   onCreateBudget: () => void;
   onOpenBalance: () => void;
@@ -132,6 +134,7 @@ export function HomeScreen({
           retrying={refreshing}
           onNavigate={onNavigate}
           onOpenBudgets={onOpenBudgets}
+          onOpenIncomes={onOpenIncomes}
           onOpenBudget={onOpenBudget}
           onCreateBudget={onCreateBudget}
           onOpenBalance={onOpenBalance}
@@ -149,6 +152,7 @@ function DashboardBody({
   retrying,
   onNavigate,
   onOpenBudgets,
+  onOpenIncomes,
   onOpenBudget,
   onCreateBudget,
   onOpenBalance,
@@ -160,6 +164,7 @@ function DashboardBody({
   retrying: boolean;
   onNavigate: (tab: Tab) => void;
   onOpenBudgets: () => void;
+  onOpenIncomes: () => void;
   onOpenBudget: (budget: BudgetItemView) => void;
   onCreateBudget: () => void;
   onOpenBalance: () => void;
@@ -279,7 +284,7 @@ function DashboardBody({
           </h3>
           <button
             type="button"
-            onClick={() => onNavigate("incomes")}
+            onClick={onOpenIncomes}
             className="text-[10px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
             style={{ color: P.brnDk }}
           >
@@ -292,7 +297,7 @@ function DashboardBody({
             title="Aún no hay ingresos."
             description="Registra un ingreso para ver el total de este mes."
             actionLabel="Ver ingresos"
-            onAction={() => onNavigate("incomes")}
+            onAction={onOpenIncomes}
           />
         ) : (
           <div className="flex items-baseline gap-2">

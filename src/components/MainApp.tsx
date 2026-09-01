@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  BarChart2, Clock, Home, Plus, Target, Users, Wallet,
+  BarChart2, Clock, Home, Plus, Target, Users,
 } from "lucide-react";
 import { ActivityScreen } from "@/components/activity/ActivityScreen";
 import { BalanceScreen } from "@/components/balance/BalanceScreen";
@@ -84,6 +84,7 @@ export function MainApp({
   const [editingGoal, setEditingGoal] = useState<GoalRow | null>(null);
   const [editingContribution, setEditingContribution] = useState<GoalContributionRow | null>(null);
   const [showBudgets, setShowBudgets] = useState(false);
+  const [showIncomes, setShowIncomes] = useState(false);
   const [showBalance, setShowBalance] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<BudgetItemView | null>(null);
   const [editingBudget, setEditingBudget] = useState<BudgetItemView | null>(null);
@@ -116,7 +117,6 @@ export function MainApp({
 
   const tabs = [
     { id: "home"      as Tab, icon: Home,      label: "Inicio"    },
-    { id: "incomes"   as Tab, icon: Wallet,    label: "Ingresos"  },
     { id: "budget"    as Tab, icon: BarChart2, label: "Gastos"    },
     { id: "goals"     as Tab, icon: Target,    label: "Metas"    },
     { id: "household" as Tab, icon: Users,     label: "Hogar"    },
@@ -194,19 +194,11 @@ export function MainApp({
               onProfileOpen={() => setProfileOpen(true)}
               onNavigate={t => { setTab(t); setShowSheet(false); }}
               onOpenBudgets={() => setShowBudgets(true)}
+              onOpenIncomes={() => setShowIncomes(true)}
               onOpenBudget={setSelectedBudget}
               onCreateBudget={openBudgetCreate}
               onOpenBalance={() => setShowBalance(true)}
               currentUserId={user?.id ?? null}
-            />
-          )}
-          {tab === "incomes"   && (
-            <IncomesScreen
-              dashboard={dashboard}
-              members={members}
-              onOpenIncome={setSelectedIncome}
-              onRegisterIncome={openIncomeCreate}
-              onOpenRecurring={() => setShowRecurringIncomes(true)}
             />
           )}
           {tab === "budget"    && (
@@ -345,6 +337,17 @@ export function MainApp({
             householdId={liveHousehold.id}
             members={members}
             onClose={() => setShowBalance(false)}
+          />
+        )}
+
+        {showIncomes && activeFlow !== "income" && !liveSelectedIncome && (
+          <IncomesScreen
+            dashboard={dashboard}
+            members={members}
+            onClose={() => setShowIncomes(false)}
+            onOpenIncome={setSelectedIncome}
+            onRegisterIncome={openIncomeCreate}
+            onOpenRecurring={() => setShowRecurringIncomes(true)}
           />
         )}
 
