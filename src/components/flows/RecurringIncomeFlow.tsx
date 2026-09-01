@@ -25,6 +25,8 @@ import {
   recurrenceIncomeDescriptionMessage,
   recurrenceStartDateMessage,
   todayIso,
+  recurringIncomeCategories,
+  withCurrentCategory,
   type HouseholdCategory,
   type RecurrenceFrequency,
   type RecurringIncomeTemplate,
@@ -85,7 +87,27 @@ export function RecurringIncomeFlow({
         setLoadingCategories(false);
         return;
       }
-      setCategories(result.data);
+      const current = template?.category
+        ? {
+            id: template.categoryId,
+            householdId,
+            name: template.category.name,
+            icon: template.category.icon,
+            type: "income" as const,
+            isDefault: false,
+            archivedAt: result.data.some((row) => row.id === template.categoryId)
+              ? null
+              : "archived",
+          }
+        : null;
+      const selectable = withCurrentCategory(
+        recurringIncomeCategories(result.data, householdId),
+        current,
+      );
+      setCategories(selectable);
+      if (!template?.categoryId && selectable.length === 1 && selectable[0]) {
+        setCategoryId(selectable[0].id);
+      }
       setLoadingCategories(false);
     })();
     return () => {
@@ -173,7 +195,7 @@ export function RecurringIncomeFlow({
             <ScreenIntro
               className="mb-6"
               title={isEditing ? "Editar ingreso recurrente" : "Nuevo ingreso recurrente"}
-              description="Esto es una plantilla. No cuenta como ingreso hasta que registres el periodo."
+              description="Plantilla de sueldo. El extra se registra como ingreso cada vez que entra, no aquí."
             />
           </div>
 
@@ -210,7 +232,7 @@ export function RecurringIncomeFlow({
                   setDescription(event.target.value);
                   setErrors((current) => ({ ...current, description: undefined }));
                 }}
-                placeholder="Sueldo, freelance…"
+                placeholder="Sueldo"
                 maxLength={80}
                 invalid={Boolean(errors.description)}
                 disabled={submitting}
@@ -268,33 +290,38 @@ export function RecurringIncomeFlow({
                 <EmptyState
                   plain
                   title="No hay categorías disponibles."
-                  description="No se pueden crear recurrencias hasta que tu Nido tenga categorías."
+                  description="No se pueden crear recurrencias hasta que tu Nido tenga Sueldo."
                 />
               ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {categories.map((category) => {
-                    const selected = categoryId === category.id;
-                    return (
-                      <button
-                        key={category.id}
-                        type="button"
-                        aria-pressed={selected}
-                        disabled={submitting}
-                        onClick={() => setCategoryId(category.id)}
-                        className={cn(
-                          "flex items-center gap-2 p-3 rounded-2xl border-2 text-left transition-all",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                          selected ? "border-primary bg-card" : "border-border bg-card",
-                        )}
-                      >
-                        <span aria-hidden="true">{category.icon ?? "💰"}</span>
-                        <Text as="span" size="label" className="min-w-0 truncate">
-                          {category.name}
-                        </Text>
-                      </button>
-                    );
-                  })}
-                </div>
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    {categories.map((category) => {
+                      const selected = categoryId === category.id;
+                      return (
+                        <button
+                          key={category.id}
+                          type="button"
+                          aria-pressed={selected}
+                          disabled={submitting}
+                          onClick={() => setCategoryId(category.id)}
+                          className={cn(
+                            "flex items-center gap-2 p-3 rounded-2xl border-2 text-left transition-all",
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            selected ? "border-primary bg-card" : "border-border bg-card",
+                          )}
+                        >
+                          <span aria-hidden="true">{category.icon ?? "💰"}</span>
+                          <Text as="span" size="label" className="min-w-0 truncate">
+                            {category.name}
+                          </Text>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Text size="caption" tone="muted" className="mt-2">
+                    El extra se registra como ingreso cada vez que entra, no como plantilla.
+                  </Text>
+                </>
               )}
               <FieldError>{errors.category}</FieldError>
             </Field>

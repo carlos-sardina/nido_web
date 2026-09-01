@@ -21,6 +21,7 @@ import {
   incomeDescriptionMessage,
   parseIncomeAmountInput,
   todayIso,
+  selectableIncomeCategories,
   withCurrentCategory,
   type HouseholdCategory,
   type IncomeRow,
@@ -93,7 +94,7 @@ export function IncomeFlow({
               : "archived",
           }
         : null;
-      setCategories(withCurrentCategory(result.data, current));
+      setCategories(withCurrentCategory(selectableIncomeCategories(result.data, householdId), current));
       setLoadingCategories(false);
     })();
 
@@ -188,7 +189,7 @@ export function IncomeFlow({
               description={
                 isEditing
                   ? "Los cambios se guardan en tu Nido activo."
-                  : "El ingreso se guarda en tu Nido activo."
+                  : "Sueldo o extra. El extra se suma cada vez que lo registras, no como recurrencia."
               }
             />
           </div>
@@ -229,7 +230,7 @@ export function IncomeFlow({
                   setDescription(event.target.value);
                   setErrors((current) => ({ ...current, description: undefined }));
                 }}
-                placeholder="Nómina, freelance, extra…"
+                placeholder="Nómina, extra…"
                 maxLength={80}
                 invalid={Boolean(errors.description)}
                 disabled={submitting}

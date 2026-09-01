@@ -72,7 +72,7 @@ See [future.md](./future.md). Google OAuth, image avatars, notifications, Realti
 
 ### 2.1 Custom categories — IMPLEMENT
 
-**Reuse:** `categories` + unique active name + `archived_at` + `is_default` + `category_id ON DELETE RESTRICT`. RLS already allows active-member INSERT/UPDATE.
+**Reuse:** `categories` + unique name per type (including archived) + `archived_at` + `is_default` + `category_id ON DELETE RESTRICT`. RLS already allows active-member INSERT/UPDATE.
 
 **Add:**
 
@@ -80,15 +80,15 @@ See [future.md](./future.md). Google OAuth, image avatars, notifications, Realti
 | --- | --- |
 | RPC | `create_category`, `rename_category`, `archive_category` (SECURITY INVOKER). Do not hard-delete. |
 | Domain | Wrappers + validation (name trim, unique, type, household). |
-| UI | Create / rename / archive without breaking income/expense category pickers (active only). |
+| UI | Create / rename / archive **expense** categories without breaking pickers (active only). Income is Sueldo + Extra, not custom. |
 | Docs | Category CRUD is 9.4, not “still deferred”. |
 
 **Rules:**
 
-- Default catalog rows stay (`is_default = true`). They may be renamed; they must not be hard-deleted.
-- Archive sets `archived_at`. Archived names may be reused.
+- Default **expense** catalog rows stay (`is_default = true`). They may be renamed; they must not be hard-deleted. Income catalog is Sueldo + Extra and is not custom, renamed, or archived.
+- Archive sets `archived_at`. Creating the same normalized **expense** name reactivates that row. Names are unique including archived.
 - New expenses, incomes, and budgets still reject archived categories (existing RPC behavior).
-- Any **active** member may mutate categories (same as current RLS). No owner-only restriction.
+- Any **active** member may mutate **expense** categories (same as current RLS). No owner-only restriction. Income category RPCs are rejected.
 
 ### 2.2 Personal expenses and personal budgets + visibility — IMPLEMENT
 

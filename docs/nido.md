@@ -210,7 +210,7 @@ Accepted invitations stay accepted even if they would also be expired.
 | Leave | `household_members.left_at` |
 | Owner transfer | `household_members.role` swapped atomically (`transfer_household_ownership`) |
 | Default expense and income categories | `categories` (`is_default = true`) via `create_household` |
-| Custom / renamed / archived categories | `categories` via `create_category` / `rename_category` / `archive_category` (9.4.1). No hard delete. |
+| Custom / renamed / archived **expense** categories | `categories` via `create_category` / `rename_category` / `archive_category` (9.4.1). Income is Sueldo + Extra only. No hard delete. |
 | Household name edit | `households.name` via `update_household_name` (active member; name only) |
 | Household split preference | `households.default_split_method` via `update_household_default_split_method` (`equal` \| `proportional`) |
 | Onboarding monthly income | `incomes` via `create_household_with_onboarding_income` → `create_income` |

@@ -4755,7 +4755,7 @@ END;
 $$;
 
 -- -----------------------------------------------------------------------------
--- Phase 9.4.1 — household name, categories, default_split_method, create_expense (HS01–HS20)
+-- Phase 9.4.1 — household name, categories, default_split_method, create_expense (HS01–HS24)
 -- Prefix HS: Y01–Y12 are already goal cases.
 -- Temporary rows only. ROLLBACK at the end. Does not touch Departamento / Smoke 924.
 -- -----------------------------------------------------------------------------
@@ -4776,6 +4776,8 @@ DECLARE
   v_new_cat uuid;
   v_archived_at timestamptz;
   v_delete_ok boolean := false;
+  v_reactivated uuid;
+  v_musica_count integer;
   v_today date := (timezone('America/Mexico_City', now()))::date;
   v_expense_id uuid;
   v_dist public.distribution_method;
@@ -4983,6 +4985,62 @@ BEGIN
       THEN 'allow'
       ELSE 'deny'
     END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  BEGIN
+    SELECT public.create_category('  MUSICA  ', 'expense', NULL) INTO v_reactivated;
+  EXCEPTION
+    WHEN OTHERS THEN
+      v_reactivated := NULL;
+  END;
+  SELECT archived_at INTO v_archived_at FROM public.categories WHERE id = v_new_cat;
+  SELECT count(*) INTO v_musica_count
+  FROM public.categories
+  WHERE household_id = v_nido_a AND lower(trim(name)) = lower('Musica') AND type = 'expense';
+
+  PERFORM pg_temp.record_result(
+    'HS21', 'Carlos', 'A', 'active', 'create archived name reactivates same row',
+    'allow',
+    CASE
+      WHEN v_reactivated = v_new_cat
+        AND v_archived_at IS NULL
+        AND v_musica_count = 1
+      THEN 'allow'
+      ELSE 'deny'
+    END
+  );
+
+  PERFORM pg_temp.record_result(
+    'HS22', 'Carlos', 'A', 'active', 'reactivated name cannot be created again',
+    'deny',
+    pg_temp.expect_allow(
+      $sql$ SELECT public.create_category('musica', 'expense', NULL) $sql$
+    )
+  );
+
+  PERFORM pg_temp.record_result(
+    'HS23', 'Carlos', 'A', 'active', 'custom income category rejected',
+    'deny',
+    pg_temp.expect_allow(
+      $sql$ SELECT public.create_category('Musica', 'income', NULL) $sql$
+    )
+  );
+
+  PERFORM pg_temp.clear_auth();
+  INSERT INTO public.categories (household_id, name, type, created_by)
+  VALUES (v_nido_a, 'Extra', 'income', v_carlos)
+  RETURNING id INTO v_new_cat;
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'HS24', 'Carlos', 'A', 'active', 'extra cannot be a recurring income',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$ SELECT public.create_recurring_income(
+        %L::uuid, %L::uuid, 500, 'Bono', DATE '2026-08-01', 'monthly', NULL
+      ) $sql$,
+      v_nido_a, v_new_cat
+    ))
   );
 
   PERFORM pg_temp.clear_auth();

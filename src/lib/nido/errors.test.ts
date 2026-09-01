@@ -149,6 +149,13 @@ describe("nidoErrorFromUnknown", () => {
       }).code,
       "conflict",
     );
+    assert.equal(
+      nidoErrorFromUnknown({
+        message: 'duplicate key value violates unique constraint "categories_name_type_idx"',
+        code: "23505",
+      }).code,
+      "conflict",
+    );
     assert.match(userMessageFor("recurrence_not_due"), /periodo/i);
     assert.equal(
       nidoErrorFromUnknown({ message: "nido.forbidden" }).message.includes("auth.uid"),

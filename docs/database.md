@@ -178,13 +178,13 @@ Household-scoped classification for income and expense.
 | `archived_at` | `timestamptz` nullable | Archive instead of delete. |
 | `is_default` | `boolean` | Default `false`. True for catalog rows seeded at household creation. |
 
-Active category names are unique per household and type. Archived names may be reused.
+Active category names are unique per household and type. Creating a category whose normalized name matches an archived row **reactivates** that row instead of inserting a duplicate. Names cannot repeat, including archived rows.
 
 Using an archived category on a **new** transaction is allowed at the database level and is rejected by `create_expense` and the application.
 
-Default expense categories are inserted by `create_household` from `default_expense_category_catalog()`. There is no global categories table.
+Default expense categories are inserted by `create_household` from `default_expense_category_catalog()`. Default income categories are **Sueldo** and **Extra** from `default_income_category_catalog()`. There is no global categories table.
 
-Phase 9.4.1 adds product CRUD: `create_category`, `rename_category`, `archive_category` (`SECURITY INVOKER`). They write the caller’s active Nido only (no client `household_id`). Custom rows are `is_default = false`. Archive sets `archived_at`. There is no hard-delete RPC. Active members may mutate categories (same as current RLS). Default catalog rows may be renamed; they must not be hard-deleted.
+Phase 9.4.1 adds product CRUD: `create_category`, `rename_category`, `archive_category` (`SECURITY INVOKER`). They write the caller’s active Nido only (no client `household_id`). Custom rows are `is_default = false`. Archive sets `archived_at`. There is no hard-delete RPC. Active members may mutate **expense** categories (same as current RLS). Default expense catalog rows may be renamed; they must not be hard-deleted. **Income categories are fixed:** create / rename / archive of type `income` is rejected. Extra cannot be used on `create_recurring_income`; it is a one-time `incomes` row.
 
 ### 3.6 `recurring_incomes`
 
@@ -195,7 +195,7 @@ Income templates / rules. They are not transactions.
 | `id` | `uuid` PK | |
 | `household_id` | `uuid` FK → `households.id` | |
 | `member_id` | `uuid` FK → `profiles.id` | Income belongs to one member. |
-| `category_id` | `uuid` FK → `categories.id` | Must be an income category in the same Nido. |
+| `category_id` | `uuid` FK → `categories.id` | Must be an income category in the same Nido. Extra is not allowed on create. |
 | `amount` | `numeric(12,2)` | `>= 0`. |
 | `description` | `text` nullable | |
 | `frequency` | `recurrence_frequency` | |
@@ -567,7 +567,7 @@ Every table uses a `uuid` primary key. `profiles.id` is the auth user id. All ot
 | `household_members_active_household_user_idx` on `(household_id, user_id) WHERE left_at IS NULL` | Fast active-membership lookup (triggers, later RLS). |
 | `household_invitations.token` UNIQUE | Invite tokens are globally unique. |
 | `household_invitations_pending_email_idx` on `(household_id, lower(email)) WHERE email IS NOT NULL AND accepted_at IS NULL` | Historical unique index. Nido does not create email invitations. |
-| `categories_active_name_type_idx` on `(household_id, lower(name), type) WHERE archived_at IS NULL` | No duplicate active category names of the same type. |
+| `categories_name_type_idx` on `(household_id, lower(trim(name)), type)` | No duplicate category names of the same type, including archived. Create reactivates. |
 | `expense_splits (expense_id, member_id)` | No duplicate participant on an expense. |
 | `recurring_expense_splits (recurring_expense_id, member_id)` | No duplicate participant on a recurring expense. |
 | `budgets_unique_live_scope` on `(household_id, category_id, member_id, start_date)` NULLS NOT DISTINCT `WHERE deleted_at IS NULL` | One live budget per scope / category / period start. |

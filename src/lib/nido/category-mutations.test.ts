@@ -59,16 +59,29 @@ describe("createCategoryWithAuth", () => {
     assert.equal(called, 0);
   });
 
-  it("allows reusing an archived name", async () => {
+  it("rejects custom income categories without calling the RPC", async () => {
+    let called = 0;
+    const result = await createCategoryWithAuth(
+      { name: "Bonus", type: "income", existing: [] },
+      auth({ onRpc: () => { called += 1; } }),
+    );
+    assert.equal(result.ok, false);
+    if (result.ok === false) assert.equal(result.error.code, "invalid_category");
+    assert.equal(called, 0);
+  });
+
+  it("reactivates an archived name instead of treating it as a new create", async () => {
+    let payload: Record<string, unknown> | null = null;
     const result = await createCategoryWithAuth(
       {
-        name: "Vivienda",
+        name: "  vivienda  ",
         type: "expense",
         existing: [{ name: "Vivienda", archivedAt: "2026-08-01T00:00:00.000Z" }],
       },
-      auth({}),
+      auth({ onRpc: (_fn, args) => { payload = args; } }),
     );
     assert.equal(result.ok, true);
+    assert.deepEqual(payload, { p_name: "vivienda", p_type: "expense", p_icon: null });
   });
 });
 
@@ -87,6 +100,22 @@ describe("renameCategoryWithAuth", () => {
     assert.deepEqual(payload, { p_category_id: "c1", p_name: "Transporte" });
   });
 
+  it("rejects renaming an income category without calling the RPC", async () => {
+    let called = 0;
+    const result = await renameCategoryWithAuth(
+      {
+        categoryId: "c1",
+        name: "Bonus",
+        type: "income",
+        existing: [{ id: "c1", name: "Extra" }],
+      },
+      auth({ onRpc: () => { called += 1; } }),
+    );
+    assert.equal(result.ok, false);
+    if (result.ok === false) assert.equal(result.error.code, "invalid_category");
+    assert.equal(called, 0);
+  });
+
   it("rejects a rename that collides with another active name", async () => {
     let called = 0;
     const result = await renameCategoryWithAuth(
@@ -94,6 +123,24 @@ describe("renameCategoryWithAuth", () => {
         categoryId: "c1",
         name: "vivienda",
         existing: [{ id: "c1", name: "Uber" }, { id: "c2", name: "Vivienda" }],
+      },
+      auth({ onRpc: () => { called += 1; } }),
+    );
+    assert.equal(result.ok, false);
+    if (result.ok === false) assert.equal(result.error.code, "conflict");
+    assert.equal(called, 0);
+  });
+
+  it("rejects a rename that collides with an archived name", async () => {
+    let called = 0;
+    const result = await renameCategoryWithAuth(
+      {
+        categoryId: "c1",
+        name: "vivienda",
+        existing: [
+          { id: "c1", name: "Uber" },
+          { id: "c2", name: "Vivienda", archivedAt: "2026-08-01T00:00:00.000Z" },
+        ],
       },
       auth({ onRpc: () => { called += 1; } }),
     );

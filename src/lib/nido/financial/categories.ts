@@ -32,15 +32,17 @@ export const DEFAULT_EXPENSE_CATEGORIES: readonly DefaultExpenseCategory[] = [
   { name: "Otros", icon: "➕" },
 ];
 
+export const SUELDO_INCOME_CATEGORY_NAME = "Sueldo";
+export const EXTRA_INCOME_CATEGORY_NAME = "Extra";
+
 /**
  * Product catalog used when a Nido is created.
  * Must stay in sync with public.default_income_category_catalog().
+ * Income is a fixed pair: Sueldo (recurring) and Extra (one-time events).
  */
 export const DEFAULT_INCOME_CATEGORIES: readonly DefaultExpenseCategory[] = [
-  { name: "Sueldo", icon: "💰" },
-  { name: "Freelance", icon: "💻" },
-  { name: "Extra", icon: "✨" },
-  { name: "Otros", icon: "➕" },
+  { name: SUELDO_INCOME_CATEGORY_NAME, icon: "💰" },
+  { name: EXTRA_INCOME_CATEGORY_NAME, icon: "✨" },
 ];
 
 function visibleLength(value: string): number {
@@ -54,17 +56,39 @@ export function normalizeCategoryName(name: string | null | undefined): string |
   return trimmed;
 }
 
+export function categoryNameKey(name: string | null | undefined): string | null {
+  const normalized = normalizeCategoryName(name);
+  return normalized ? normalized.toLowerCase() : null;
+}
+
+export function isDuplicateCategoryName(
+  name: string,
+  existing: ReadonlyArray<{ name: string }>,
+): boolean {
+  const needle = categoryNameKey(name);
+  if (!needle) return false;
+  return existing.some((row) => categoryNameKey(row.name) === needle);
+}
+
 export function isDuplicateActiveCategoryName(
   name: string,
   existing: ReadonlyArray<{ name: string; archivedAt?: string | null }>,
 ): boolean {
-  const normalized = normalizeCategoryName(name);
-  if (!normalized) return false;
-  const needle = normalized.toLowerCase();
-  return existing.some(
-    (row) =>
-      row.archivedAt == null &&
-      normalizeCategoryName(row.name)?.toLowerCase() === needle,
+  return isDuplicateCategoryName(
+    name,
+    existing.filter((row) => row.archivedAt == null),
+  );
+}
+
+export function findArchivedCategoryByNormalizedName<
+  T extends { name: string; archivedAt?: string | null },
+>(name: string, existing: ReadonlyArray<T>): T | null {
+  const needle = categoryNameKey(name);
+  if (!needle) return null;
+  return (
+    existing.find(
+      (row) => row.archivedAt != null && categoryNameKey(row.name) === needle,
+    ) ?? null
   );
 }
 
@@ -124,4 +148,37 @@ export function activeIncomeCategories(
     )
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name, "es"));
+}
+
+function matchesIncomeCatalogName(
+  category: { name: string },
+  canonical: string,
+): boolean {
+  return categoryNameKey(category.name) === categoryNameKey(canonical);
+}
+
+export function isSueldoIncomeCategory(category: { name: string }): boolean {
+  return matchesIncomeCatalogName(category, SUELDO_INCOME_CATEGORY_NAME);
+}
+
+export function isExtraIncomeCategory(category: { name: string }): boolean {
+  return matchesIncomeCatalogName(category, EXTRA_INCOME_CATEGORY_NAME);
+}
+
+/** Sueldo and Extra: the only income categories a form may pick. */
+export function selectableIncomeCategories(
+  categories: readonly HouseholdCategory[],
+  householdId: string,
+): HouseholdCategory[] {
+  return activeIncomeCategories(categories, householdId).filter(
+    (row) => isSueldoIncomeCategory(row) || isExtraIncomeCategory(row),
+  );
+}
+
+/** Recurring income is Sueldo only. Extra is registered per event. */
+export function recurringIncomeCategories(
+  categories: readonly HouseholdCategory[],
+  householdId: string,
+): HouseholdCategory[] {
+  return activeIncomeCategories(categories, householdId).filter(isSueldoIncomeCategory);
 }

@@ -63,11 +63,13 @@ Vivienda, Despensa, Restaurantes, Transporte, Mascotas, Servicios, Limpieza, Ent
 
 Default income names live in `public.default_income_category_catalog()` and the same TypeScript module:
 
-Sueldo, Freelance, Extra, Otros.
+Sueldo, Extra.
 
-`create_household` inserts expense **and** income rows in the same transaction as the household and owner membership. Existing households are backfilled by `20260821000000_nido_categories_and_create_expense.sql` (expenses) and `20260821220000_nido_income_mutations.sql` (incomes). Reopening a form does not insert again. Names are unique per household and type while `archived_at IS NULL`.
+Income categories are a **fixed catalog**. Members cannot create, rename, or archive them. **Sueldo** is the recurring salary. **Extra** is registered as a one-time `incomes` row each time it happens; it cannot be a `recurring_incomes` template.
 
-The expense form only lists **active expense** categories of the active Nido. The income form only lists **active income** categories. If none exist, it shows **No hay categorías disponibles.** and does not create rows.
+`create_household` inserts expense **and** income rows in the same transaction as the household and owner membership. Existing households are backfilled by `20260821000000_nido_categories_and_create_expense.sql` (expenses) and `20260821220000_nido_income_mutations.sql` (incomes). `20260831120000_nido_income_sueldo_extra.sql` archives Freelance / Otros / custom income rows and keeps Sueldo + Extra. Reopening a form does not insert again. Expense names are unique per household and type, including archived rows.
+
+The expense form only lists **active expense** categories of the active Nido, and can create custom expense categories. The income form only lists **Sueldo** and **Extra**. Recurring income only lists **Sueldo**. If none exist, it shows **No hay categorías disponibles.** and does not create rows.
 
 ---
 
@@ -319,7 +321,7 @@ The Ingresos tab lists `model.periodIncomes` from the same snapshot. Home shows 
 | --- | --- |
 | Amount | `incomes.amount` `numeric(12,2)`, must be `> 0` |
 | Description | trimmed text, required in this phase, max 80 |
-| Category | `category_id` of an active income category in the same household |
+| Category | `category_id` of Sueldo or Extra in the same household. Extra is one-time; recurring templates use Sueldo. |
 | Date | `occurred_at` calendar date, default today in `America/Mexico_City` |
 | Earner / created_by | `auth.uid()` (v1 does not let the UI pick another member) |
 | Recurrence | One-time rows keep `recurring_id` NULL. Recurring templates live in `recurring_*` and become movements only after `materialize_recurring_*` |

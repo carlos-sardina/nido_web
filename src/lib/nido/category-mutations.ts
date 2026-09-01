@@ -1,6 +1,7 @@
 import { nidoErrorFromUnknown, nidoFail, nidoOk, type NidoResult } from "./errors.ts";
 import {
   isDuplicateActiveCategoryName,
+  isDuplicateCategoryName,
   normalizeCategoryName,
 } from "./financial/categories.ts";
 
@@ -16,12 +17,15 @@ export type CreateCategoryInput = {
   name: string;
   type: "income" | "expense";
   icon?: string | null;
+  householdId?: string;
   existing: ReadonlyArray<{ name: string; archivedAt?: string | null }>;
 };
 
 export type RenameCategoryInput = {
   categoryId: string;
   name: string;
+  householdId?: string;
+  type?: "income" | "expense";
   existing: ReadonlyArray<{ id?: string; name: string; archivedAt?: string | null }>;
 };
 
@@ -35,12 +39,15 @@ export async function createCategoryWithAuth(
   if (input.type !== "income" && input.type !== "expense") {
     return nidoFail("invalid_category");
   }
+  if (input.type === "income") {
+    return nidoFail("invalid_category", "Los ingresos solo usan Sueldo y Extra.");
+  }
 
   const name = normalizeCategoryName(input.name);
   if (!name) return nidoFail("invalid_name", "Dale un nombre a la categoría.");
 
   if (isDuplicateActiveCategoryName(name, input.existing)) {
-    return nidoFail("conflict", "Ya existe una categoría activa con ese nombre.");
+    return nidoFail("conflict", "Ya existe una categoría con ese nombre.");
   }
 
   const icon = input.icon?.trim() || null;
@@ -52,7 +59,7 @@ export async function createCategoryWithAuth(
   if (error) {
     const mapped = nidoErrorFromUnknown(error);
     if (mapped.code === "conflict") {
-      return nidoFail("conflict", "Ya existe una categoría activa con ese nombre.");
+      return nidoFail("conflict", "Ya existe una categoría con ese nombre.");
     }
     return nidoFail(mapped.code);
   }
@@ -67,13 +74,16 @@ export async function renameCategoryWithAuth(
   const userId = await auth.getUserId();
   if (!userId) return nidoFail("unauthenticated");
   if (!input.categoryId) return nidoFail("invalid_category");
+  if (input.type === "income") {
+    return nidoFail("invalid_category", "Las categorías de ingreso no se pueden cambiar.");
+  }
 
   const name = normalizeCategoryName(input.name);
   if (!name) return nidoFail("invalid_name", "Dale un nombre a la categoría.");
 
   const others = input.existing.filter((row) => row.id !== input.categoryId);
-  if (isDuplicateActiveCategoryName(name, others)) {
-    return nidoFail("conflict", "Ya existe una categoría activa con ese nombre.");
+  if (isDuplicateCategoryName(name, others)) {
+    return nidoFail("conflict", "Ya existe una categoría con ese nombre.");
   }
 
   const { data, error } = await auth.rpc("rename_category", {
@@ -83,7 +93,7 @@ export async function renameCategoryWithAuth(
   if (error) {
     const mapped = nidoErrorFromUnknown(error);
     if (mapped.code === "conflict") {
-      return nidoFail("conflict", "Ya existe una categoría activa con ese nombre.");
+      return nidoFail("conflict", "Ya existe una categoría con ese nombre.");
     }
     return nidoFail(mapped.code);
   }

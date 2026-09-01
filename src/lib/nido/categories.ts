@@ -7,6 +7,7 @@ import {
   type CreateCategoryInput,
   type RenameCategoryInput,
 } from "./category-mutations.ts";
+import { fetchHouseholdCategoriesByType } from "./queries/categories";
 import { nidoClient, requireUser, type NidoClient } from "./session";
 
 export { canSubmitCategory };
@@ -18,10 +19,18 @@ export async function createCategory(
   const auth = await requireUser(supabase);
   if (auth.ok === false) return nidoFail(auth.error.code);
 
-  return createCategoryWithAuth(input, {
-    getUserId: async () => auth.data.user.id,
-    rpc: async (fn, args) => auth.data.supabase.rpc(fn, args as never),
-  });
+  const catalog = input.householdId
+    ? await fetchHouseholdCategoriesByType(input.householdId, input.type, supabase)
+    : null;
+  const existing = catalog?.ok === true ? catalog.data : input.existing;
+
+  return createCategoryWithAuth(
+    { ...input, existing },
+    {
+      getUserId: async () => auth.data.user.id,
+      rpc: async (fn, args) => auth.data.supabase.rpc(fn, args as never),
+    },
+  );
 }
 
 export async function renameCategory(
@@ -31,10 +40,19 @@ export async function renameCategory(
   const auth = await requireUser(supabase);
   if (auth.ok === false) return nidoFail(auth.error.code);
 
-  return renameCategoryWithAuth(input, {
-    getUserId: async () => auth.data.user.id,
-    rpc: async (fn, args) => auth.data.supabase.rpc(fn, args as never),
-  });
+  const catalog =
+    input.householdId && input.type
+      ? await fetchHouseholdCategoriesByType(input.householdId, input.type, supabase)
+      : null;
+  const existing = catalog?.ok === true ? catalog.data : input.existing;
+
+  return renameCategoryWithAuth(
+    { ...input, existing },
+    {
+      getUserId: async () => auth.data.user.id,
+      rpc: async (fn, args) => auth.data.supabase.rpc(fn, args as never),
+    },
+  );
 }
 
 export async function archiveCategory(

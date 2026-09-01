@@ -7,6 +7,8 @@ import { Text } from "@/components/nido/Typography";
 import { archiveCategory, canSubmitCategory, createCategory, renameCategory } from "@/lib/nido/categories";
 import {
   categoryNameMessage,
+  findArchivedCategoryByNormalizedName,
+  selectableIncomeCategories,
   type HouseholdCategory,
 } from "@/lib/nido/financial/categories";
 import { fetchHouseholdCategories } from "@/lib/nido/queries/categories";
@@ -66,7 +68,10 @@ export function HouseholdCategoriesCard({
     void load({ silent: refreshKey > 0 });
   }, [load, refreshKey]);
 
-  const visible = categories.filter((row) => row.type === type);
+  const ofType = categories.filter((row) => row.type === type);
+  const visible = type === "income"
+    ? selectableIncomeCategories(ofType, householdId)
+    : ofType.filter((row) => row.archivedAt == null);
 
   const handleCreate = async () => {
     if (!canSubmitCategory(creating) || creatingRef.current) return;
@@ -84,7 +89,8 @@ export function HouseholdCategoriesCard({
     const result = await createCategory({
       name: newName,
       type,
-      existing: visible,
+      householdId,
+      existing: ofType,
     });
     creatingRef.current = false;
     setCreating(false);
@@ -92,8 +98,9 @@ export function HouseholdCategoriesCard({
       setCreateError(result.error.message);
       return;
     }
+    const reactivated = findArchivedCategoryByNormalizedName(newName, ofType);
     setNewName("");
-    setCreateSuccess("Categoría creada.");
+    setCreateSuccess(reactivated ? "Categoría reactivada." : "Categoría creada.");
     await load();
   };
 
@@ -116,7 +123,9 @@ export function HouseholdCategoriesCard({
     const result = await renameCategory({
       categoryId: category.id,
       name: draft,
-      existing: visible,
+      householdId,
+      type: category.type,
+      existing: ofType,
     });
     busyRef.current = false;
     setBusyId(null);
@@ -147,7 +156,9 @@ export function HouseholdCategoriesCard({
     <div className="mx-6 mb-3 rounded-[1.5rem] p-4 space-y-3" style={{ backgroundColor: P.card }}>
       <Text size="label">Categorías</Text>
       <Text size="caption" tone="muted" className="leading-relaxed">
-        Puedes crear, renombrar o archivar. Archivar no borra los movimientos que ya la usan.
+        {type === "income"
+          ? "Sueldo y Extra son fijos. El extra se registra cada vez que entra, no como recurrencia."
+          : "Puedes crear, renombrar o archivar. Archivar no borra los movimientos que ya la usan."}
       </Text>
       <div className="flex gap-2">
         {(["expense", "income"] as const).map((next) => (
@@ -245,55 +256,59 @@ export function HouseholdCategoriesCard({
                     <p className="text-[10px]" style={{ color: P.muted }}>Catálogo del Nido</p>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-3 shrink-0">
-                  <TextLink
-                    onClick={() => {
-                      setRowDraft((current) => ({ ...current, [category.id]: category.name }));
-                      setRowMode((current) => ({ ...current, [category.id]: "rename" }));
-                    }}
-                  >
-                    Renombrar
-                  </TextLink>
-                  <TextLink
-                    tone="muted"
-                    onClick={() => setRowMode((current) => ({ ...current, [category.id]: "archive" }))}
-                  >
-                    Archivar
-                  </TextLink>
-                </div>
+                {type === "expense" ? (
+                  <div className="flex flex-wrap gap-3 shrink-0">
+                    <TextLink
+                      onClick={() => {
+                        setRowDraft((current) => ({ ...current, [category.id]: category.name }));
+                        setRowMode((current) => ({ ...current, [category.id]: "rename" }));
+                      }}
+                    >
+                      Renombrar
+                    </TextLink>
+                    <TextLink
+                      tone="muted"
+                      onClick={() => setRowMode((current) => ({ ...current, [category.id]: "archive" }))}
+                    >
+                      Archivar
+                    </TextLink>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
         );
       })}
-      <div className="space-y-2 pt-1">
-        <label htmlFor="new-category-name" className="sr-only">Nueva categoría</label>
-        <input
-          id="new-category-name"
-          type="text"
-          value={newName}
-          disabled={creating}
-          maxLength={80}
-          placeholder={`Nueva categoría de ${TYPE_LABEL[type].toLowerCase()}`}
-          onChange={(event) => {
-            setNewName(event.target.value);
-            setCreateError(null);
-            setCreateSuccess(null);
-          }}
-          className="w-full h-12 px-4 rounded-2xl text-sm outline-none border-2"
-          style={{ backgroundColor: P.sub, color: P.text, borderColor: createError ? P.danger : P.border }}
-        />
-        {createError && <Text size="caption" tone="danger" role="alert">{createError}</Text>}
-        {createSuccess && <Text size="caption" tone="brand" role="status">{createSuccess}</Text>}
-        <Button
-          size="compact"
-          loading={creating}
-          disabled={!canSubmitCategory(creating)}
-          onClick={() => { void handleCreate(); }}
-        >
-          {creating ? "Creando…" : "Crear categoría"}
-        </Button>
-      </div>
+      {type === "expense" ? (
+        <div className="space-y-2 pt-1">
+          <label htmlFor="new-category-name" className="sr-only">Nueva categoría</label>
+          <input
+            id="new-category-name"
+            type="text"
+            value={newName}
+            disabled={creating}
+            maxLength={80}
+            placeholder={`Nueva categoría de ${TYPE_LABEL[type].toLowerCase()}`}
+            onChange={(event) => {
+              setNewName(event.target.value);
+              setCreateError(null);
+              setCreateSuccess(null);
+            }}
+            className="w-full h-12 px-4 rounded-2xl text-sm outline-none border-2"
+            style={{ backgroundColor: P.sub, color: P.text, borderColor: createError ? P.danger : P.border }}
+          />
+          {createError && <Text size="caption" tone="danger" role="alert">{createError}</Text>}
+          {createSuccess && <Text size="caption" tone="brand" role="status">{createSuccess}</Text>}
+          <Button
+            size="compact"
+            loading={creating}
+            disabled={!canSubmitCategory(creating)}
+            onClick={() => { void handleCreate(); }}
+          >
+            {creating ? "Creando…" : "Crear categoría"}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

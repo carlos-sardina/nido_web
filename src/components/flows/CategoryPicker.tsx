@@ -43,7 +43,7 @@ export function CategoryPicker({
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const createVisible = showCreate || categories.length === 0;
+  const createVisible = type === "expense" && (showCreate || categories.length === 0);
 
   const openCreate = () => {
     setShowCreate(true);
@@ -73,6 +73,7 @@ export function CategoryPicker({
     const result = await createCategory({
       name: newName,
       type,
+      householdId,
       existing: categories,
     });
     creatingRef.current = false;
@@ -144,7 +145,7 @@ export function CategoryPicker({
         </div>
       ) : (
         <Text size="caption" tone="muted">
-          Crea una categoría para continuar.
+          {type === "expense" ? "Crea una categoría para continuar." : "No hay categorías disponibles."}
         </Text>
       )}
 
@@ -201,7 +202,7 @@ export function CategoryPicker({
             </Button>
           </div>
         </div>
-      ) : (
+      ) : type === "expense" ? (
         <button
           type="button"
           disabled={disabled}
@@ -220,7 +221,7 @@ export function CategoryPicker({
             Nueva categoría
           </Text>
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

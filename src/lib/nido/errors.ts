@@ -139,6 +139,9 @@ export function nidoErrorFromUnknown(error: unknown): NidoError {
     if (/budget/i.test(raw)) {
       return new NidoError("conflict");
     }
+    if (/categor/i.test(raw)) {
+      return new NidoError("conflict");
+    }
     if (/expense/i.test(raw)) {
       return new NidoError("conflict");
     }

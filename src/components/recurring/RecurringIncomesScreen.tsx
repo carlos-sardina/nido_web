@@ -81,7 +81,7 @@ export function RecurringIncomesScreen({
             <ScreenIntro
               className="mb-4"
               title="Ingresos recurrentes"
-              description="Las plantillas no se suman a tus ingresos. Solo cuentan los periodos que registres."
+              description="El sueldo se confirma por periodo. El extra se registra como ingreso cada vez que entra."
             />
           </div>
 
@@ -100,7 +100,7 @@ export function RecurringIncomesScreen({
             ) : templates && templates.length === 0 ? (
               <EmptyState
                 title="Sin ingresos recurrentes"
-                description="Crea una plantilla para sueldo u otros ingresos fijos. No se registra un ingreso hasta que confirmes el periodo."
+                description="Crea una plantilla para tu sueldo. El extra no es recurrente: regístralo como ingreso cuando entre."
                 actionLabel="Nueva recurrencia"
                 onAction={onCreate}
               />
