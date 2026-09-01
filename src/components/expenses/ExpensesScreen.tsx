@@ -6,6 +6,7 @@ import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { TextLink } from "@/components/nido/TextLink";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
+  expensePayerLabel,
   formatCompactMoney,
   formatRelativeActivityDate,
   isPersonalExpense,
@@ -109,7 +110,7 @@ export function ExpensesScreen({
             </div>
           ) : null}
           {expenses.map((expense) => {
-            const payer = memberName(expense.payerId, members, expense.payer?.displayName);
+            const payer = expensePayerLabel(expense, members);
             const personal = isPersonalExpense(expense);
             const participantNames = expense.splits
               .map((split) => firstName(memberName(split.memberId, members)))

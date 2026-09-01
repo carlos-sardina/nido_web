@@ -64,8 +64,10 @@ export {
   canEditExpense,
   canMutateExpense,
   canRefundExpense,
+  expensePayerLabel,
   householdSpent,
   isActiveExpense,
+  isPaidByAllMembers,
   isPersonalExpense,
   isRecurringExpense,
   isSharedExpense,
@@ -111,10 +113,12 @@ export {
   splitIssue,
 } from "./splits.ts";
 export {
+  ALL_MEMBERS_PAYER,
   amountToExpenseInput,
   buildCreateExpensePayload,
   expenseAmountMessage,
   expenseDescriptionMessage,
+  isAllMembersPayer,
   normalizeExpenseDescription,
   parseExpenseAmountInput,
   resolveExpenseParticipantIds,

@@ -15,6 +15,7 @@ import {
   canEditExpense,
   canMutateExpense,
   canRefundExpense,
+  expensePayerLabel,
   formatCompactMoney,
   formatRelativeActivityDate,
   isPersonalExpense,
@@ -70,7 +71,7 @@ export function ExpenseDetail({
   const refunded = refundedTotal(refunds);
   const remaining = refundableRemaining(expense.amount, refunds);
   const net = netExpense(expense.amount, refunds);
-  const payerName = memberName(expense.payerId, members, expense.payer?.displayName);
+  const payerName = expensePayerLabel(expense, members);
   const creatorName = memberName(expense.createdBy, members, expense.createdBy === expense.payerId ? expense.payer?.displayName : null);
   const refundFieldError = refundAmount ? refundAmountMessage(refundAmount, remaining) : null;
 

@@ -113,6 +113,19 @@ describe("activity transformation", () => {
     assert.equal(items[0].metadata.recurring, true);
   });
 
+  it("says everyone paid when the shared expense has no single payer", () => {
+    const items = build({
+      expenses: [{ ...expense, payerId: null, payer: null }],
+      incomes: [],
+      contributions: [],
+      goals: [],
+    });
+    assert.equal(items.length, 1);
+    assert.equal(items[0].title, "Todos pagaron Internet");
+    assert.equal(items[0].memberName, "Todos");
+    assert.equal(items[0].memberId, null);
+  });
+
   it("includes a live income with member, category, and amount", () => {
     const items = build({ expenses: [], contributions: [], goals: [] });
 

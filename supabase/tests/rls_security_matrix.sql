@@ -2111,6 +2111,69 @@ BEGIN
     ))
   );
 
+  PERFORM pg_temp.record_result(
+    'X25', 'Carlos', 'A', 'active', 'create_expense RPC shared null payer_id (everyone paid)',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_expense(
+          %L::uuid, %L::uuid, 20, 'Pagaron todos', DATE '2026-08-21', NULL::uuid, 'shared',
+          jsonb_build_array(
+            jsonb_build_object('member_id', %L, 'amount', 10, 'percentage', 50),
+            jsonb_build_object('member_id', %L, 'amount', 10, 'percentage', 50)
+          )
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_carlos, v_diana
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'X26', 'Carlos', 'A', 'active', 'create_expense RPC personal null payer_id',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        SELECT public.create_expense(
+          %L::uuid, %L::uuid, 20, 'Personal sin pagador', DATE '2026-08-21', NULL::uuid, 'personal',
+          jsonb_build_array(jsonb_build_object('member_id', %L, 'amount', 20, 'percentage', 100))
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'X27', 'Carlos', 'A', 'active', 'PostgREST INSERT shared null payer_id',
+    'allow',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expenses (
+          household_id, category_id, amount, occurred_at, payer_id,
+          scope, distribution_method, created_by
+        ) VALUES (
+          %L, %L, 21, DATE '2026-08-21', NULL, 'shared', 'equal', %L
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_carlos
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'X28', 'Carlos', 'A', 'active', 'PostgREST INSERT personal null payer_id',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.expenses (
+          household_id, category_id, amount, occurred_at, payer_id,
+          scope, distribution_method, created_by
+        ) VALUES (
+          %L, %L, 21, DATE '2026-08-21', NULL, 'personal', 'fixed', %L
+        )
+      $sql$,
+      v_nido_a, v_cat_expense_a, v_carlos
+    ))
+  );
+
   PERFORM pg_temp.clear_auth();
   SET LOCAL ROLE authenticated;
   PERFORM pg_temp.record_result(

@@ -77,7 +77,7 @@ function expense(partial: Partial<ExpenseRow> & Pick<ExpenseRow, "amount" | "pay
     scope: "shared",
     distributionMethod: "equal",
     recurringId: null,
-    createdBy: partial.payerId,
+    createdBy: partial.createdBy ?? partial.payerId ?? "u1",
     createdAt: "2026-08-10T12:00:00.000Z",
     deletedAt: null,
     category: null,
@@ -174,6 +174,28 @@ describe("calculateMonthlyBalance — 50/50 and payer", () => {
     assert.equal(result.settlements[0]?.fromMemberId, "carlos");
     assert.equal(result.settlements[0]?.toMemberId, "diana");
     assert.equal(result.settlements[0]?.amount, 500);
+  });
+
+  it("does not create a debt when everyone paid their share", () => {
+    const result = calculateMonthlyBalance({
+      expenses: [equalExpense(1000, "carlos", ["carlos", "diana"], { payerId: null })],
+      incomes: [],
+      members,
+      range: august,
+      householdId: "h1",
+    });
+    const carlos = result.members.find((row) => row.memberId === "carlos");
+    const diana = result.members.find((row) => row.memberId === "diana");
+    assert.equal(carlos?.paid, 500);
+    assert.equal(carlos?.owed, 500);
+    assert.equal(carlos?.balance, 0);
+    assert.equal(diana?.paid, 500);
+    assert.equal(diana?.owed, 500);
+    assert.equal(diana?.balance, 0);
+    assert.equal(result.settlements.length, 0);
+    assert.equal(result.status, "settled");
+    assert.equal(result.sharedGross, 1000);
+    balancesClose(result.members);
   });
 });
 

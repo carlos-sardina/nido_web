@@ -1,5 +1,5 @@
 import type { HouseholdMemberView } from "../types";
-import { isActiveExpense } from "./expenses.ts";
+import { isActiveExpense, isPaidByAllMembers } from "./expenses.ts";
 import { isActiveContribution } from "./goals.ts";
 import { isActiveIncome } from "./incomes.ts";
 import type {
@@ -38,11 +38,18 @@ export function expenseToActivity(
   expense: ExpenseRow,
   members: HouseholdMemberView[],
 ): ActivityItem {
-  const name = memberName(expense.payerId, members, expense.payer?.displayName);
+  const paidByAll = isPaidByAllMembers(expense);
+  const name = paidByAll
+    ? "Todos"
+    : memberName(expense.payerId, members, expense.payer?.displayName);
   const categoryName = expense.category?.name?.trim() || null;
   const concept = expense.description?.trim() || categoryName || "un gasto";
   const who = firstName(name);
-  const title = who ? `${who} pagó ${concept}` : `Se registró ${concept}`;
+  const title = paidByAll
+    ? `Todos pagaron ${concept}`
+    : who
+      ? `${who} pagó ${concept}`
+      : `Se registró ${concept}`;
 
   return {
     id: `expense:${expense.id}`,

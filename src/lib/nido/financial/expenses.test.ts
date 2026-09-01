@@ -5,6 +5,7 @@ import {
   canEditExpense,
   canMutateExpense,
   canRefundExpense,
+  expensePayerLabel,
   householdSpent,
   memberBalance,
   memberOwed,
@@ -32,7 +33,7 @@ function expense(partial: Partial<ExpenseRow> & Pick<ExpenseRow, "amount" | "pay
     scope: "shared",
     distributionMethod: "equal",
     recurringId: null,
-    createdBy: "u1",
+    createdBy: partial.createdBy ?? partial.payerId ?? "u1",
     createdAt: "2026-08-10T12:00:00.000Z",
     deletedAt: null,
     category: null,
@@ -124,6 +125,58 @@ describe("expense splits", () => {
     const rows = [expense({ amount: 1000, payerId: "carlos", splits })];
     assert.equal(memberBalance(rows, "carlos"), 500);
     assert.equal(memberBalance(rows, "diana"), -500);
+  });
+
+  it("treats a shared expense paid by everyone as settled", () => {
+    const splits = [
+      split({ memberId: "carlos", amount: 500 }),
+      split({ memberId: "diana", amount: 500 }),
+    ];
+    const rows = [
+      expense({
+        amount: 1000,
+        payerId: null,
+        createdBy: "carlos",
+        splits,
+      }),
+    ];
+    assert.equal(memberPaid(rows, "carlos"), 500);
+    assert.equal(memberPaid(rows, "diana"), 500);
+    assert.equal(memberBalance(rows, "carlos"), 0);
+    assert.equal(memberBalance(rows, "diana"), 0);
+  });
+
+  it("keeps a paid-by-all expense settled after a proportional refund", () => {
+    const splits = [
+      split({ memberId: "carlos", amount: 600 }),
+      split({ memberId: "diana", amount: 400 }),
+    ];
+    const rows = [
+      expense({
+        amount: 1000,
+        payerId: null,
+        createdBy: "carlos",
+        splits,
+        refunds: [
+          {
+            id: "r1",
+            expenseId: "e1",
+            amount: 200,
+            occurredAt: "2026-09-03",
+            createdBy: "carlos",
+            createdAt: "2026-09-03T12:00:00.000Z",
+            splits: [
+              { id: "rs-c", refundId: "r1", memberId: "carlos", amount: 120, percentage: 60 },
+              { id: "rs-d", refundId: "r1", memberId: "diana", amount: 80, percentage: 40 },
+            ],
+          },
+        ],
+      }),
+    ];
+    assert.equal(memberPaid(rows, "carlos"), 480);
+    assert.equal(memberPaid(rows, "diana"), 320);
+    assert.equal(memberBalance(rows, "carlos"), 0);
+    assert.equal(memberBalance(rows, "diana"), 0);
   });
 
   it("nets refunds from paid and from each member's owed share", () => {
@@ -285,5 +338,29 @@ describe("personal expense split", () => {
     assert.equal(householdSpent(rows), 240);
     assert.equal(memberOwed(splits, "diana"), 240);
     assert.equal(memberBalance(rows, "diana"), 0);
+  });
+});
+
+describe("expense payer label", () => {
+  const members = [
+    { userId: "carlos", displayName: "Carlos Pérez" },
+    { userId: "diana", displayName: "Diana Vega" },
+  ];
+
+  it("names the member who paid", () => {
+    assert.equal(
+      expensePayerLabel(
+        expense({ amount: 10, payerId: "carlos", payer: { id: "carlos", displayName: "Carlos Pérez" } }),
+        members,
+      ),
+      "Carlos Pérez",
+    );
+  });
+
+  it("says Todos when every member paid their share", () => {
+    assert.equal(
+      expensePayerLabel(expense({ amount: 10, payerId: null, createdBy: "carlos" }), members),
+      "Todos",
+    );
   });
 });

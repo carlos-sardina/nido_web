@@ -18,7 +18,10 @@ export type CreateExpenseRequest = {
   description: string;
   occurredAt: string;
   scope: ExpenseScope;
-  /** Who paid. Defaults to the writer. Must be an active household member. */
+  /**
+   * Who paid. Defaults to the writer. Must be an active household member,
+   * or ALL_MEMBERS_PAYER on a shared expense (everyone paid their share).
+   */
   payerId?: string;
   participantIds: readonly string[];
   activeMemberIds: readonly string[];
@@ -31,10 +34,17 @@ export type CreateExpensePayload = {
   amount: number;
   description: string;
   occurredAt: string;
-  payerId: string;
+  payerId: string | null;
   scope: ExpenseScope;
   splits: SplitDraft[];
 };
+
+/** Form sentinel: every participant paid their share; nobody owes anyone. */
+export const ALL_MEMBERS_PAYER = "all";
+
+export function isAllMembersPayer(payerId: string | null | undefined): boolean {
+  return payerId === ALL_MEMBERS_PAYER;
+}
 
 /** Shared expenses with two members split between both; the picker is unnecessary. */
 export function showExpenseParticipantPicker(
@@ -72,6 +82,7 @@ export function resolveExpensePayerId(
     ? currentUserId
     : (memberIds[0] ?? currentUserId);
   if (scope === "personal") return self;
+  if (isAllMembersPayer(selectedPayerId)) return ALL_MEMBERS_PAYER;
   if (memberIds.includes(selectedPayerId)) return selectedPayerId;
   return self;
 }
@@ -146,8 +157,14 @@ export function buildCreateExpensePayload(
   if (!writerId) return { ok: false, error: "unauthenticated" };
   if (!input.activeMemberIds.includes(writerId)) return { ok: false, error: "not_a_member" };
 
-  const payerId = input.payerId ?? writerId;
-  if (!input.activeMemberIds.includes(payerId)) return { ok: false, error: "not_a_member" };
+  const paidByAll = input.scope === "shared" && isAllMembersPayer(input.payerId);
+  if (isAllMembersPayer(input.payerId) && input.scope !== "shared") {
+    return { ok: false, error: "invalid_split" };
+  }
+  const payerId = paidByAll ? null : (input.payerId ?? writerId);
+  if (payerId != null && !input.activeMemberIds.includes(payerId)) {
+    return { ok: false, error: "not_a_member" };
+  }
 
   const amount = roundMoney(input.amount);
   if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_MONEY_AMOUNT) {
@@ -169,7 +186,9 @@ export function buildCreateExpensePayload(
 
   const splits =
     input.scope === "personal"
-      ? personalSplit(payerId, amount)
+      ? payerId
+        ? personalSplit(payerId, amount)
+        : null
       : allocateEqualSplits(amount, input.participantIds);
 
   if (!splits) return { ok: false, error: "invalid_split" };

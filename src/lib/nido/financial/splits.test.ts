@@ -180,4 +180,33 @@ describe("splitIssue", () => {
       "invalid_split",
     );
   });
+
+  it("accepts a shared expense with no single payer", () => {
+    assert.equal(
+      splitIssue({
+        amount: 100,
+        scope: "shared",
+        payerId: null,
+        splits: [
+          { memberId: "diana", amount: 50, percentage: 50 },
+          { memberId: "carlos", amount: 50, percentage: 50 },
+        ],
+        activeMemberIds: active,
+      }),
+      null,
+    );
+  });
+
+  it("rejects a personal expense with no payer", () => {
+    assert.equal(
+      splitIssue({
+        amount: 240,
+        scope: "personal",
+        payerId: null,
+        splits: [{ memberId: "diana", amount: 240, percentage: 100 }],
+        activeMemberIds: active,
+      }),
+      "invalid_split",
+    );
+  });
 });

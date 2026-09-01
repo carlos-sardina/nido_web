@@ -191,6 +191,28 @@ describe("createExpenseWithAuth (unit, mocked auth adapter)", () => {
     );
     assert.equal(result.ok, true);
   });
+
+  it("sends a null payer when every member paid their share", async () => {
+    const result = await createExpenseWithAuth(
+      {
+        ...validInput,
+        scope: "shared",
+        amount: 100,
+        payerId: "all",
+        participantIds: ["u1", "u2"],
+        activeMemberIds: ["u1", "u2"],
+      },
+      {
+        getUserId: async () => "u1",
+        rpc: async (_fn, args) => {
+          assert.equal(args.p_payer_id, null);
+          assert.equal(args.p_scope, "shared");
+          return { data: "e-all", error: null };
+        },
+      },
+    );
+    assert.equal(result.ok, true);
+  });
 });
 
 describe("canSubmitExpense", () => {

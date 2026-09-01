@@ -289,7 +289,7 @@ export type Database = {
           household_id: string
           id: string
           occurred_at: string
-          payer_id: string
+          payer_id: string | null
           recurring_id: string | null
           scope: Database["public"]["Enums"]["expense_scope"]
           updated_at: string
@@ -305,7 +305,7 @@ export type Database = {
           household_id: string
           id?: string
           occurred_at: string
-          payer_id: string
+          payer_id?: string | null
           recurring_id?: string | null
           scope: Database["public"]["Enums"]["expense_scope"]
           updated_at?: string
@@ -321,7 +321,7 @@ export type Database = {
           household_id?: string
           id?: string
           occurred_at?: string
-          payer_id?: string
+          payer_id?: string | null
           recurring_id?: string | null
           scope?: Database["public"]["Enums"]["expense_scope"]
           updated_at?: string
@@ -1074,7 +1074,7 @@ export type Database = {
           p_description: string
           p_household_id: string
           p_occurred_at: string
-          p_payer_id: string
+          p_payer_id?: string | null
           p_scope: Database["public"]["Enums"]["expense_scope"]
           p_splits: Json
         }
@@ -1301,7 +1301,7 @@ export type Database = {
           p_description: string
           p_expense_id: string
           p_occurred_at: string
-          p_payer_id: string
+          p_payer_id?: string | null
           p_scope: Database["public"]["Enums"]["expense_scope"]
           p_splits: Json
         }

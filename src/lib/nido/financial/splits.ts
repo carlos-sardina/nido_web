@@ -128,7 +128,7 @@ export function personalSplit(payerId: string, amount: number): SplitDraft[] | n
 export function splitIssue(input: {
   amount: number;
   scope: ExpenseScope;
-  payerId: string;
+  payerId: string | null;
   splits: readonly SplitDraft[];
   activeMemberIds: readonly string[];
 }): NidoErrorCode | null {
@@ -136,10 +136,10 @@ export function splitIssue(input: {
   if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_MONEY_AMOUNT) {
     return "invalid_amount";
   }
-  if (!input.payerId) return "invalid_split";
 
   const active = new Set(input.activeMemberIds);
-  if (!active.has(input.payerId)) return "invalid_split";
+  if (input.payerId != null && !active.has(input.payerId)) return "invalid_split";
+  if (input.payerId == null && input.scope !== "shared") return "invalid_split";
 
   const seen = new Set<string>();
   for (const split of input.splits) {
@@ -158,6 +158,7 @@ export function splitIssue(input: {
   if (percentTotal !== 100) return "invalid_split";
 
   if (input.scope === "personal") {
+    if (!input.payerId) return "invalid_split";
     if (input.splits.length !== 1) return "invalid_split";
     if (input.splits[0].memberId !== input.payerId) return "invalid_split";
     return null;

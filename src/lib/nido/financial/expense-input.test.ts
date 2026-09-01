@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  ALL_MEMBERS_PAYER,
   amountToExpenseInput,
   buildCreateExpensePayload,
   expenseAmountMessage,
@@ -244,6 +245,32 @@ describe("buildCreateExpensePayload", () => {
     if (result.ok === false) return;
     assert.equal(result.data.payerId, "diana");
   });
+
+  it("stores a null payer when every member paid their share", () => {
+    const result = buildCreateExpensePayload(
+      request({
+        scope: "shared",
+        amount: 100,
+        payerId: ALL_MEMBERS_PAYER,
+        participantIds: members,
+      }),
+      "diana",
+    );
+    assert.equal(result.ok, true);
+    if (result.ok === false) return;
+    assert.equal(result.data.payerId, null);
+    assert.equal(result.data.scope, "shared");
+    assert.equal(result.data.splits.length, 2);
+  });
+
+  it("rejects all-members payer on a personal expense", () => {
+    const result = buildCreateExpensePayload(
+      request({ scope: "personal", payerId: ALL_MEMBERS_PAYER }),
+      "diana",
+    );
+    assert.equal(result.ok, false);
+    if (result.ok === false) assert.equal(result.error, "invalid_split");
+  });
 });
 
 describe("expense form pickers", () => {
@@ -281,6 +308,10 @@ describe("expense form pickers", () => {
     assert.equal(
       resolveExpensePayerId("shared", "carlos", "diana", ["diana", "carlos"]),
       "carlos",
+    );
+    assert.equal(
+      resolveExpensePayerId("shared", ALL_MEMBERS_PAYER, "diana", ["diana", "carlos"]),
+      ALL_MEMBERS_PAYER,
     );
     assert.equal(
       resolveExpensePayerId("shared", "luis", "diana", ["diana", "carlos"]),

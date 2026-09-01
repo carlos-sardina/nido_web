@@ -14,9 +14,11 @@ import {
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
 import { canSubmitExpense, createExpense, updateExpense } from "@/lib/nido/expenses";
 import {
+  ALL_MEMBERS_PAYER,
   amountToExpenseInput,
   expenseAmountMessage,
   expenseDescriptionMessage,
+  isPaidByAllMembers,
   parseExpenseAmountInput,
   resolveExpenseParticipantIds,
   resolveExpensePayerId,
@@ -48,6 +50,9 @@ function defaultPayerId(
   currentUserId: string | null,
   members: HouseholdMemberView[],
 ): string {
+  if (expense && isPaidByAllMembers(expense)) {
+    return ALL_MEMBERS_PAYER;
+  }
   if (expense?.payerId && members.some((member) => member.userId === expense.payerId)) {
     return expense.payerId;
   }
@@ -175,7 +180,7 @@ export function ExpenseFlow({
       scope == null
         ? payerId
         : resolveExpensePayerId(scope, payerId, currentUserId ?? "", members.map((member) => member.userId));
-    if (scope === "shared" && askPayer && !members.some((member) => member.userId === resolvedPayerId)) {
+    if (scope === "shared" && askPayer && resolvedPayerId !== ALL_MEMBERS_PAYER && !members.some((member) => member.userId === resolvedPayerId)) {
       nextErrors.payer = "Elige quién pagó.";
     }
     const resolvedParticipants =
@@ -418,6 +423,16 @@ export function ExpenseFlow({
                       />
                     );
                   })}
+                  <ChoiceCard
+                    title="Todos los miembros"
+                    description="Se pagó en el momento. Nadie le debe a nadie."
+                    selected={payerId === ALL_MEMBERS_PAYER}
+                    disabled={submitting}
+                    onClick={() => {
+                      setPayerId(ALL_MEMBERS_PAYER);
+                      setErrors((current) => ({ ...current, payer: undefined }));
+                    }}
+                  />
                 </div>
                 <FieldError id={`${ids}-payer-error`}>{errors.payer}</FieldError>
               </Field>

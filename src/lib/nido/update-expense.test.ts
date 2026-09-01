@@ -141,4 +141,25 @@ describe("updateExpenseWithAuth (unit, mocked auth adapter)", () => {
     );
     assert.equal(result.ok, true);
   });
+
+  it("sends a null payer when updating to everyone paid", async () => {
+    const result = await updateExpenseWithAuth(
+      {
+        ...validInput,
+        scope: "shared",
+        amount: 100,
+        payerId: "all",
+        participantIds: ["u1", "u2"],
+        activeMemberIds: ["u1", "u2"],
+      },
+      {
+        getUserId: async () => "u1",
+        rpc: async (_fn, args) => {
+          assert.equal(args.p_payer_id, null);
+          return { data: "e1", error: null };
+        },
+      },
+    );
+    assert.equal(result.ok, true);
+  });
 });

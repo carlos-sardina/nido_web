@@ -42,6 +42,32 @@ describe("query row mapping", () => {
     assert.equal(expense.payer?.displayName, "Diana Vega");
   });
 
+  it("maps a shared expense with no single payer", () => {
+    const expense = mapExpenseRow({
+      id: "e2",
+      household_id: "h1",
+      category_id: "c1",
+      amount: "100.00",
+      description: "Cena",
+      occurred_at: "2026-08-21",
+      payer_id: null,
+      scope: "shared",
+      distribution_method: "equal",
+      recurring_id: null,
+      created_by: "diana",
+      created_at: "2026-08-21T12:00:00.000Z",
+      deleted_at: null,
+      expense_splits: [
+        { id: "s1", member_id: "diana", amount: "50.00", percentage: "50.0000" },
+        { id: "s2", member_id: "carlos", amount: "50.00", percentage: "50.0000" },
+      ],
+      payer: null,
+    });
+    assert.equal(expense.payerId, null);
+    assert.equal(expense.payer, null);
+    assert.equal(expense.splits.length, 2);
+  });
+
   it("maps a one-time income separately from a recurring origin", () => {
     const income = mapIncomeRow({
       id: "i1",

@@ -76,12 +76,46 @@ export function memberOwed(splits: ExpenseSplitRow[], memberId: string): number 
   );
 }
 
+export function isPaidByAllMembers(
+  expense: Pick<ExpenseRow, "payerId" | "scope">,
+): boolean {
+  return expense.scope === "shared" && expense.payerId == null;
+}
+
+function memberNetSplit(expense: ExpenseRow, memberId: string): number {
+  const splitTotal = sumMoney(
+    expense.splits.filter((split) => split.memberId === memberId).map((split) => split.amount),
+  );
+  const refundShare = sumMoney(
+    (expense.refunds ?? [])
+      .flatMap((refund) => refund.splits)
+      .filter((split) => split.memberId === memberId)
+      .map((split) => split.amount),
+  );
+  return roundMoney(splitTotal - refundShare);
+}
+
 export function memberPaid(expenses: ExpenseRow[], memberId: string): number {
   return sumMoney(
-    expenses
-      .filter((expense) => isActiveExpense(expense) && expense.payerId === memberId)
-      .map((expense) => netExpense(expense.amount, expense.refunds)),
+    expenses.filter(isActiveExpense).map((expense) => {
+      if (expense.payerId === memberId) {
+        return netExpense(expense.amount, expense.refunds);
+      }
+      if (isPaidByAllMembers(expense)) {
+        return memberNetSplit(expense, memberId);
+      }
+      return 0;
+    }),
   );
+}
+
+export function expensePayerLabel(
+  expense: Pick<ExpenseRow, "payerId" | "payer" | "scope">,
+  members: ReadonlyArray<{ userId: string; displayName: string | null }>,
+): string {
+  if (isPaidByAllMembers(expense)) return "Todos";
+  const listed = members.find((member) => member.userId === expense.payerId)?.displayName;
+  return listed?.trim() || expense.payer?.displayName?.trim() || "Un miembro";
 }
 
 /** Refund share already attributed to this member via expense_refund_splits. */

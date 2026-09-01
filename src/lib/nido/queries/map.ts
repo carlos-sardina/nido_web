@@ -41,7 +41,7 @@ export type ExpenseQueryRow = {
   amount: unknown;
   description: string | null;
   occurred_at: string;
-  payer_id: string;
+  payer_id: string | null;
   scope: ExpenseRow["scope"];
   distribution_method: ExpenseRow["distributionMethod"];
   recurring_id: string | null;

@@ -50,7 +50,7 @@ export type ExpenseRow = {
   amount: number;
   description: string | null;
   occurredAt: string;
-  payerId: string;
+  payerId: string | null;
   scope: ExpenseScope;
   distributionMethod: DistributionMethod;
   recurringId: string | null;
