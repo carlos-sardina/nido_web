@@ -279,11 +279,11 @@ describe("featured shared fund", () => {
 });
 
 describe("emergency months", () => {
-  it("returns null when monthly spend is zero", () => {
+  it("returns null when the monthly budget is zero", () => {
     assert.equal(emergencyMonthsCovered(120000, 0), null);
   });
 
-  it("divides the contributed amount by this month's spend", () => {
+  it("divides the contributed amount by this month's aggregated budget", () => {
     assert.equal(emergencyMonthsCovered(120000, 30000), 4);
   });
 });

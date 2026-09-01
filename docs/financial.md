@@ -375,7 +375,7 @@ Create / edit fields that exist on `goals`:
 - goal_type (`saving` = fondo, `purchase` = meta)
 - scope (`shared` | `personal`). Default `shared`. Existing rows stay shared.
 
-A **fondo** is a reserve. A **meta** is a target to reach or buy. Metas never enter months of support. Only **shared funds** do (`saving` + `shared`). Personal funds stay out of that numerator even when named “emergencia”.
+A **fondo** is a reserve. A **meta** is a target to reach or buy. Metas never enter months of support. Only **shared funds** do (`saving` + `shared`). Personal funds stay out of that numerator even when named “emergencia”. Home months of support divide those contributions by this month’s aggregated Nido budget (`MonthBudgetView.totalBudget`), not by current spend. Without a Nido budget the figure is omitted.
 
 Personal SELECT follows `profiles.personal_visibility` of `created_by`. Shared rows stay visible to household members. Any active member may contribute to a **shared** goal/fund. Only the creator may contribute to a **personal** one.
 

@@ -140,12 +140,13 @@ export function featuredSharedFund(goals: GoalRow[]): GoalProgress | null {
   return active.find((goal) => EMERGENCY_NAME.test(goal.name)) ?? active[0];
 }
 
+/** Months of support from shared funds vs this month's aggregated Nido budget. */
 export function emergencyMonthsCovered(
   contributed: number,
-  monthlySpend: number,
+  monthlyBudget: number,
 ): number | null {
-  if (!(monthlySpend > 0) || !(contributed >= 0) || !Number.isFinite(monthlySpend)) {
+  if (!(monthlyBudget > 0) || !(contributed >= 0) || !Number.isFinite(monthlyBudget)) {
     return null;
   }
-  return Math.round((contributed / monthlySpend) * 10) / 10;
+  return Math.round((contributed / monthlyBudget) * 10) / 10;
 }

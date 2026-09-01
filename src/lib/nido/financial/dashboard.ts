@@ -48,9 +48,6 @@ export function buildDashboardViewModel(input: {
   const sharedContributed = sharedFundContributed(snapshot.goals);
   const sharedTarget = sharedFundTarget(snapshot.goals);
   const featured = featuredSharedFund(snapshot.goals);
-  const emergencyMonths = featured
-    ? emergencyMonthsCovered(sharedContributed, periodSpent)
-    : null;
 
   const hasAnyFinancialData =
     periodIncomes.length > 0 ||
@@ -67,6 +64,9 @@ export function buildDashboardViewModel(input: {
     snapshot.householdId,
   );
   const budget = buildMonthBudgetView(snapshot.budgets, periodExpenses, range);
+  const emergencyMonths = featured
+    ? emergencyMonthsCovered(sharedContributed, budget.totalBudget)
+    : null;
   const health = computeHealth({
     incomeThisMonth: periodIncome,
     spentThisMonth: periodSpent,
