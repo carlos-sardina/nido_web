@@ -98,6 +98,13 @@ export {
   type HouseholdCategory,
 } from "./categories.ts";
 export {
+  DEFAULT_CATEGORY_EMOJI,
+  QUICK_CATEGORY_EMOJIS,
+  emojiFromInput,
+  isQuickCategoryEmoji,
+  resolveCategoryIcon,
+} from "./category-icon.ts";
+export {
   allocateEqualSplits,
   allocateIncomeBasedSplits,
   personalSplit,

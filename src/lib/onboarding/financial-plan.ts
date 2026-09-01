@@ -8,6 +8,7 @@
 
 import { isSuggestedOnboardingExpenseName } from "../constants.ts";
 import type { OData, OnboardingExpense } from "../types.ts";
+import { resolveCategoryIcon } from "../nido/financial/category-icon.ts";
 import { normalizeCategoryName } from "../nido/financial/categories.ts";
 import { isHouseholdSplitMethod, type HouseholdSplitMethod } from "../nido/split-method.ts";
 import { normalizeHouseholdName } from "../nido/rules.ts";
@@ -123,7 +124,7 @@ export function buildOnboardingEstimates(
     const name = onboardingEstimateCategoryName(expense.name);
     if (!name) return { ok: false, error: "Ingresa el nombre del gasto." };
 
-    const icon = expense.icon.trim() || "💳";
+    const icon = resolveCategoryIcon(expense.icon);
 
     if (!expense.amount.trim()) {
       upsert({ name, icon, type: expense.type, amount: 0 });

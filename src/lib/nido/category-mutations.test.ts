@@ -35,6 +35,16 @@ describe("createCategoryWithAuth", () => {
     assert.deepEqual(payload, { p_name: "Spotify", p_type: "expense", p_icon: null });
   });
 
+  it("sends a trimmed icon when the caller picks one", async () => {
+    let payload: Record<string, unknown> | null = null;
+    const result = await createCategoryWithAuth(
+      { name: "Spotify", type: "expense", icon: " 🎸 ", existing: [] },
+      auth({ onRpc: (_fn, args) => { payload = args; } }),
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(payload, { p_name: "Spotify", p_type: "expense", p_icon: "🎸" });
+  });
+
   it("rejects empty, blank, and oversized names without calling the RPC", async () => {
     let called = 0;
     const adapter = auth({ onRpc: () => { called += 1; } });

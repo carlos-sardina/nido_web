@@ -3,12 +3,15 @@
 import { useId, useRef, useState } from "react";
 import { cn } from "@/app/components/ui/utils";
 import { Button } from "@/components/nido/Button";
-import { FieldError, TextInput } from "@/components/nido/Field";
+import { CategoryCreateFields } from "@/components/nido/CategoryEmojiField";
+import { FieldError } from "@/components/nido/Field";
 import { Text } from "@/components/nido/Typography";
 import { canSubmitCategory, createCategory } from "@/lib/nido/categories";
 import {
   categoryNameMessage,
+  DEFAULT_CATEGORY_EMOJI,
   normalizeCategoryName,
+  resolveCategoryIcon,
   withCurrentCategory,
   type HouseholdCategory,
 } from "@/lib/nido/financial";
@@ -41,9 +44,17 @@ export function CategoryPicker({
   const [showCreate, setShowCreate] = useState(false);
   const [focusName, setFocusName] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newEmoji, setNewEmoji] = useState(DEFAULT_CATEGORY_EMOJI);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const createVisible = type === "expense" && (showCreate || categories.length === 0);
+
+  const resetCreate = () => {
+    setFocusName(false);
+    setNewName("");
+    setNewEmoji(DEFAULT_CATEGORY_EMOJI);
+    setCreateError(null);
+  };
 
   const openCreate = () => {
     setShowCreate(true);
@@ -54,9 +65,7 @@ export function CategoryPicker({
   const closeCreate = () => {
     if (creating || categories.length === 0) return;
     setShowCreate(false);
-    setFocusName(false);
-    setNewName("");
-    setCreateError(null);
+    resetCreate();
   };
 
   const handleCreate = async () => {
@@ -70,9 +79,11 @@ export function CategoryPicker({
     creatingRef.current = true;
     setCreating(true);
     setCreateError(null);
+    const icon = resolveCategoryIcon(newEmoji);
     const result = await createCategory({
       name: newName,
       type,
+      icon,
       householdId,
       existing: categories,
     });
@@ -93,16 +104,15 @@ export function CategoryPicker({
       id: result.data.id,
       householdId,
       name,
-      icon: null,
+      icon,
       type,
       isDefault: false,
       archivedAt: null,
     };
     onCategoriesChange(withCurrentCategory(categories, created));
     onSelect(created.id);
-    setNewName("");
     setShowCreate(false);
-    setCreateError(null);
+    resetCreate();
   };
 
   if (loading) {
@@ -154,20 +164,20 @@ export function CategoryPicker({
           <label htmlFor={`${ids}-new-name`} className="sr-only">
             Nombre de la nueva categoría
           </label>
-          <TextInput
-            id={`${ids}-new-name`}
-            value={newName}
-            maxLength={80}
-            placeholder="Nombre de la categoría"
-            autoFocus={focusName}
-            disabled={disabled || creating}
-            invalid={Boolean(createError)}
-            aria-describedby={createError ? `${ids}-create-error` : undefined}
-            onChange={(event) => {
-              setNewName(event.target.value);
+          <CategoryCreateFields
+            emoji={newEmoji}
+            onEmojiChange={setNewEmoji}
+            nameId={`${ids}-new-name`}
+            name={newName}
+            onNameChange={(value) => {
+              setNewName(value);
               setCreateError(null);
             }}
-            onKeyDown={(event) => {
+            disabled={disabled || creating}
+            autoFocusName={focusName}
+            nameInvalid={Boolean(createError)}
+            nameDescribedBy={createError ? `${ids}-create-error` : undefined}
+            onNameKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
                 void handleCreate();

@@ -1,10 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { cn } from "@/app/components/ui/utils";
 import { Button } from "@/components/nido/Button";
+import { CategoryCreateFields } from "@/components/nido/CategoryEmojiField";
 import { TextLink } from "@/components/nido/TextLink";
 import { Text } from "@/components/nido/Typography";
 import { archiveCategory, canSubmitCategory, createCategory, renameCategory } from "@/lib/nido/categories";
+import {
+  DEFAULT_CATEGORY_EMOJI,
+  resolveCategoryIcon,
+} from "@/lib/nido/financial/category-icon";
 import {
   categoryNameMessage,
   categoryRenameConflictMessage,
@@ -27,6 +33,8 @@ export function HouseholdCategoriesCard({
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+  const [newEmoji, setNewEmoji] = useState(DEFAULT_CATEGORY_EMOJI);
+  const [showCreate, setShowCreate] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -41,6 +49,13 @@ export function HouseholdCategoriesCard({
 
   const expenses = categories.filter((row) => row.type === "expense");
   const visible = expenses.filter((row) => row.archivedAt == null);
+  const createVisible = showCreate || (!loading && !listError && visible.length === 0);
+
+  const resetCreate = () => {
+    setNewName("");
+    setNewEmoji(DEFAULT_CATEGORY_EMOJI);
+    setCreateError(null);
+  };
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = Boolean(opts?.silent && categoriesRef.current.length > 0);
@@ -80,6 +95,7 @@ export function HouseholdCategoriesCard({
     const result = await createCategory({
       name: newName,
       type: "expense",
+      icon: resolveCategoryIcon(newEmoji),
       householdId,
       existing: expenses,
     });
@@ -90,7 +106,8 @@ export function HouseholdCategoriesCard({
       return;
     }
     const reactivated = findArchivedCategoryByNormalizedName(newName, expenses);
-    setNewName("");
+    resetCreate();
+    setShowCreate(false);
     setCreateSuccess(reactivated ? "Categoría reactivada." : "Categoría creada.");
     await load();
   };
@@ -269,32 +286,79 @@ export function HouseholdCategoriesCard({
         );
       })}
       <div className="space-y-2 pt-1">
-        <label htmlFor="new-category-name" className="sr-only">Nueva categoría</label>
-        <input
-          id="new-category-name"
-          type="text"
-          value={newName}
-          disabled={creating}
-          maxLength={80}
-          placeholder="Nueva categoría"
-          onChange={(event) => {
-            setNewName(event.target.value);
-            setCreateError(null);
-            setCreateSuccess(null);
-          }}
-          className="w-full h-12 px-4 rounded-2xl text-sm outline-none border-2"
-          style={{ backgroundColor: P.sub, color: P.text, borderColor: createError ? P.danger : P.border }}
-        />
-        {createError && <Text size="caption" tone="danger" role="alert">{createError}</Text>}
+        {createVisible ? (
+          <>
+            <label htmlFor="new-category-name" className="sr-only">Nueva categoría</label>
+            <CategoryCreateFields
+              emoji={newEmoji}
+              onEmojiChange={setNewEmoji}
+              nameId="new-category-name"
+              name={newName}
+              onNameChange={(value) => {
+                setNewName(value);
+                setCreateError(null);
+                setCreateSuccess(null);
+              }}
+              namePlaceholder="Nueva categoría"
+              disabled={creating}
+              nameInvalid={Boolean(createError)}
+              onNameKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void handleCreate();
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  if (creating || visible.length === 0) return;
+                  setShowCreate(false);
+                  resetCreate();
+                }
+              }}
+            />
+            {createError && <Text size="caption" tone="danger" role="alert">{createError}</Text>}
+            <div className="flex gap-2">
+              {visible.length > 0 ? (
+                <Button
+                  variant="ghost"
+                  size="compact"
+                  disabled={creating}
+                  onClick={() => {
+                    setShowCreate(false);
+                    resetCreate();
+                  }}
+                >
+                  Cancelar
+                </Button>
+              ) : null}
+              <Button
+                size="compact"
+                loading={creating}
+                disabled={!canSubmitCategory(creating)}
+                onClick={() => { void handleCreate(); }}
+              >
+                {creating ? "Creando…" : "Crear categoría"}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setShowCreate(true);
+              setCreateError(null);
+              setCreateSuccess(null);
+            }}
+            className={cn(
+              "flex w-full items-center gap-2 h-12 px-4 rounded-2xl border-2 border-dashed text-left transition-all",
+              "text-muted-foreground border-border bg-transparent",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            )}
+          >
+            <span className="text-body flex-shrink-0" aria-hidden="true">➕</span>
+            <Text as="span" size="label">Nueva categoría</Text>
+          </button>
+        )}
         {createSuccess && <Text size="caption" tone="brand" role="status">{createSuccess}</Text>}
-        <Button
-          size="compact"
-          loading={creating}
-          disabled={!canSubmitCategory(creating)}
-          onClick={() => { void handleCreate(); }}
-        >
-          {creating ? "Creando…" : "Crear categoría"}
-        </Button>
       </div>
     </div>
   );

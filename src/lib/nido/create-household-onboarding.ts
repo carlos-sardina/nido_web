@@ -1,8 +1,9 @@
 import { nidoErrorFromUnknown, nidoFail, nidoOk, type NidoResult } from "./errors.ts";
+import { resolveCategoryIcon } from "./financial/category-icon.ts";
+import { MAX_MONEY_AMOUNT, roundMoney } from "./financial/money.ts";
 import { normalizeHouseholdName } from "./rules.ts";
 import { isHouseholdSplitMethod, type HouseholdSplitMethod } from "./split-method.ts";
 import type { Household } from "./types.ts";
-import { MAX_MONEY_AMOUNT, roundMoney } from "./financial/money.ts";
 import type { OnboardingEstimatePlan } from "../onboarding/financial-plan.ts";
 import { canStartExclusiveAction } from "../onboarding/validation.ts";
 
@@ -51,7 +52,7 @@ function estimatePayload(
     if (!name) return { error: true };
     rows.push({
       name,
-      icon: estimate.icon.trim() || "💳",
+      icon: resolveCategoryIcon(estimate.icon),
       type: estimate.type,
       amount,
     });

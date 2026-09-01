@@ -8,6 +8,7 @@
  */
 
 import type { ExpenseKind, Model, OData, OStep, OnboardingExpense } from "../types";
+import { resolveCategoryIcon } from "../nido/financial/category-icon.ts";
 
 export const ONBOARDING_DRAFT_KEY = "nido.onboardingDraft";
 
@@ -92,7 +93,7 @@ function asExpenses(value: unknown): OnboardingExpense[] {
     if (!type) continue;
     expenses.push({
       name: row.name,
-      icon: typeof row.icon === "string" && row.icon ? row.icon : "💳",
+      icon: resolveCategoryIcon(typeof row.icon === "string" ? row.icon : ""),
       selected: Boolean(row.selected),
       amount: typeof row.amount === "string" ? row.amount : "",
       type,

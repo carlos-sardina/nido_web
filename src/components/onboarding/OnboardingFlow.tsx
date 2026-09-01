@@ -39,6 +39,7 @@ import {
   validateSavings,
 } from "@/lib/onboarding/validation";
 import { EXP_SUGG, NEST_TYPES, NIDO_NAMES } from "@/lib/constants";
+import { DEFAULT_CATEGORY_EMOJI, resolveCategoryIcon } from "@/lib/nido/financial/category-icon";
 import { P } from "@/lib/palette";
 import type { Model, OStep, OData } from "@/lib/types";
 import { InviteQrModal } from "@/components/flows/InviteQrModal";
@@ -48,6 +49,7 @@ import { OProgress2 } from "@/components/onboarding/OProgress2";
 import { NidoSelectionScreen } from "@/components/onboarding/NidoSelectionScreen";
 import { Button } from "@/components/nido/Button";
 import { ChoiceCard, SectionLabel } from "@/components/nido/ChoiceCard";
+import { CategoryCreateFields } from "@/components/nido/CategoryEmojiField";
 import { Field, FieldError, FieldLabel, HelperText, MoneyField, TextInput } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
 import { Text } from "@/components/nido/Typography";
@@ -661,7 +663,7 @@ export function OnboardingFlow({
               {step === "p-expenses" && (() => {
                 const showAddCustom = data._showAdd ?? false;
                 const setShowAddCustom = (v: boolean) => setData(p => ({ ...p, _showAdd: v }));
-                const customEmoji = data._emoji ?? "💳";
+                const customEmoji = data._emoji ?? DEFAULT_CATEGORY_EMOJI;
                 const setCustomEmoji = (v: string) => setData(p => ({ ...p, _emoji: v }));
                 const customName = data._cname ?? "";
                 const setCustomName = (v: string) => setData(p => ({ ...p, _cname: v }));
@@ -678,15 +680,8 @@ export function OnboardingFlow({
                   const name = normalizeCustomExpenseName(customName);
                   if (!name) return;
                   setFieldError(null);
-                  const n = [...data.expenses, { name, icon: customEmoji, selected: false, amount: "", type: customEtype, kind: "variable" as const, custom: true }];
-                  setData(p => ({ ...p, expenses: n, _showAdd: false, _cname: "", _emoji: "💳", _etype: "personal" } as OData));
-                };
-
-                const QUICK_EMOJIS = ["💳","🎓","🏋️","🛍️","💅","🍺","🐱","🐕","🏥","✈️","📚","🎮","🧘","🚲","🎸"];
-                const isQuickEmoji = QUICK_EMOJIS.includes(customEmoji);
-                const setEmojiFromInput = (value: string) => {
-                  if (!value) { setCustomEmoji("💳"); return; }
-                  setCustomEmoji([...value].pop() ?? "💳");
+                  const n = [...data.expenses, { name, icon: resolveCategoryIcon(customEmoji), selected: false, amount: "", type: customEtype, kind: "variable" as const, custom: true }];
+                  setData(p => ({ ...p, expenses: n, _showAdd: false, _cname: "", _emoji: DEFAULT_CATEGORY_EMOJI, _etype: "personal" } as OData));
                 };
 
                 const renderExpense = (exp: OData["expenses"][number], i: number) => {
@@ -761,54 +756,22 @@ export function OnboardingFlow({
                         <span className="text-sm font-semibold">Agregar otro gasto</span>
                       </button>
                     ) : (
-                      <div className="rounded-2xl border-2 p-4 mb-4" style={{ borderColor: P.brnDk, backgroundColor: P.sagePl }}>
+                      <div className="rounded-2xl border-2 p-4 mb-4 space-y-4" style={{ borderColor: P.brnDk, backgroundColor: P.sagePl }}>
                         <SectionLabel>Nuevo gasto personalizado</SectionLabel>
-                        <div className="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden mb-4">
-                          {QUICK_EMOJIS.map(e => (
-                            <button
-                              key={e}
-                              type="button"
-                              onClick={() => setCustomEmoji(e)}
-                              aria-label={`Emoji ${e}`}
-                              aria-pressed={customEmoji === e}
-                              className="flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              style={{ backgroundColor: customEmoji === e ? P.brnDk + "20" : P.card, border: `2px solid ${customEmoji === e ? P.brnDk : "transparent"}` }}
-                            >
-                              {e}
-                            </button>
-                          ))}
-                          <input
-                            type="text"
-                            aria-label="Otro emoji"
-                            placeholder="＋"
-                            className="flex-shrink-0 w-11 h-11 rounded-xl text-lg text-center outline-none border-2 transition-all"
-                            style={{
-                              backgroundColor: !isQuickEmoji ? P.brnDk + "20" : P.card,
-                              borderColor: !isQuickEmoji ? P.brnDk : "transparent",
-                              color: P.text,
-                            }}
-                            value={!isQuickEmoji ? customEmoji : ""}
-                            onChange={e => setEmojiFromInput(e.target.value)}
-                          />
-                        </div>
-                        <div className="flex gap-2 mb-4">
-                          <input
-                            type="text"
-                            aria-label="Emoji del gasto"
-                            className="w-11 h-11 rounded-xl text-lg text-center outline-none border-2 flex-shrink-0"
-                            style={{ backgroundColor: P.card, borderColor: P.brnDk, color: P.text }}
-                            value={customEmoji}
-                            onChange={e => setEmojiFromInput(e.target.value)}
-                          />
-                          <input
-                            className="flex-1 h-11 rounded-xl px-3 text-sm font-medium outline-none border-2"
-                            style={{ backgroundColor: P.card, borderColor: customName ? P.brnDk : P.border, color: P.text }}
-                            placeholder="Nombre del gasto (ej. Masajes)"
-                            value={customName}
-                            onChange={e => setCustomName(e.target.value)}
-                          />
-                        </div>
-                        <div className="flex gap-2 mb-4">
+                        <CategoryCreateFields
+                          emoji={customEmoji}
+                          onEmojiChange={setCustomEmoji}
+                          name={customName}
+                          onNameChange={setCustomName}
+                          namePlaceholder="Nombre del gasto (ej. Masajes)"
+                          onNameKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              addCustom();
+                            }
+                          }}
+                        />
+                        <div className="flex gap-2">
                           {([{ val: "personal" as const, label: "Personal", emoji: "👤" }, { val: "shared" as const, label: "Compartido", emoji: "🏠" }]).map(t => (
                             <button
                               key={t.val}
@@ -838,7 +801,7 @@ export function OnboardingFlow({
                             Agregar
                           </Button>
                         </div>
-                        {fieldError && <FieldError className="mt-3">{fieldError}</FieldError>}
+                        {fieldError && <FieldError>{fieldError}</FieldError>}
                       </div>
                     )}
                   </div>
