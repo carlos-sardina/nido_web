@@ -117,7 +117,7 @@ export function MainApp({
     : null;
 
   const tabs = [
-    { id: "home"      as Tab, icon: Home,      label: "Inicio"    },
+    { id: "home"      as Tab, icon: Home,      label: "Nido"     },
     { id: "budget"    as Tab, icon: BarChart2, label: "Gastos"    },
     { id: "goals"     as Tab, icon: Target,    label: "Metas"    },
     { id: "activity"  as Tab, icon: Clock,     label: "Actividad"},
