@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" fill="#F8F5F0"/>
+  <g transform="translate(256 268) scale(1.28) translate(-150 -115)">
+    <rect x="75" y="120" width="150" height="90" rx="6" fill="#FFFCFA"/>
+    <path d="M60 126 L150 54 L240 126 Z" fill="#D88D9A"/>
+    <rect x="180" y="72" width="20" height="36" rx="4" fill="#D88D9A"/>
+    <path d="M177 76 Q187 64 199 76" stroke="#A9C8A6" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.85"/>
+    <rect x="128" y="152" width="44" height="58" rx="22" fill="#D88D9A"/>
+    <circle cx="163" cy="183" r="3" fill="#FFFCFA"/>
+    <rect x="86" y="136" width="40" height="34" rx="10" fill="#EDE7E0"/>
+    <line x1="106" y1="136" x2="106" y2="170" stroke="#FFF" stroke-width="1.5"/>
+    <line x1="86" y1="153" x2="126" y2="153" stroke="#FFF" stroke-width="1.5"/>
+    <rect x="174" y="136" width="40" height="34" rx="10" fill="#EDE7E0"/>
+    <line x1="194" y1="136" x2="194" y2="170" stroke="#FFF" stroke-width="1.5"/>
+    <line x1="174" y1="153" x2="214" y2="153" stroke="#FFF" stroke-width="1.5"/>
+    <path d="M128 210 Q150 204 172 210" stroke="#EDE7E0" stroke-width="5" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>
