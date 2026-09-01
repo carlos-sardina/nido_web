@@ -12,6 +12,7 @@ import {
   selectedEstimatedExpenses,
 } from "./financial-plan.ts";
 import type { OData } from "../types.ts";
+import { EXP_SUGG } from "../constants.ts";
 import { DEFAULT_EXPENSE_CATEGORIES } from "../nido/financial/categories.ts";
 
 function minimalDraft(): OData {
@@ -191,6 +192,15 @@ describe("onboarding financial plan — custom vs suggested", () => {
     assert.equal(isCustomOnboardingExpense({ name: "Restaurantes" }), false);
     assert.equal(isCustomOnboardingExpense({ name: "Renta", custom: true }), true);
     assert.equal(isCustomOnboardingExpense({ name: "Masajes" }), true);
+    assert.equal(isCustomOnboardingExpense({ name: "Seguro médico" }), true);
+  });
+
+  it("lists Nido (shared) categories before personal ones", () => {
+    const lastShared = EXP_SUGG.findLastIndex((row) => row.type === "shared");
+    const firstPersonal = EXP_SUGG.findIndex((row) => row.type === "personal");
+    assert.ok(lastShared >= 0 && firstPersonal >= 0);
+    assert.ok(lastShared < firstPersonal);
+    assert.equal(EXP_SUGG.some((row) => row.name === "Seguro médico"), false);
   });
 });
 

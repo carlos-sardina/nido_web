@@ -722,12 +722,12 @@ export function OnboardingFlow({
                   );
                 };
 
-                const recurring = data.expenses
+                const nido = data.expenses
                   .map((exp, i) => ({ exp, i }))
-                  .filter(({ exp }) => exp.kind !== "variable");
-                const variable = data.expenses
+                  .filter(({ exp }) => exp.type === "shared");
+                const personal = data.expenses
                   .map((exp, i) => ({ exp, i }))
-                  .filter(({ exp }) => exp.kind === "variable");
+                  .filter(({ exp }) => exp.type === "personal");
 
                 return (
                   <div
@@ -735,15 +735,23 @@ export function OnboardingFlow({
                     role="region"
                     aria-label="Lista de gastos mensuales"
                   >
-                    <SectionLabel>Recurrentes / fijos</SectionLabel>
-                    <div className="space-y-2 mb-6">
-                      {recurring.map(({ exp, i }) => renderExpense(exp, i))}
-                    </div>
+                    {nido.length > 0 && (
+                      <>
+                        <SectionLabel>Nido</SectionLabel>
+                        <div className="space-y-2 mb-6">
+                          {nido.map(({ exp, i }) => renderExpense(exp, i))}
+                        </div>
+                      </>
+                    )}
 
-                    <SectionLabel>Variables</SectionLabel>
-                    <div className="space-y-2 mb-4">
-                      {variable.map(({ exp, i }) => renderExpense(exp, i))}
-                    </div>
+                    {personal.length > 0 && (
+                      <>
+                        <SectionLabel>Personales</SectionLabel>
+                        <div className="space-y-2 mb-4">
+                          {personal.map(({ exp, i }) => renderExpense(exp, i))}
+                        </div>
+                      </>
+                    )}
 
                     {!showAddCustom ? (
                       <button
