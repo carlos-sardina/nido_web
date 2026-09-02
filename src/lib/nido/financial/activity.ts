@@ -7,10 +7,44 @@ import type {
   ActivitySource,
   ExpenseRefundRow,
   ExpenseRow,
+  ExpenseScope,
   GoalContributionRow,
   GoalRow,
   IncomeRow,
 } from "./types";
+
+export type ActivityScopeFilter = "all" | "shared" | "personal";
+
+export const ACTIVITY_PAGE_SIZE = 30;
+
+/**
+ * Incomes carry no scope: each one belongs to a single member and there is no
+ * shared income. Treating them as personal keeps them out of "compartido".
+ */
+export function activityItemScope(item: ActivityItem): ExpenseScope {
+  return item.metadata.scope ?? "personal";
+}
+
+export function isOwnPersonalActivity(
+  item: ActivityItem,
+  viewerId: string | null | undefined,
+): boolean {
+  if (!viewerId) return false;
+  if (activityItemScope(item) !== "personal") return false;
+  return item.memberId === viewerId;
+}
+
+export function filterActivityByScope(
+  items: ActivityItem[],
+  filter: ActivityScopeFilter,
+  viewerId?: string | null,
+): ActivityItem[] {
+  if (filter === "all") return items;
+  if (filter === "shared") {
+    return items.filter((item) => activityItemScope(item) === "shared");
+  }
+  return items.filter((item) => isOwnPersonalActivity(item, viewerId));
+}
 
 function memberName(
   memberId: string | null,
@@ -153,6 +187,7 @@ export function contributionToActivity(
     memberName: name,
     icon: goal?.goalType === "purchase" ? "🎯" : "🛡️",
     metadata: {
+      scope: goal?.scope,
       goalId: contribution.goalId,
       goalName,
     },
@@ -214,8 +249,8 @@ export function buildActivityItems(input: {
 
   items.sort(compareActivity);
   const unique = uniqueById(items);
-  const limit = input.limit ?? 20;
-  return unique.slice(0, limit);
+  if (input.limit == null) return unique;
+  return unique.slice(0, input.limit);
 }
 
 export function findActivitySource(

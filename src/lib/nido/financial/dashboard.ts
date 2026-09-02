@@ -17,8 +17,6 @@ import { isActiveIncome, periodIncomeTotal, visiblePeriodIncomes } from "./incom
 import { clampedPercent } from "./money.ts";
 import type { DashboardSnapshot, DashboardViewModel, FeaturedGoalView } from "./types.ts";
 
-const ACTIVITY_FEED = 20;
-
 export function buildDashboardViewModel(input: {
   snapshot: DashboardSnapshot;
   members: HouseholdMemberView[];
@@ -96,14 +94,16 @@ export function buildDashboardViewModel(input: {
   const activityExpenses = [...snapshot.periodExpenses, ...snapshot.expenses].filter(
     (row, index, rows) => rows.findIndex((item) => item.id === row.id) === index,
   );
+  const activityIncomes = [...snapshot.periodIncomes, ...snapshot.incomes].filter(
+    (row, index, rows) => rows.findIndex((item) => item.id === row.id) === index,
+  );
   const activity = buildActivityItems({
     expenses: activityExpenses,
-    incomes: snapshot.incomes,
+    incomes: activityIncomes,
     contributions: snapshot.contributions,
     goals: snapshot.goals,
     members,
     householdId: snapshot.householdId,
-    limit: ACTIVITY_FEED,
   });
 
   return {

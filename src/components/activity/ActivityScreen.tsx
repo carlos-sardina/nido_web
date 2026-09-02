@@ -1,20 +1,67 @@
 "use client";
 
 import { Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/nido/Button";
 import { EmptyInline } from "@/components/nido/EmptyState";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
+  ACTIVITY_PAGE_SIZE,
+  filterActivityByScope,
   findActivitySource,
   formatCompactMoney,
   formatRelativeActivityDate,
+  type ActivityScopeFilter,
   type ExpenseRow,
   type GoalRow,
   type IncomeRow,
 } from "@/lib/nido/financial";
 import type { DashboardQuery } from "@/lib/nido/use-dashboard";
 import { P } from "@/lib/palette";
+
+const SCOPE_FILTERS: { value: ActivityScopeFilter; label: string }[] = [
+  { value: "all", label: "Todo" },
+  { value: "shared", label: "Compartido" },
+  { value: "personal", label: "Personal" },
+];
+
+function ScopeFilterBar({
+  value,
+  onChange,
+}: {
+  value: ActivityScopeFilter;
+  onChange: (next: ActivityScopeFilter) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Filtrar actividad"
+      className="flex gap-1 rounded-full p-1"
+      style={{ backgroundColor: P.sub }}
+    >
+      {SCOPE_FILTERS.map((filter) => {
+        const selected = filter.value === value;
+        return (
+          <button
+            key={filter.value}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(filter.value)}
+            className="flex-1 h-8 rounded-full text-caption font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            style={{
+              backgroundColor: selected ? P.card : "transparent",
+              color: selected ? P.brnDp : P.muted,
+              boxShadow: selected ? "0 1px 3px rgba(47,42,40,0.08)" : undefined,
+            }}
+          >
+            {filter.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function activityCaption(item: {
   type: string;
@@ -36,6 +83,7 @@ function activityCaption(item: {
 
 export function ActivityScreen({
   dashboard,
+  currentUserId,
   onOpenExpense,
   onOpenIncome,
   onOpenGoal,
@@ -44,6 +92,7 @@ export function ActivityScreen({
   onRegisterContribution,
 }: {
   dashboard: DashboardQuery;
+  currentUserId: string | null;
   onOpenExpense: (expense: ExpenseRow) => void;
   onOpenIncome: (income: IncomeRow) => void;
   onOpenGoal: (goal: GoalRow) => void;
@@ -51,9 +100,20 @@ export function ActivityScreen({
   onRegisterIncome: () => void;
   onRegisterContribution: () => void;
 }) {
-  const { isLoading, refreshing, error, model, refresh } = dashboard;
-  const activity = model?.activity ?? [];
+  const { isLoading, refreshing, loadingMore, error, model, refresh, loadMoreActivity, activityHasMore } =
+    dashboard;
+  const [scopeFilter, setScopeFilter] = useState<ActivityScopeFilter>("all");
+  const [visibleCount, setVisibleCount] = useState(ACTIVITY_PAGE_SIZE);
+  const activity = useMemo(() => model?.activity ?? [], [model]);
+  const filteredActivity = useMemo(
+    () => filterActivityByScope(activity, scopeFilter, currentUserId),
+    [activity, scopeFilter, currentUserId],
+  );
+  const visibleActivity = filteredActivity.slice(0, visibleCount);
   const empty = Boolean(model && activity.length === 0);
+  const filteredEmpty = Boolean(model && activity.length > 0 && filteredActivity.length === 0);
+  const canRevealMore = filteredActivity.length > visibleCount;
+  const showLoadMore = !empty && (canRevealMore || activityHasMore);
   const health = model?.health;
   const chips = health?.available
     ? [
@@ -68,6 +128,10 @@ export function ActivityScreen({
       ].filter((chip): chip is { label: string; value: string } => chip != null)
     : [];
 
+  useEffect(() => {
+    setVisibleCount(ACTIVITY_PAGE_SIZE);
+  }, [scopeFilter]);
+
   const openItem = (item: (typeof activity)[number]) => {
     if (!model) return;
     const source = findActivitySource(item, {
@@ -79,6 +143,30 @@ export function ActivityScreen({
     if (source?.type === "income") onOpenIncome(source.income);
     if (source?.type === "goal_contribution") onOpenGoal(source.goal);
   };
+
+  const onLoadMore = () => {
+    if (canRevealMore) {
+      setVisibleCount((count) => count + ACTIVITY_PAGE_SIZE);
+      return;
+    }
+    void loadMoreActivity().then(() => {
+      setVisibleCount((count) => count + ACTIVITY_PAGE_SIZE);
+    });
+  };
+
+  const loadMoreButton = showLoadMore ? (
+    <div className="mt-4">
+      <Button
+        variant="secondary"
+        size="compact"
+        onClick={onLoadMore}
+        loading={loadingMore}
+        disabled={loadingMore}
+      >
+        Cargar más
+      </Button>
+    </div>
+  ) : null;
 
   return (
     <PullToRefresh
@@ -167,7 +255,13 @@ export function ActivityScreen({
             </div>
           ) : null}
 
-          <div className="px-6 pb-6 relative">
+          {!empty && model ? (
+            <div className="px-6 pt-1 pb-3">
+              <ScopeFilterBar value={scopeFilter} onChange={setScopeFilter} />
+            </div>
+          ) : null}
+
+          <div className="px-6 pb-6">
             {empty ? (
               <div className="rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
                 <EmptyInline
@@ -187,42 +281,82 @@ export function ActivityScreen({
                   </div>
                 </EmptyInline>
               </div>
+            ) : filteredEmpty ? (
+              <div className="rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
+                <EmptyInline
+                  title={
+                    scopeFilter === "shared"
+                      ? "Sin movimientos compartidos."
+                      : "Sin movimientos tuyos."
+                  }
+                  description={
+                    activityHasMore
+                      ? "No hay nada con este filtro en lo que ya cargamos. Puedes intentar con más historial."
+                      : "No hay nada con este filtro en la actividad reciente de tu Nido."
+                  }
+                >
+                  <div className="mt-4">
+                    {activityHasMore ? (
+                      <Button
+                        variant="secondary"
+                        size="compact"
+                        onClick={onLoadMore}
+                        loading={loadingMore}
+                        disabled={loadingMore}
+                      >
+                        Cargar más
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="compact"
+                        onClick={() => setScopeFilter("all")}
+                      >
+                        Ver toda la actividad
+                      </Button>
+                    )}
+                  </div>
+                </EmptyInline>
+              </div>
             ) : (
               <>
-                <div
-                  className="absolute top-0 bottom-0 w-px"
-                  style={{ left: "2.125rem", backgroundColor: P.sub }}
-                />
-                <div className="space-y-3">
-                  {activity.map((item) => (
-                    <div key={item.id} className="flex gap-3 items-start">
-                      <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 z-10 text-sm shadow-sm"
-                        style={{ backgroundColor: P.card }}
-                      >
-                        {item.icon}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => openItem(item)}
-                        className="flex-1 rounded-2xl p-3 shadow-sm text-left transition-transform active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        style={{ backgroundColor: P.card, border: `1px solid ${P.border}` }}
-                      >
-                        <p className="text-xs font-medium leading-snug" style={{ color: P.text }}>
-                          {item.title}
-                        </p>
-                        <div className="flex items-center justify-between mt-1 gap-2">
-                          <span className="text-[9px]" style={{ color: P.muted }}>
-                            {activityCaption(item)}
-                          </span>
-                          <span className="text-[10px] font-bold font-sans flex-shrink-0" style={{ color: P.text }}>
-                            {formatCompactMoney(item.amount)}
-                          </span>
+                <div className="relative">
+                  <div
+                    className="absolute top-0 bottom-0 w-px"
+                    style={{ left: "2.125rem", backgroundColor: P.sub }}
+                  />
+                  <div className="space-y-3">
+                    {visibleActivity.map((item) => (
+                      <div key={item.id} className="flex gap-3 items-start">
+                        <div
+                          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 z-10 text-sm shadow-sm"
+                          style={{ backgroundColor: P.card }}
+                        >
+                          {item.icon}
                         </div>
-                      </button>
-                    </div>
-                  ))}
+                        <button
+                          type="button"
+                          onClick={() => openItem(item)}
+                          className="flex-1 rounded-2xl p-3 shadow-sm text-left transition-transform active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          style={{ backgroundColor: P.card, border: `1px solid ${P.border}` }}
+                        >
+                          <p className="text-xs font-medium leading-snug" style={{ color: P.text }}>
+                            {item.title}
+                          </p>
+                          <div className="flex items-center justify-between mt-1 gap-2">
+                            <span className="text-[9px]" style={{ color: P.muted }}>
+                              {activityCaption(item)}
+                            </span>
+                            <span className="text-[10px] font-bold font-sans flex-shrink-0" style={{ color: P.text }}>
+                              {formatCompactMoney(item.amount)}
+                            </span>
+                          </div>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+                {loadMoreButton}
               </>
             )}
           </div>

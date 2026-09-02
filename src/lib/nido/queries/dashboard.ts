@@ -1,4 +1,5 @@
 import { getCurrentMonthRange, type MonthRange } from "../financial/dates.ts";
+import { ACTIVITY_PAGE_SIZE } from "../financial/activity.ts";
 import type { DashboardSnapshot } from "../financial/types.ts";
 import { nidoErrorFromUnknown, nidoFail, nidoOk, type NidoResult } from "../errors";
 import { nidoClient, requireUser, type NidoClient } from "../session";
@@ -20,6 +21,8 @@ import {
   type RecurringIncomeQueryRow,
 } from "./map.ts";
 
+const DEFAULT_RECENT_LIMIT = ACTIVITY_PAGE_SIZE;
+
 const EXPENSE_SELECT =
   "id, household_id, category_id, amount, description, occurred_at, payer_id, scope, distribution_method, recurring_id, created_by, created_at, deleted_at, categories(id, name, icon), expense_splits(id, expense_id, member_id, amount, percentage), expense_refunds(id, expense_id, amount, occurred_at, created_by, created_at, expense_refund_splits(id, refund_id, member_id, amount, percentage)), payer:profiles!expenses_payer_id_fkey(id, display_name)";
 
@@ -32,8 +35,6 @@ const GOAL_SELECT =
 const CONTRIBUTION_SELECT =
   "id, goal_id, member_id, amount, contributed_at, created_by, created_at, deleted_at, member:profiles!goal_contributions_member_id_fkey(id, display_name), goals(id, name, household_id)";
 
-const RECENT_LIMIT = 20;
-
 /**
  * Reads the active Nido's financial facts for the dashboard.
  *
@@ -45,12 +46,14 @@ export async function fetchDashboardSnapshot(
   householdId: string,
   range: MonthRange = getCurrentMonthRange(),
   supabase: NidoClient = nidoClient(),
+  recentLimit: number = DEFAULT_RECENT_LIMIT,
 ): Promise<NidoResult<DashboardSnapshot>> {
   const auth = await requireUser(supabase);
   if (auth.ok === false) return nidoFail(auth.error.code);
   if (!householdId) return nidoFail("not_a_member");
 
   const client = auth.data.supabase;
+  const historyLimit = Math.max(recentLimit, DEFAULT_RECENT_LIMIT);
 
   const [
     periodExpensesRes,
@@ -79,7 +82,7 @@ export async function fetchDashboardSnapshot(
       .is("deleted_at", null)
       .order("occurred_at", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(RECENT_LIMIT),
+      .limit(historyLimit),
     client
       .from("incomes")
       .select(INCOME_SELECT)
@@ -96,7 +99,7 @@ export async function fetchDashboardSnapshot(
       .is("deleted_at", null)
       .order("occurred_at", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(RECENT_LIMIT),
+      .limit(historyLimit),
     client
       .from("recurring_incomes")
       .select("id, household_id, member_id, amount, description, is_active, frequency, end_date")
@@ -125,7 +128,7 @@ export async function fetchDashboardSnapshot(
       .select(CONTRIBUTION_SELECT)
       .is("deleted_at", null)
       .order("contributed_at", { ascending: false })
-      .limit(40),
+      .limit(historyLimit),
   ]);
 
   const firstError =

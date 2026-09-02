@@ -1,10 +1,15 @@
 export {
+  ACTIVITY_PAGE_SIZE,
+  activityItemScope,
   buildActivityItems,
   contributionToActivity,
   expenseToActivity,
+  filterActivityByScope,
   findActivitySource,
   incomeToActivity,
+  isOwnPersonalActivity,
   refundToActivity,
+  type ActivityScopeFilter,
 } from "./activity.ts";
 export {
   BUDGET_NEAR_LIMIT_PERCENT,

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildActivityItems, findActivitySource } from "./activity.ts";
+import {
+  ACTIVITY_PAGE_SIZE,
+  buildActivityItems,
+  filterActivityByScope,
+  findActivitySource,
+} from "./activity.ts";
 import type { ExpenseRow, GoalContributionRow, GoalRow, IncomeRow } from "./types.ts";
 import type { HouseholdMemberView } from "../types.ts";
 
@@ -150,6 +155,19 @@ describe("activity transformation", () => {
     assert.equal(items[0].amount, 4000);
     assert.equal(items[0].metadata.goalId, "g1");
     assert.equal(items[0].metadata.goalName, "Viaje a Japón");
+    assert.equal(items[0].metadata.scope, "shared");
+  });
+
+  it("takes the contribution scope from its own goal", () => {
+    const items = build({
+      expenses: [],
+      incomes: [],
+      contributions: [contribution, { ...contribution, id: "gc2", goalId: "g2" }],
+      goals: [goal, { ...goal, id: "g2", name: "Laptop", scope: "personal" }],
+    });
+
+    assert.equal(items.find((item) => item.sourceId === "gc1")?.metadata.scope, "shared");
+    assert.equal(items.find((item) => item.sourceId === "gc2")?.metadata.scope, "personal");
   });
 
   it("builds a mixed feed from expenses, incomes, and contributions", () => {
@@ -454,5 +472,102 @@ describe("activity transformation", () => {
     }
     assert.equal(incomeSource?.type, "income");
     if (incomeSource?.type === "income") assert.equal(incomeSource.income.id, "i1");
+  });
+});
+
+describe("activity scope filter", () => {
+  it("pages the activity feed in batches of 30", () => {
+    assert.equal(ACTIVITY_PAGE_SIZE, 30);
+  });
+  const personalExpense: ExpenseRow = {
+    ...expense,
+    id: "e-personal",
+    description: "Café",
+    scope: "personal",
+    occurredAt: "2026-08-19",
+  };
+
+  function mixed() {
+    return build({ expenses: [expense, personalExpense] });
+  }
+
+  it("keeps every movement under 'todo'", () => {
+    const items = mixed();
+    assert.deepEqual(filterActivityByScope(items, "all"), items);
+  });
+
+  it("keeps only shared movements under 'compartido'", () => {
+    const items = filterActivityByScope(mixed(), "shared");
+    assert.deepEqual(
+      items.map((item) => item.sourceId),
+      ["e1", "gc1"],
+    );
+  });
+
+  it("keeps only the viewer's own personal movements", () => {
+    const items = filterActivityByScope(mixed(), "personal", "carlos");
+    assert.deepEqual(
+      items.map((item) => item.sourceId),
+      ["e-personal"],
+    );
+  });
+
+  it("excludes another member's income and personal expense from 'personal'", () => {
+    const dianaPersonal: ExpenseRow = {
+      ...personalExpense,
+      id: "e-diana",
+      payerId: "diana",
+      createdBy: "diana",
+      payer: { id: "diana", displayName: "Diana Vega" },
+    };
+    const items = filterActivityByScope(
+      build({ expenses: [expense, personalExpense, dianaPersonal] }),
+      "personal",
+      "carlos",
+    );
+    assert.deepEqual(
+      items.map((item) => item.sourceId),
+      ["e-personal"],
+    );
+    assert.equal(items.some((item) => item.sourceId === "i1"), false);
+    assert.equal(items.some((item) => item.sourceId === "e-diana"), false);
+  });
+
+  it("keeps the viewer's own income under 'personal'", () => {
+    const items = filterActivityByScope(
+      build({ expenses: [], contributions: [], goals: [] }),
+      "personal",
+      "diana",
+    );
+    assert.deepEqual(
+      items.map((item) => item.sourceId),
+      ["i1"],
+    );
+  });
+
+  it("follows the original expense when filtering a refund", () => {
+    const withRefund: ExpenseRow = {
+      ...personalExpense,
+      refunds: [
+        {
+          id: "rf-personal",
+          expenseId: "e-personal",
+          amount: 50,
+          occurredAt: "2026-08-23",
+          createdBy: "carlos",
+          createdAt: "2026-08-23T10:00:00.000Z",
+          splits: [],
+        },
+      ],
+    };
+    const items = build({
+      expenses: [withRefund],
+      incomes: [],
+      contributions: [],
+      goals: [],
+    });
+
+    assert.equal(filterActivityByScope(items, "shared", "carlos").length, 0);
+    assert.equal(filterActivityByScope(items, "personal", "carlos").length, 2);
   });
 });

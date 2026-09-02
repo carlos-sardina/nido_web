@@ -248,6 +248,7 @@ export function MainApp({
           {tab === "activity"  && (
             <ActivityScreen
               dashboard={dashboard}
+              currentUserId={user?.id ?? null}
               onOpenExpense={setSelectedExpense}
               onOpenIncome={setSelectedIncome}
               onOpenGoal={setSelectedGoal}
