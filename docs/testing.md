@@ -222,7 +222,7 @@ Requires migration `20260821000000_nido_categories_and_create_expense.sql` on th
 8. Register a **shared** gasto with two active members → **Quién pagó** defaults to the writer (titular); it can be switched to the other member. **Quiénes participan** does not appear; both members are participants. `expense_splits` amounts sum to the expense.
 9. With **three or more** members, a shared gasto shows **Quiénes participan**. Unselected members are not split.
 10. Double-tap **Guardar gasto** → one row. Button shows **Guardando…** and stays disabled.
-11. A date in a previous month updates activity if recent, but does not change “este mes” totals.
+11. A date outside the current `America/Mexico_City` month is rejected. The date picker only offers days of this month.
 12. A user who already left the Nido cannot register a gasto there.
 13. Errors stay in Spanish. No PostgREST / `nido.*` raw codes.
 
@@ -321,7 +321,7 @@ Manual runs actually executed for this checklist: none in this phase.
 Requires migration `20260821220000_nido_income_mutations.sql` on the linked project (plus prior financial migrations). Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. SQL cases `I01`–`I13` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). The manual UI checklist below was **not** executed in a live app session.
 
 A. **Empty state** — Nido sin ingresos: **Sin ingresos todavía** + **Registrar un ingreso**.
-B. **Crear ingreso** — Home `+` → Registrar un ingreso. Monto > 0, descripción, categoría de ingreso, fecha (hoy por default en America/Mexico_City).
+B. **Crear ingreso** — Home `+` → Registrar un ingreso. Monto > 0, descripción, categoría de ingreso, fecha del mes actual (hoy por default en America/Mexico_City).
 C. **Listado** — Ingresos tab muestra filas reales del mes. Home muestra el mismo `periodIncome` del snapshot.
 D. **Editar como creador** — Editar visible; mismas validaciones; `member_id` / `created_by` no cambian.
 E. **Eliminar como creador** — confirmación **¿Eliminar este ingreso?** / **Esta acción quitará el ingreso de tus totales y actividad.** Cancelar (ghost) + Eliminar ingreso (danger).
@@ -342,7 +342,7 @@ Manual runs actually executed for this checklist: none in this phase.
 Requires migration `20260821230000_nido_budget_mutations.sql` on the linked project (plus prior financial migrations). Unit tests with mocks do **not** replace this checklist and are **not** real RLS proofs. SQL cases `K01`–`K16` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). The manual UI checklist below was **not** executed in a live app session. Prefix **K** is used because **B01–B09** already exist as Luis / never-member cases and **P01–P07** already exist as child-table SELECT / profile cases. Mapping to the requested B01–B16 list is 1:1.
 
 A. **Empty state** — Nido sin presupuesto del mes: **Sin presupuestos este mes** + **Crear un presupuesto**. Home muestra la misma empty copy.
-B. **Crear** — Home `+` → Crear un presupuesto. Categoría de gasto activa o **Nueva categoría** (nombre + emoji), monto > 0, mes calendario (America/Mexico_City). `member_id` NULL.
+B. **Crear** — Home `+` → Crear un presupuesto. Categoría de gasto activa o **Nueva categoría** (nombre + emoji), monto > 0. No se elige mes: se activa el mes actual (America/Mexico_City). `member_id` NULL.
 C. **Listado** — overlay Presupuestos desde Home. Límite, gastado derivado, restante, porcentaje, excedido.
 D. **Editar como creador** — Editar visible; mismas validaciones; `created_by` / `household_id` no se envían como autorización.
 E. **Eliminar como creador** — confirmación. Soft-delete (`deleted_at`). Los gastos no se eliminan.

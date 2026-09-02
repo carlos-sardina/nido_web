@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  currentMonthDateMessage,
   formatRelativeActivityDate,
   getCurrentMonthRange,
   getMonthRange,
@@ -9,6 +10,7 @@ import {
   shiftMonth,
   isCalendarDate,
   isCalendarMonthRange,
+  isCurrentMonthDate,
   isDateInRange,
   isoDate,
   monthRangeFromIsoDate,
@@ -71,6 +73,19 @@ describe("getCurrentMonthRange", () => {
     assert.equal(september.month, 9);
     assert.equal(september.start, "2026-09-01");
     assert.equal(september.end, "2026-09-30");
+  });
+});
+
+describe("isCurrentMonthDate", () => {
+  it("accepts only dates in the America/Mexico_City calendar month", () => {
+    const stillAugust = new Date("2026-09-01T04:00:00.000Z");
+    assert.equal(isCurrentMonthDate("2026-08-01", stillAugust), true);
+    assert.equal(isCurrentMonthDate("2026-08-31", stillAugust), true);
+    assert.equal(isCurrentMonthDate("2026-07-31", stillAugust), false);
+    assert.equal(isCurrentMonthDate("2026-09-01", stillAugust), false);
+    assert.equal(isCurrentMonthDate("2026-02-31", stillAugust), false);
+    assert.equal(currentMonthDateMessage("2026-09-01", stillAugust), "La fecha debe ser del mes actual.");
+    assert.equal(currentMonthDateMessage("2026-08-15", stillAugust), null);
   });
 });
 

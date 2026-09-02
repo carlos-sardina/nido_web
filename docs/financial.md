@@ -182,7 +182,7 @@ Home `+` → **Crear un presupuesto**, or Home **Presupuesto del mes** → Presu
 | --- | --- |
 | Limit | `budgets.amount` `numeric(12,2)`, must be `> 0` |
 | Category | `category_id` of an active **expense** category in the same household. The form can create a custom category (name + emoji) before saving. |
-| Period | monthly only: `start_date` = first calendar day, `end_date` = last calendar day |
+| Period | monthly only: `start_date` = first calendar day, `end_date` = last calendar day. Create does not pick a month; it activates the current `America/Mexico_City` month immediately. |
 | Scope | Nido (`member_id` NULL) or personal (`member_id = auth.uid()` when `p_personal`). The client never sends another member’s id. |
 | created_by | `auth.uid()` |
 
@@ -221,7 +221,7 @@ Home `+` → **Registrar un gasto** → form → `createExpense()` → `create_e
 | Amount | `expenses.amount` `numeric(12,2)`, must be `> 0` |
 | Description | trimmed text, required in this phase, max 80 |
 | Category | `category_id` of an active expense category in the same household. The form can create a custom category (name + emoji) before saving. |
-| Date | `occurred_at` calendar date |
+| Date | `occurred_at` calendar date in the current `America/Mexico_City` month |
 | Payer | `expenses.payer_id` of an **active** household member. The form defaults to the writer (titular). Shared expenses may pick another member. `created_by` stays `auth.uid()`. |
 | Personal | `scope = personal`, `distribution_method = fixed`, exactly one split at 100% for the payer (the writer) |
 | Shared | `scope = shared`. Split method comes from `households.default_split_method`, not from the client. `equal` → `distribution_method = equal` (current equal shares). `proportional` → `distribution_method = income_based` from confirmed `incomes` of the participants in the current `America/Mexico_City` calendar month. All participants with zero income in that month → `nido.invalid_split`. Recurring `income_based` still uses active `recurring_incomes` only. |
@@ -250,6 +250,7 @@ Client and RPC both reject:
 - empty / whitespace description
 - category missing, archived, wrong type, or other household
 - invalid calendar date
+- a date outside the current `America/Mexico_City` month (client)
 - splits that do not sum, have duplicates, non-positive amounts, or inactive members
 
 Messages are Spanish `NidoError` copy. Raw Supabase / Postgres text is never shown.
@@ -322,7 +323,7 @@ The Ingresos tab lists `model.periodIncomes` from the same snapshot. Home shows 
 | Amount | `incomes.amount` `numeric(12,2)`, must be `> 0` |
 | Description | trimmed text, required in this phase, max 80 |
 | Category | `category_id` of Sueldo or Extra in the same household. Extra is one-time; recurring templates use Sueldo. |
-| Date | `occurred_at` calendar date, default today in `America/Mexico_City` |
+| Date | `occurred_at` calendar date in the current `America/Mexico_City` month, default today |
 | Earner / created_by | `auth.uid()` (v1 does not let the UI pick another member) |
 | Recurrence | One-time rows keep `recurring_id` NULL. Recurring templates live in `recurring_*` and become movements only after `materialize_recurring_*` |
 

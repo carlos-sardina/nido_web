@@ -16,6 +16,7 @@ import { Text } from "@/components/nido/Typography";
 import { canSubmitIncome, createIncome, updateIncome } from "@/lib/nido/incomes";
 import {
   amountToIncomeInput,
+  getCurrentMonthRange,
   incomeAmountMessage,
   incomeDateMessage,
   incomeDescriptionMessage,
@@ -64,6 +65,7 @@ export function IncomeFlow({
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
 
+  const monthRange = getCurrentMonthRange();
   const amountId = `${ids}-amount`;
   const descriptionId = `${ids}-description`;
   const dateId = `${ids}-date`;
@@ -242,6 +244,8 @@ export function IncomeFlow({
                 id={dateId}
                 type="date"
                 value={occurredAt}
+                min={monthRange.start}
+                max={monthRange.end}
                 onChange={(event) => {
                   setOccurredAt(event.target.value);
                   setErrors((current) => ({ ...current, date: undefined }));

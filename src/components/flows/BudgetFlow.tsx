@@ -7,20 +7,15 @@ import { ChoiceCard } from "@/components/nido/ChoiceCard";
 import {
   Field,
   FieldError,
-  FieldLabel,
   MoneyField,
-  TextInput,
 } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
 import { canSubmitBudget, createBudget, updateBudget } from "@/lib/nido/budgets";
 import {
   amountToBudgetInput,
   budgetAmountMessage,
-  budgetDateMessage,
-  budgetMonthInput,
   getCurrentMonthRange,
   parseBudgetAmountInput,
-  parseBudgetMonthInput,
   withCurrentCategory,
   type HouseholdCategory,
 } from "@/lib/nido/financial";
@@ -30,7 +25,6 @@ import type { HouseholdMemberView } from "@/lib/nido/types";
 type FieldErrors = {
   amount?: string;
   category?: string;
-  month?: string;
   form?: string;
 };
 
@@ -65,16 +59,12 @@ export function BudgetFlow({
   );
   const [categoryId, setCategoryId] = useState(() => budget?.categoryId ?? "");
   const [personal, setPersonal] = useState(() => Boolean(budget?.memberId));
-  const [month, setMonth] = useState(
-    () => budgetMonthInput(budget?.startDate ?? getCurrentMonthRange().start),
-  );
   const [categories, setCategories] = useState<HouseholdCategory[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
 
   const amountId = `${ids}-amount`;
-  const monthId = `${ids}-month`;
   const categoryLabelId = `${ids}-category`;
 
   useEffect(() => {
@@ -120,8 +110,6 @@ export function BudgetFlow({
     if (amountMessage) nextErrors.amount = amountMessage;
 
     if (!categoryId) nextErrors.category = "Elige una categoría.";
-    const monthMessage = budgetDateMessage(month);
-    if (monthMessage) nextErrors.month = monthMessage;
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -129,13 +117,8 @@ export function BudgetFlow({
     }
 
     const parsedAmount = parseBudgetAmountInput(amount);
-    const range = parseBudgetMonthInput(month);
     if (parsedAmount == null) {
       setErrors({ amount: "Ingresa un monto válido." });
-      return;
-    }
-    if (!range) {
-      setErrors({ month: "El periodo no es válido." });
       return;
     }
 
@@ -147,7 +130,7 @@ export function BudgetFlow({
       householdId,
       categoryId,
       amount: parsedAmount,
-      startDate: range.start,
+      startDate: budget?.startDate ?? getCurrentMonthRange().start,
       personal,
       activeMemberIds: members.map((member) => member.userId),
       allowedCategoryIds: categories.map((category) => category.id),
@@ -199,7 +182,7 @@ export function BudgetFlow({
               ? personal
                 ? "Este es tu presupuesto personal. Solo tú puedes editarlo."
                 : "Este es un presupuesto del Nido. El gasto se calcula de tus gastos reales."
-              : "Elige si el límite es del Nido o solo tuyo. El gasto se calcula de tus gastos reales."
+              : "Se activa este mes. Elige si el límite es del Nido o solo tuyo. El gasto se calcula de tus gastos reales."
           }
         />
 
@@ -250,23 +233,6 @@ export function BudgetFlow({
                 describedBy={errors.amount ? `${amountId}-error` : undefined}
               />
               <FieldError id={`${amountId}-error`}>{errors.amount}</FieldError>
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor={monthId}>Mes</FieldLabel>
-              <TextInput
-                id={monthId}
-                type="month"
-                value={month}
-                onChange={(event) => {
-                  setMonth(event.target.value);
-                  setErrors((current) => ({ ...current, month: undefined }));
-                }}
-                invalid={Boolean(errors.month)}
-                disabled={submitting}
-                aria-describedby={errors.month ? `${monthId}-error` : undefined}
-              />
-              <FieldError id={`${monthId}-error`}>{errors.month}</FieldError>
             </Field>
 
             <Field>

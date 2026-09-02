@@ -1,5 +1,5 @@
 import type { NidoErrorCode } from "../types.ts";
-import { isCalendarDate } from "./dates.ts";
+import { currentMonthDateMessage, isCurrentMonthDate } from "./dates.ts";
 import { MAX_MONEY_AMOUNT, parseMoney, roundMoney } from "./money.ts";
 import { allocateEqualSplits, personalSplit, splitIssue, type SplitDraft } from "./splits.ts";
 import type { ExpenseScope } from "./types.ts";
@@ -149,6 +149,10 @@ export function expenseDescriptionMessage(raw: string): string | null {
   return null;
 }
 
+export function expenseDateMessage(raw: string): string | null {
+  return currentMonthDateMessage(raw);
+}
+
 export function buildCreateExpensePayload(
   input: CreateExpenseRequest,
   writerId: string,
@@ -177,7 +181,7 @@ export function buildCreateExpensePayload(
   }
   const description = normalizeExpenseDescription(input.description);
 
-  if (!isCalendarDate(input.occurredAt)) return { ok: false, error: "invalid_date" };
+  if (!isCurrentMonthDate(input.occurredAt)) return { ok: false, error: "invalid_date" };
 
   if (!input.categoryId || !input.allowedCategoryIds.includes(input.categoryId)) {
     return { ok: false, error: "invalid_category" };

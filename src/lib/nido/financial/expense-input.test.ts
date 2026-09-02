@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  getCurrentMonthRange,
+  shiftMonth,
+  todayIso,
+} from "./dates.ts";
+import {
   ALL_MEMBERS_PAYER,
   amountToExpenseInput,
   buildCreateExpensePayload,
   expenseAmountMessage,
+  expenseDateMessage,
   expenseDescriptionMessage,
   normalizeExpenseDescription,
   parseExpenseAmountInput,
@@ -23,7 +29,7 @@ function request(overrides: Partial<Parameters<typeof buildCreateExpensePayload>
     categoryId: "cat-h1",
     amount: 700,
     description: "Internet",
-    occurredAt: "2026-08-21",
+    occurredAt: todayIso(),
     scope: "personal" as const,
     participantIds: members,
     activeMemberIds: members,
@@ -58,6 +64,18 @@ describe("expenseAmountMessage", () => {
     assert.match(expenseAmountMessage("10.123"), /válido/i);
     assert.match(expenseAmountMessage("99999999999"), /grande/i);
     assert.equal(expenseAmountMessage("700"), null);
+  });
+});
+
+describe("expense date", () => {
+  it("requires a date in the current calendar month", () => {
+    const range = getCurrentMonthRange();
+    assert.match(expenseDateMessage(""), /válida/i);
+    assert.match(expenseDateMessage("2026-02-31"), /válida/i);
+    assert.match(expenseDateMessage(shiftMonth(range, -1).end), /mes actual/i);
+    assert.match(expenseDateMessage(shiftMonth(range, 1).start), /mes actual/i);
+    assert.equal(expenseDateMessage(range.start), null);
+    assert.equal(expenseDateMessage(todayIso()), null);
   });
 });
 
@@ -133,14 +151,21 @@ describe("buildCreateExpensePayload", () => {
     if (other.ok === false) assert.equal(other.error, "invalid_category");
   });
 
-  it("accepts a valid calendar date including a past day", () => {
-    const result = buildCreateExpensePayload(request({ occurredAt: "2026-01-15" }), "diana");
-    assert.equal(result.ok, true);
+  it("accepts any day in the current calendar month", () => {
+    const range = getCurrentMonthRange();
+    assert.equal(buildCreateExpensePayload(request({ occurredAt: range.start }), "diana").ok, true);
+    assert.equal(buildCreateExpensePayload(request({ occurredAt: range.end }), "diana").ok, true);
   });
 
-  it("does not invent a future-date restriction", () => {
-    const result = buildCreateExpensePayload(request({ occurredAt: "2099-01-01" }), "diana");
-    assert.equal(result.ok, true);
+  it("rejects a date outside the current month", () => {
+    const previous = shiftMonth(getCurrentMonthRange(), -1);
+    const next = shiftMonth(getCurrentMonthRange(), 1);
+    const past = buildCreateExpensePayload(request({ occurredAt: previous.end }), "diana");
+    const future = buildCreateExpensePayload(request({ occurredAt: next.start }), "diana");
+    assert.equal(past.ok, false);
+    if (past.ok === false) assert.equal(past.error, "invalid_date");
+    assert.equal(future.ok, false);
+    if (future.ok === false) assert.equal(future.error, "invalid_date");
   });
 
   it("rejects an impossible date", () => {

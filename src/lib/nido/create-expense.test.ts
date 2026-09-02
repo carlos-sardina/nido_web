@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { canSubmitExpense, createExpenseWithAuth } from "./create-expense.ts";
+import { todayIso } from "./financial/dates.ts";
 
 const validInput = {
   householdId: "h1",
   categoryId: "c1",
   amount: 700,
   description: "Internet",
-  occurredAt: "2026-08-21",
+  occurredAt: todayIso(),
   scope: "personal" as const,
   participantIds: ["u1"],
   activeMemberIds: ["u1"],

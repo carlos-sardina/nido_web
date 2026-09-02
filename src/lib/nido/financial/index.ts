@@ -59,12 +59,14 @@ export {
 } from "./balance.ts";
 export { buildDashboardViewModel } from "./dashboard.ts";
 export {
+  currentMonthDateMessage,
   formatRelativeActivityDate,
   getCurrentMonthRange,
   getMonthRange,
   greetingForNow,
   isCalendarDate,
   isCalendarMonthRange,
+  isCurrentMonthDate,
   isDateInRange,
   isSameMonth,
   monthRangeFromIsoDate,
@@ -131,6 +133,7 @@ export {
   amountToExpenseInput,
   buildCreateExpensePayload,
   expenseAmountMessage,
+  expenseDateMessage,
   expenseDescriptionMessage,
   isAllMembersPayer,
   normalizeExpenseDescription,

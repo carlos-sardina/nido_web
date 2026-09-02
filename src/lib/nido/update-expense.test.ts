@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { updateExpenseWithAuth } from "./update-expense.ts";
+import { todayIso } from "./financial/dates.ts";
 
 const validInput = {
   expenseId: "e1",
@@ -8,7 +9,7 @@ const validInput = {
   categoryId: "c1",
   amount: 700,
   description: "Internet",
-  occurredAt: "2026-08-21",
+  occurredAt: todayIso(),
   scope: "personal" as const,
   participantIds: ["u1"],
   activeMemberIds: ["u1"],

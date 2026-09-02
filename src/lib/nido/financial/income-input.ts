@@ -1,5 +1,5 @@
 import type { NidoErrorCode } from "../types.ts";
-import { isCalendarDate } from "./dates.ts";
+import { currentMonthDateMessage, isCurrentMonthDate } from "./dates.ts";
 import {
   amountToExpenseInput,
   expenseAmountMessage,
@@ -58,9 +58,7 @@ export function incomeDescriptionMessage(raw: string): string | null {
 }
 
 export function incomeDateMessage(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed || !isCalendarDate(trimmed)) return "La fecha no es válida.";
-  return null;
+  return currentMonthDateMessage(raw);
 }
 
 /**
@@ -86,7 +84,7 @@ export function buildCreateIncomePayload(
   }
   const description = normalizeIncomeDescription(input.description);
 
-  if (!isCalendarDate(input.occurredAt)) return { ok: false, error: "invalid_date" };
+  if (!isCurrentMonthDate(input.occurredAt)) return { ok: false, error: "invalid_date" };
 
   if (!input.categoryId || !input.allowedCategoryIds.includes(input.categoryId)) {
     return { ok: false, error: "invalid_category" };

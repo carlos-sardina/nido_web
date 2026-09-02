@@ -17,7 +17,9 @@ import {
   ALL_MEMBERS_PAYER,
   amountToExpenseInput,
   expenseAmountMessage,
+  expenseDateMessage,
   expenseDescriptionMessage,
+  getCurrentMonthRange,
   isPaidByAllMembers,
   parseExpenseAmountInput,
   resolveExpenseParticipantIds,
@@ -112,6 +114,7 @@ export function ExpenseFlow({
   const participantCopy = !isEditing && defaultSplitMethod === "proportional"
     ? "Participa según el ingreso del mes"
     : "Participa en partes iguales";
+  const monthRange = getCurrentMonthRange();
   const amountId = `${ids}-amount`;
   const descriptionId = `${ids}-description`;
   const dateId = `${ids}-date`;
@@ -174,7 +177,8 @@ export function ExpenseFlow({
     if (descriptionMessage) nextErrors.description = descriptionMessage;
 
     if (!categoryId) nextErrors.category = "Elige una categoría.";
-    if (!occurredAt) nextErrors.date = "La fecha no es válida.";
+    const dateMessage = expenseDateMessage(occurredAt);
+    if (dateMessage) nextErrors.date = dateMessage;
     if (scope == null) nextErrors.scope = "Elige si el gasto es personal o compartido.";
     const resolvedPayerId =
       scope == null
@@ -322,6 +326,8 @@ export function ExpenseFlow({
                 id={dateId}
                 type="date"
                 value={occurredAt}
+                min={monthRange.start}
+                max={monthRange.end}
                 onChange={(event) => {
                   setOccurredAt(event.target.value);
                   setErrors((current) => ({ ...current, date: undefined }));

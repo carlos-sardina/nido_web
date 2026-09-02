@@ -141,6 +141,28 @@ export function isCalendarDate(value: string): boolean {
   return isoDate(year, month, day) === value;
 }
 
+/** True when `iso` is a valid calendar date in the current Nido month. */
+export function isCurrentMonthDate(
+  iso: string,
+  now: Date = new Date(),
+  timeZone: string = NIDO_TIMEZONE,
+): boolean {
+  return isCalendarDate(iso) && isDateInRange(iso, getCurrentMonthRange(now, timeZone));
+}
+
+export function currentMonthDateMessage(
+  raw: string,
+  now: Date = new Date(),
+  timeZone: string = NIDO_TIMEZONE,
+): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed || !isCalendarDate(trimmed)) return "La fecha no es válida.";
+  if (!isDateInRange(trimmed, getCurrentMonthRange(now, timeZone))) {
+    return "La fecha debe ser del mes actual.";
+  }
+  return null;
+}
+
 /** Today's calendar date in the Nido timezone, not UTC. */
 export function todayIso(
   now: Date = new Date(),

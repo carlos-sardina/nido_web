@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  getCurrentMonthRange,
+  shiftMonth,
+  todayIso,
+} from "./dates.ts";
+import {
   amountToIncomeInput,
   buildCreateIncomePayload,
   incomeAmountMessage,
@@ -21,7 +26,7 @@ function request(
     categoryId: "cat-income",
     amount: 40000,
     description: "Sueldo",
-    occurredAt: "2026-08-21",
+    occurredAt: todayIso(),
     activeMemberIds: members,
     allowedCategoryIds: categories,
     ...overrides,
@@ -74,12 +79,16 @@ describe("income description", () => {
 });
 
 describe("income date", () => {
-  it("requires a valid calendar date", () => {
+  it("requires a date in the current calendar month", () => {
+    const range = getCurrentMonthRange();
     assert.match(incomeDateMessage(""), /válida/i);
     assert.match(incomeDateMessage("   "), /válida/i);
     assert.match(incomeDateMessage("2026-02-31"), /válida/i);
     assert.match(incomeDateMessage("not-a-date"), /válida/i);
-    assert.equal(incomeDateMessage("2026-08-21"), null);
+    assert.match(incomeDateMessage(shiftMonth(range, -1).end), /mes actual/i);
+    assert.match(incomeDateMessage(shiftMonth(range, 1).start), /mes actual/i);
+    assert.equal(incomeDateMessage(range.start), null);
+    assert.equal(incomeDateMessage(todayIso()), null);
   });
 });
 
@@ -92,7 +101,7 @@ describe("buildCreateIncomePayload", () => {
     assert.equal(result.data.categoryId, "cat-income");
     assert.equal(result.data.amount, 40000);
     assert.equal(result.data.description, "Sueldo");
-    assert.equal(result.data.occurredAt, "2026-08-21");
+    assert.equal(result.data.occurredAt, todayIso());
     assert.equal("memberId" in result.data, false);
     assert.equal("createdBy" in result.data, false);
   });
@@ -155,8 +164,14 @@ describe("buildCreateIncomePayload", () => {
     if (result.ok === false) assert.equal(result.error, "not_a_member");
   });
 
-  it("accepts a valid past calendar date", () => {
-    const result = buildCreateIncomePayload(request({ occurredAt: "2026-01-15" }), "carlos");
-    assert.equal(result.ok, true);
+  it("rejects a date outside the current month", () => {
+    const previous = shiftMonth(getCurrentMonthRange(), -1);
+    const next = shiftMonth(getCurrentMonthRange(), 1);
+    const past = buildCreateIncomePayload(request({ occurredAt: previous.end }), "carlos");
+    const future = buildCreateIncomePayload(request({ occurredAt: next.start }), "carlos");
+    assert.equal(past.ok, false);
+    if (past.ok === false) assert.equal(past.error, "invalid_date");
+    assert.equal(future.ok, false);
+    if (future.ok === false) assert.equal(future.error, "invalid_date");
   });
 });
