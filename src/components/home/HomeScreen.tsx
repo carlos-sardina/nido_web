@@ -1,12 +1,12 @@
 "use client";
 
-import { ChevronRight, Settings, Shield } from "lucide-react";
+import type { ReactNode } from "react";
+import { ChevronRight, Settings } from "lucide-react";
 import type { AuthIdentity } from "@/lib/auth/identity";
 import {
   compactBalanceCopy,
   formatCompactMoney,
   formatRelativeActivityDate,
-  formatWholeMoney,
   type BudgetItemView,
   type MonthRange,
 } from "@/lib/nido/financial";
@@ -33,6 +33,29 @@ function SkeletonBlock({ className }: { className: string }) {
       className={`animate-pulse rounded-[1.5rem] ${className}`}
       style={{ backgroundColor: P.sub }}
     />
+  );
+}
+
+function HealthHero({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="mx-6 mb-3 rounded-[1.5rem] overflow-hidden"
+      style={{ background: "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)" }}
+    >
+      <div className="relative p-5">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full"
+          style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-12 right-8 h-24 w-24 rounded-full"
+          style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
+        />
+        <div className="relative">{children}</div>
+      </div>
+    </div>
   );
 }
 
@@ -195,7 +218,7 @@ function DashboardBody({
   onOpenBalance: (range?: MonthRange) => void;
   currentUserId: string | null;
 }) {
-  const { health, budget, featuredGoal, activeGoals, activity, empty, range, monthlyBalance, outstandingBalanceMonths } = model;
+  const { health, budget, activeGoals, activity, empty, range, monthlyBalance, outstandingBalanceMonths } = model;
   const balanceCopy = compactBalanceCopy(monthlyBalance, currentUserId);
   const diff = Math.abs(budget.remaining);
 
@@ -219,87 +242,77 @@ function DashboardBody({
       ) : null}
 
       {health.available ? (
-        <div
-          className="mx-6 mb-3 rounded-[1.5rem] overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)" }}
-        >
-          <div className="p-5">
-            <div className="flex items-start justify-between mb-2">
-              <div>
-                <p
-                  className="text-[10px] font-semibold uppercase tracking-widest mb-0.5"
-                  style={{ color: "rgba(255,255,255,0.45)" }}
-                >
-                  Salud Financiera
-                </p>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold" style={{ color: P.sageLt }}>
-                    {health.label}
-                  </span>
-                </div>
+        <HealthHero>
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <p
+                className="text-[10px] font-semibold uppercase tracking-widest mb-0.5"
+                style={{ color: "rgba(255,255,255,0.45)" }}
+              >
+                Salud Financiera
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold" style={{ color: P.sageLt }}>
+                  {health.label}
+                </span>
               </div>
-              <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.3)" }}>
-                {range.label}
-              </span>
             </div>
-            <div className="flex items-end justify-between gap-4">
-              <HealthGauge score={health.score} />
-              <div className="flex flex-col gap-2">
-                {[
-                  health.savingsRatePercent != null
-                    ? { label: "Tasa ahorro", value: `${health.savingsRatePercent}%` }
-                    : null,
-                  health.emergencyMonths != null
-                    ? { label: "Fondo compart.", value: `${health.emergencyMonths} mes` }
-                    : null,
-                  health.budgetUsagePercent != null
-                    ? { label: "Presupuesto", value: `${health.budgetUsagePercent}%` }
-                    : null,
-                  health.activeGoalCount > 0
-                    ? {
-                        label: health.activeGoalCount === 1 ? "meta activa" : "metas activas",
-                        value: String(health.activeGoalCount),
-                      }
-                    : null,
-                ]
-                  .filter((chip): chip is { label: string; value: string } => chip != null)
-                  .slice(0, 2)
-                  .map((chip) => (
-                    <div
-                      key={chip.label}
-                      className="rounded-xl px-3 py-2 flex items-center gap-2.5"
-                      style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
-                    >
-                      <span className="text-xs font-bold font-sans" style={{ color: P.sageLt }}>
-                        {chip.value}
-                      </span>
-                      <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.4)" }}>
-                        {chip.label}
-                      </span>
-                    </div>
-                  ))}
-              </div>
+            <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.3)" }}>
+              {range.label}
+            </span>
+          </div>
+          <div className="flex items-end justify-between gap-4">
+            <HealthGauge score={health.score} />
+            <div className="flex flex-col gap-2">
+              {[
+                health.savingsRatePercent != null
+                  ? { label: "Tasa ahorro", value: `${health.savingsRatePercent}%` }
+                  : null,
+                health.emergencyMonths != null
+                  ? { label: "Fondo compart.", value: `${health.emergencyMonths} mes` }
+                  : null,
+                health.budgetUsagePercent != null
+                  ? { label: "Presupuesto", value: `${health.budgetUsagePercent}%` }
+                  : null,
+                health.activeGoalCount > 0
+                  ? {
+                      label: health.activeGoalCount === 1 ? "meta activa" : "metas activas",
+                      value: String(health.activeGoalCount),
+                    }
+                  : null,
+              ]
+                .filter((chip): chip is { label: string; value: string } => chip != null)
+                .slice(0, 2)
+                .map((chip) => (
+                  <div
+                    key={chip.label}
+                    className="rounded-xl px-3 py-2 flex items-center gap-2.5"
+                    style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+                  >
+                    <span className="text-xs font-bold font-sans" style={{ color: P.sageLt }}>
+                      {chip.value}
+                    </span>
+                    <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                      {chip.label}
+                    </span>
+                  </div>
+                ))}
             </div>
           </div>
-        </div>
+        </HealthHero>
       ) : (
-        <div className="mx-6 mb-3">
-          <div
-            className="rounded-[1.5rem] p-5"
-            style={{ background: "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)" }}
+        <HealthHero>
+          <p
+            className="text-[10px] font-semibold uppercase tracking-widest mb-2"
+            style={{ color: "rgba(255,255,255,0.45)" }}
           >
-            <p
-              className="text-[10px] font-semibold uppercase tracking-widest mb-2"
-              style={{ color: "rgba(255,255,255,0.45)" }}
-            >
-              Salud Financiera
-            </p>
-            <p className="text-sm font-semibold text-white mb-1">Aún no hay datos</p>
-            <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
-              Agrega tus ingresos para tener una mejor visión de su patrimonio.
-            </p>
-          </div>
-        </div>
+            Salud Financiera
+          </p>
+          <p className="text-sm font-semibold text-white mb-1">Aún no hay datos</p>
+          <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
+            Agrega tus ingresos para tener una mejor visión de su patrimonio.
+          </p>
+        </HealthHero>
       )}
 
       <div className="mx-6 mb-3 rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
@@ -515,55 +528,6 @@ function DashboardBody({
                 </button>
               );
             })}
-          </div>
-        </div>
-      ) : null}
-
-      {featuredGoal ? (
-        <div className="mx-6 mb-3 rounded-[1.5rem] p-4 shadow-sm" style={{ backgroundColor: P.card }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div
-                className="w-10 h-10 rounded-2xl flex items-center justify-center"
-                style={{ backgroundColor: "#E8F4EF" }}
-              >
-                <Shield size={17} style={{ color: P.sageDk }} />
-              </div>
-              <div>
-                <p className="text-[10px]" style={{ color: P.muted }}>
-                  {featuredGoal.name}
-                </p>
-                <p className="text-base font-bold font-sans" style={{ color: P.text }}>
-                  {formatWholeMoney(featuredGoal.contributed)}
-                </p>
-              </div>
-            </div>
-            {featuredGoal.emergencyMonths != null ? (
-              <div className="text-right">
-                <p className="text-[10px]" style={{ color: P.muted }}>
-                  Cubre
-                </p>
-                <p className="text-sm font-bold font-sans" style={{ color: P.sageDk }}>
-                  {featuredGoal.emergencyMonths} {featuredGoal.emergencyMonths === 1 ? "mes" : "meses"}
-                </p>
-              </div>
-            ) : null}
-          </div>
-          <div className="mt-3 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: P.sub }}>
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${featuredGoal.percent}%`,
-                background: `linear-gradient(90deg, ${P.sage}, ${P.sageDk})`,
-              }}
-            />
-          </div>
-          <div className="flex justify-between mt-1 text-[9px]" style={{ color: P.muted }}>
-            <span>
-              {formatCompactMoney(featuredGoal.contributed)} de{" "}
-              {featuredGoal.invalidTarget ? "—" : formatCompactMoney(featuredGoal.targetAmount)}
-            </span>
-            <span>{featuredGoal.invalidTarget ? "—" : `${featuredGoal.percent}%`}</span>
           </div>
         </div>
       ) : null}

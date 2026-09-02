@@ -224,32 +224,44 @@ export function ActivityScreen({
               className="mx-6 my-3 rounded-[1.5rem] overflow-hidden"
               style={{ background: "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)" }}
             >
-              <div className="p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles size={13} style={{ color: P.sageLt }} />
-                  <span
-                    className="text-[9px] font-bold uppercase tracking-widest"
-                    style={{ color: P.sageLt }}
-                  >
-                    Bienestar financiero
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {chips.slice(0, 3).map((chip) => (
-                    <div
-                      key={chip.label}
-                      className="rounded-xl p-2.5 text-center"
-                      style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+              <div className="relative p-5">
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full"
+                  style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
+                />
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -bottom-12 right-8 h-24 w-24 rounded-full"
+                  style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
+                />
+                <div className="relative">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles size={13} style={{ color: P.sageLt }} />
+                    <span
+                      className="text-[9px] font-bold uppercase tracking-widest"
+                      style={{ color: P.sageLt }}
                     >
-                      <p className="text-sm font-bold text-white font-sans">{chip.value}</p>
-                      <p
-                        className="text-[9px] mt-0.5 leading-tight"
-                        style={{ color: "rgba(255,255,255,0.4)" }}
+                      Bienestar financiero
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {chips.slice(0, 3).map((chip) => (
+                      <div
+                        key={chip.label}
+                        className="rounded-xl p-2.5 text-center"
+                        style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
                       >
-                        {chip.label}
-                      </p>
-                    </div>
-                  ))}
+                        <p className="text-sm font-bold text-white font-sans">{chip.value}</p>
+                        <p
+                          className="text-[9px] mt-0.5 leading-tight"
+                          style={{ color: "rgba(255,255,255,0.4)" }}
+                        >
+                          {chip.label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
