@@ -251,7 +251,7 @@ Auth identity still comes from Supabase Auth. The profile is the canonical appli
 
 Perfil shows that persisted name and lets the signed-in user edit `profiles.display_name`. The write is the existing `updateMyDisplayName` path (`normalizeDisplayName` + `profiles` UPDATE). RLS remains `profiles_update_self` (`id = auth.uid()`). After a successful save, the UI applies the normalized name with `applyProfileDisplayName` and does not reload the app.
 
-Perfil also has **Visibilidad de mis datos personales**: **Visible al Nido** / **Solo yo**. That writes `profiles.personal_visibility` via `update_personal_visibility` (`auth.uid()` only). Default is `nido`. The same preference applies to personal expenses, personal budgets, and personal savings. Shared / Nido rows are unaffected. Privacy is enforced by RLS (`personal_finance_visible`), not only by React.
+Configuración has **Visibilidad de mis datos personales** (above **Método de división**): **Visible al Nido** / **Solo yo**. That writes `profiles.personal_visibility` via `update_personal_visibility` (`auth.uid()` only). Default is `nido`. The same preference applies to personal expenses, personal budgets, and personal savings. Shared / Nido rows are unaffected. Privacy is enforced by RLS (`personal_finance_visible`), not only by React.
 
 ---
 

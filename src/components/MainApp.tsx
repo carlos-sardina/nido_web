@@ -31,6 +31,7 @@ import { RecurringExpensesScreen } from "@/components/recurring/RecurringExpense
 import { RecurringIncomeDetail } from "@/components/recurring/RecurringIncomeDetail";
 import { RecurringIncomesScreen } from "@/components/recurring/RecurringIncomesScreen";
 import { applyProfileDisplayName, identityFromUser } from "@/lib/auth/identity";
+import { DEFAULT_PERSONAL_VISIBILITY } from "@/lib/nido/personal-visibility";
 import { P } from "@/lib/palette";
 import type { Flow, Tab } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
@@ -383,6 +384,7 @@ export function MainApp({
             household={liveHousehold}
             membership={membership}
             members={members}
+            personalVisibility={savedVisibility ?? profile?.personal_visibility ?? DEFAULT_PERSONAL_VISIBILITY}
             onClose={() => setShowSettings(false)}
             onOwnershipTransferred={onNidoChanged}
             onRefresh={onNidoChanged}
@@ -390,6 +392,7 @@ export function MainApp({
               name: next.name,
               default_split_method: next.default_split_method,
             })}
+            onVisibilitySaved={setSavedVisibility}
           />
         )}
 
@@ -624,7 +627,6 @@ export function MainApp({
         {profileOpen && (
           <ProfilePanel
             identity={identity}
-            personalVisibility={savedVisibility ?? profile?.personal_visibility ?? "nido"}
             householdName={liveHousehold.name}
             role={membership.role}
             isLastOwner={membership.role === "owner" && members.filter((row) => row.role === "owner").length <= 1}
@@ -634,7 +636,6 @@ export function MainApp({
             onLogout={onLogout}
             onLeft={onNidoChanged}
             onDisplayNameSaved={setSavedDisplayName}
-            onVisibilitySaved={setSavedVisibility}
             onRefresh={async () => {
               await onNidoChanged();
               await dashboard.refresh();

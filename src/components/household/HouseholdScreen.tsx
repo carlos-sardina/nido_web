@@ -10,6 +10,7 @@ import {
 import { canShowInvitationQr, invitationDestination } from "@/lib/nido/invitation-qr";
 import { cancelInvitation, createInvitation, listInvitations } from "@/lib/nido/invitations";
 import { removeHouseholdMember, transferHouseholdOwnership } from "@/lib/nido/membership";
+import type { PersonalVisibility } from "@/lib/nido/personal-visibility";
 import { canSubmitRemove } from "@/lib/nido/remove-member";
 import { removableMembers, transferableMembers } from "@/lib/nido/rules";
 import { canSubmitTransfer } from "@/lib/nido/transfer-ownership";
@@ -17,6 +18,7 @@ import type { Household, HouseholdMember, HouseholdMemberView, ListedInvitation 
 import { HouseholdCategoriesCard } from "@/components/household/HouseholdCategoriesCard";
 import { HouseholdNameCard } from "@/components/household/HouseholdNameCard";
 import { HouseholdSplitCard } from "@/components/household/HouseholdSplitCard";
+import { PersonalVisibilityCard } from "@/components/household/PersonalVisibilityCard";
 import { InviteQrModal } from "@/components/flows/InviteQrModal";
 import { Button } from "@/components/nido/Button";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
@@ -36,17 +38,21 @@ export function HouseholdScreen({
   household,
   membership,
   members,
+  personalVisibility,
   onClose,
   onOwnershipTransferred,
   onHouseholdUpdated,
+  onVisibilitySaved,
   onRefresh,
 }: {
   household: Household;
   membership: HouseholdMember;
   members: HouseholdMemberView[];
+  personalVisibility: PersonalVisibility;
   onClose: () => void;
   onOwnershipTransferred: () => void;
   onHouseholdUpdated: (household: Household) => void;
+  onVisibilitySaved: (visibility: PersonalVisibility) => void;
   onRefresh: () => void | Promise<void>;
 }) {
   const [inviteBusy, setInviteBusy] = useState(false);
@@ -279,6 +285,7 @@ export function HouseholdScreen({
           );
         })}
       </div>
+      <PersonalVisibilityCard personalVisibility={personalVisibility} onSaved={onVisibilitySaved} />
       <HouseholdSplitCard household={household} onSaved={onHouseholdUpdated} />
       <HouseholdCategoriesCard householdId={household.id} refreshKey={categoryRefreshKey} />
       {isOwner && (
