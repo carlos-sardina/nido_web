@@ -6,6 +6,7 @@ import { Button } from "@/components/nido/Button";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
 import { Field, FieldError, MoneyField } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
+import { TextLink } from "@/components/nido/TextLink";
 import { Text } from "@/components/nido/Typography";
 import {
   canCopyPreviousMonthBudgets,
@@ -460,15 +461,14 @@ function DraftCard({
               </FieldError>
             </div>
           )}
-          <button
-            type="button"
-            onClick={onToggleArchive}
+          <TextLink
+            tone="muted"
             disabled={disabled}
-            className="mt-3 text-[11px] font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded disabled:opacity-50"
-            style={{ color: P.muted }}
+            className="mt-3 px-0 min-h-0 h-auto text-[11px]"
+            onClick={onToggleArchive}
           >
             {draft.archived ? "Restaurar" : "Archivar"}
-          </button>
+          </TextLink>
         </div>
       </div>
     </div>

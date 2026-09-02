@@ -48,6 +48,7 @@ import { ExpenseEntryModal } from "@/components/onboarding/ExpenseEntryModal";
 import { OProgress2 } from "@/components/onboarding/OProgress2";
 import { NidoSelectionScreen } from "@/components/onboarding/NidoSelectionScreen";
 import { Button } from "@/components/nido/Button";
+import { NavChevron, SelectHint } from "@/components/nido/ClickHint";
 import { ChoiceCard, SectionLabel } from "@/components/nido/ChoiceCard";
 import { CategoryCreateFields } from "@/components/nido/CategoryEmojiField";
 import { Field, FieldError, FieldLabel, HelperText, MoneyField, TextInput } from "@/components/nido/Field";
@@ -431,6 +432,7 @@ export function OnboardingFlow({
                   >
                     <span className="text-h2" aria-hidden="true">{nt.emoji}</span>
                     <span className="text-caption font-semibold text-foreground">{nt.label}</span>
+                    <SelectHint selected={data.nestType === nt.label} />
                   </button>
                 ))}
               </div>
@@ -507,6 +509,7 @@ export function OnboardingFlow({
                   icon={<Link size={16} style={{ color: P.sageDk }} />}
                   title={submitting ? "Creando tu Nido…" : inviteCopied ? "Enlace copiado" : "Invitar por enlace"}
                   description="Comparte este enlace con la persona que quieres invitar."
+                  hint="nav"
                   disabled={submitting}
                   onClick={() => { void handleCreateInvite(); }}
                 />
@@ -514,6 +517,7 @@ export function OnboardingFlow({
                   icon={<QrCode size={16} style={{ color: P.sageDk }} />}
                   title="Invitar por QR"
                   description="Muestra un código para unirse al Nido."
+                  hint="nav"
                   disabled={submitting}
                   onClick={async () => {
                     const url = inviteUrl ?? await handleCreateInvite();
@@ -727,6 +731,7 @@ export function OnboardingFlow({
                           </span>
                         </>
                       )}
+                      <NavChevron />
                     </button>
                   );
                 };

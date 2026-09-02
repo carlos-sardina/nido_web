@@ -3,6 +3,7 @@
 import { useId, useRef, useState } from "react";
 import { cn } from "@/app/components/ui/utils";
 import { Button } from "@/components/nido/Button";
+import { SelectHint } from "@/components/nido/ClickHint";
 import { CategoryCreateFields } from "@/components/nido/CategoryEmojiField";
 import { FieldError } from "@/components/nido/Field";
 import { Text } from "@/components/nido/Typography";
@@ -146,9 +147,10 @@ export function CategoryPicker({
                 <span className="text-body flex-shrink-0" aria-hidden="true">
                   {category.icon ?? fallbackIcon}
                 </span>
-                <Text as="span" size="label" className="min-w-0 truncate">
+                <Text as="span" size="label" className="min-w-0 truncate flex-1">
                   {category.name}
                 </Text>
+                <SelectHint selected={selected} />
               </button>
             );
           })}

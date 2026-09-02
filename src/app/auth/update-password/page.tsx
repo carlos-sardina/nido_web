@@ -103,7 +103,7 @@ export default function UpdatePasswordPage() {
               {busy ? "Guardando…" : "Guardar contraseña"}
             </Button>
             <div className="flex justify-center">
-              <TextLink tone="muted" onClick={() => router.replace("/")}>
+              <TextLink tone="muted" affordance="nav" onClick={() => router.replace("/")}>
                 Volver al inicio
               </TextLink>
             </div>

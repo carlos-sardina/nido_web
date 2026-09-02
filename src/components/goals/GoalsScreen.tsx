@@ -1,8 +1,10 @@
 "use client";
 
 import { Button } from "@/components/nido/Button";
+import { NavChevron } from "@/components/nido/ClickHint";
 import { EmptyState } from "@/components/nido/EmptyState";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
+import { TextLink } from "@/components/nido/TextLink";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
   formatCompactMoney,
@@ -94,15 +96,14 @@ export function GoalsScreen({
               <Text size="caption" tone="danger">
                 {error.message}
               </Text>
-              <button
-                type="button"
-                onClick={() => void refresh()}
+              <TextLink
+                tone="danger"
                 disabled={refreshing}
-                className="mt-1 text-caption font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                style={{ color: P.danger }}
+                className="mt-1 px-0 min-h-0 h-auto text-caption"
+                onClick={() => void refresh()}
               >
                 Reintentar
-              </button>
+              </TextLink>
             </div>
           ) : null}
 
@@ -298,11 +299,14 @@ function GoalCard({
             <p className="text-sm font-bold leading-tight truncate" style={{ color: P.text }}>
               {progress.name}
             </p>
-            <span
-              className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold"
-              style={{ backgroundColor: P.card, color: P.muted }}
-            >
-              {goalScopeLabel(progress.scope)}
+            <span className="flex items-center gap-1 flex-shrink-0">
+              <span
+                className="rounded-full px-2 py-0.5 text-[9px] font-bold"
+                style={{ backgroundColor: P.card, color: P.muted }}
+              >
+                {goalScopeLabel(progress.scope)}
+              </span>
+              <NavChevron />
             </span>
           </div>
           {targetLabel ? (

@@ -4,6 +4,7 @@ import { useId, useRef, useState } from "react";
 import { Button } from "@/components/nido/Button";
 import { FieldError } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
+import { TextLink } from "@/components/nido/TextLink";
 import { Text } from "@/components/nido/Typography";
 import { canSubmitContribution, deleteContribution } from "@/lib/nido/contributions";
 import { archiveGoal, canSubmitGoal } from "@/lib/nido/goals";
@@ -260,25 +261,22 @@ export function GoalDetail({
                             </div>
                             {own ? (
                               <div className="mt-2 flex gap-4">
-                                <button
-                                  type="button"
-                                  className="text-caption font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                                  style={{ color: P.brnDk }}
+                                <TextLink
+                                  className="min-h-0 h-auto px-0 text-caption"
                                   onClick={() => onEditContribution(contribution)}
                                 >
                                   Editar
-                                </button>
-                                <button
-                                  type="button"
-                                  className="text-caption font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                                  style={{ color: P.danger }}
+                                </TextLink>
+                                <TextLink
+                                  tone="danger"
+                                  className="min-h-0 h-auto px-0 text-caption"
                                   onClick={() => {
                                     setError(null);
                                     setPendingDelete(contribution);
                                   }}
                                 >
                                   Eliminar
-                                </button>
+                                </TextLink>
                               </div>
                             ) : null}
                           </div>

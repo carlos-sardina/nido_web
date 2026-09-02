@@ -21,6 +21,7 @@ import { HouseholdSplitCard } from "@/components/household/HouseholdSplitCard";
 import { PersonalVisibilityCard } from "@/components/household/PersonalVisibilityCard";
 import { InviteQrModal } from "@/components/flows/InviteQrModal";
 import { Button } from "@/components/nido/Button";
+import { SeeMoreHint } from "@/components/nido/ClickHint";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { BackLink } from "@/components/nido/Screen";
@@ -291,6 +292,7 @@ export function HouseholdScreen({
       {isOwner && (
         <div className="px-6 mb-5">
           <button
+            type="button"
             onClick={inviteBusy ? undefined : handleInvite}
             className="w-full flex items-center gap-3 p-4 rounded-[1.5rem] shadow-sm text-left"
             style={{ backgroundColor: P.card, opacity: inviteBusy ? 0.7 : 1 }}
@@ -304,6 +306,7 @@ export function HouseholdScreen({
               </p>
               <p className="text-[10px]" style={{ color: P.muted }}>Comparte este enlace con la persona que quieres invitar.</p>
             </div>
+            <SeeMoreHint>{inviteCopied ? "Copiado" : "Invitar"}</SeeMoreHint>
           </button>
           {inviteError && (
             <p className="text-[11px] mt-2" style={{ color: P.danger }}>{inviteError}</p>
@@ -444,6 +447,7 @@ export function HouseholdScreen({
                     title={member.displayName}
                     description="Miembro activo"
                     selected={selectedTargetId === member.userId}
+                    hint="nav"
                     className="shadow-sm"
                     onClick={() => {
                       setSelectedTargetId(member.userId);

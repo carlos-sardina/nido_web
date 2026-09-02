@@ -40,12 +40,14 @@ export function NidoSelectionScreen({
           icon="🪺"
           title="Crear un nuevo Nido"
           description="Empieza uno desde cero."
+          hint="nav"
           onClick={onCreate}
         />
         <ChoiceCard
           icon="👋"
           title="Unirme a un Nido"
           description="¿Ya te invitaron? Únete con tu enlace."
+          hint="nav"
           onClick={onJoin}
         />
         <Text size="caption" tone="muted" className="text-center leading-relaxed pt-1">

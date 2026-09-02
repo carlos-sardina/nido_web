@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { cn } from "@/app/components/ui/utils";
+import { NavChevron, SelectHint } from "@/components/nido/ClickHint";
 import { Text } from "@/components/nido/Typography";
 import { P } from "@/lib/palette";
 
@@ -12,6 +13,7 @@ export function ChoiceCard({
   selected = false,
   disabled = false,
   badge,
+  hint = "select",
   className,
   onClick,
 }: {
@@ -21,6 +23,8 @@ export function ChoiceCard({
   selected?: boolean;
   disabled?: boolean;
   badge?: ReactNode;
+  /** select = radio · nav = chevron (opens another step) */
+  hint?: "select" | "nav";
   className?: string;
   onClick: () => void;
 }) {
@@ -57,6 +61,7 @@ export function ChoiceCard({
         )}
       </div>
       {badge}
+      {hint === "nav" ? <NavChevron /> : <SelectHint selected={selected} />}
     </button>
   );
 }

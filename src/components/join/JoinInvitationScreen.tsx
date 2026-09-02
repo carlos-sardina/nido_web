@@ -309,7 +309,7 @@ export function JoinInvitationScreen({ token }: { token: string }) {
           </Button>
         )}
         <div className="flex justify-center">
-          <TextLink tone="muted" onClick={() => router.replace("/")}>
+          <TextLink tone="muted" affordance="nav" onClick={() => router.replace("/")}>
             Volver al inicio
           </TextLink>
         </div>

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { ChevronRight } from "lucide-react";
 import { P } from "@/lib/palette";
 import type { Flow } from "@/lib/types";
 import { Button } from "@/components/nido/Button";
+import { NavChevron } from "@/components/nido/ClickHint";
 
 export function ActionSheet({
   onSelect,
@@ -71,7 +71,7 @@ export function ActionSheet({
                     {action.sub}
                   </p>
                 </div>
-                <ChevronRight size={14} style={{ color: P.muted, marginLeft: "auto" }} aria-hidden="true" />
+                <NavChevron size={14} className="ml-auto" />
               </button>
             ))}
           </div>

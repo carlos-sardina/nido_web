@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/nido/Button";
+import { NavChevron } from "@/components/nido/ClickHint";
 import { EmptyState } from "@/components/nido/EmptyState";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
@@ -132,6 +133,7 @@ export function RecurringIncomesScreen({
                       <span className="text-xs font-semibold flex-shrink-0" style={{ color: P.text }}>
                         {formatCompactMoney(template.amount)}
                       </span>
+                      <NavChevron />
                     </button>
                   );
                 })}

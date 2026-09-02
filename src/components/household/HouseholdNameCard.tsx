@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Home, Pencil } from "lucide-react";
 import { Button } from "@/components/nido/Button";
+import { TextLink } from "@/components/nido/TextLink";
 import { canSubmitHouseholdName, updateHouseholdName } from "@/lib/nido/household";
 import type { Household } from "@/lib/nido/types";
 import { validateHouseholdName } from "@/lib/onboarding/validation";
@@ -123,15 +124,14 @@ export function HouseholdNameCard({
             <Button onClick={() => { void save(); }} loading={saving} disabled={!canSubmitHouseholdName(saving)}>
               {saving ? "Guardando…" : "Guardar nombre"}
             </Button>
-            <button
-              type="button"
+            <TextLink
+              tone="muted"
               disabled={saving}
+              className="w-full text-white/75 hover:text-white"
               onClick={cancelEdit}
-              className="w-full min-h-11 text-sm font-semibold rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:opacity-50"
-              style={{ color: "rgba(255,255,255,0.75)" }}
             >
               Cancelar
-            </button>
+            </TextLink>
           </div>
         ) : (
           <div className="relative flex items-start gap-3">

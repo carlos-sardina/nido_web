@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
+import { TextLink } from "@/components/nido/TextLink";
 import type { AuthIdentity } from "@/lib/auth/identity";
 import { canSubmitLeave } from "@/lib/nido/leave-household";
 import { leaveHousehold } from "@/lib/nido/membership";
@@ -177,14 +178,12 @@ export function ProfilePanel({
           ) : (
             <>
               <p className="text-base font-bold mb-0.5" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{displayedName}</p>
-              <button
-                type="button"
+              <TextLink
+                className="mt-1 mb-1 min-h-0 h-auto text-[11px]"
                 onClick={startEdit}
-                className="text-[11px] font-semibold mt-1 mb-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md px-2 py-0.5"
-                style={{ color: P.sage }}
               >
                 Editar nombre
-              </button>
+              </TextLink>
               {nameStatus === "success" && (
                 <p className="text-[11px] mb-1" role="status" style={{ color: P.sage }}>
                   Nombre actualizado

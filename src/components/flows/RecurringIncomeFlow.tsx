@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { cn } from "@/app/components/ui/utils";
 import { Button } from "@/components/nido/Button";
+import { SelectHint } from "@/components/nido/ClickHint";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
 import { EmptyState } from "@/components/nido/EmptyState";
 import {
@@ -308,9 +309,10 @@ export function RecurringIncomeFlow({
                           )}
                         >
                           <span aria-hidden="true">{category.icon ?? "💰"}</span>
-                          <Text as="span" size="label" className="min-w-0 truncate">
+                          <Text as="span" size="label" className="min-w-0 truncate flex-1">
                             {category.name}
                           </Text>
+                          <SelectHint selected={selected} />
                         </button>
                       );
                     })}

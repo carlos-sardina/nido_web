@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/nido/Button";
+import { NavChevron } from "@/components/nido/ClickHint";
 import { EmptyState } from "@/components/nido/EmptyState";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { TextLink } from "@/components/nido/TextLink";
@@ -60,7 +61,7 @@ export function ExpensesScreen({
         <Text size="caption" tone="muted" className="mt-1">
           {model?.range.label ?? "Este mes"}
         </Text>
-        <TextLink className="mt-1 px-0 min-h-9" onClick={onOpenRecurring}>
+        <TextLink affordance="nav" className="mt-1 px-0 min-h-9" onClick={onOpenRecurring}>
           Recurrencias
         </TextLink>
       </div>
@@ -98,15 +99,14 @@ export function ExpensesScreen({
               <Text size="caption" tone="danger">
                 {error.message}
               </Text>
-              <button
-                type="button"
-                onClick={() => void refresh()}
+              <TextLink
+                tone="danger"
                 disabled={refreshing}
-                className="mt-1 text-caption font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                style={{ color: P.danger }}
+                className="mt-1 px-0 min-h-0 h-auto text-caption"
+                onClick={() => void refresh()}
               >
                 Reintentar
-              </button>
+              </TextLink>
             </div>
           ) : null}
           {expenses.map((expense) => {
@@ -154,6 +154,7 @@ export function ExpensesScreen({
                 >
                   {formatCompactMoney(expense.amount)}
                 </span>
+                <NavChevron />
               </button>
             );
           })}

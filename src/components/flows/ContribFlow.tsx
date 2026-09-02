@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Check, Shield, Target } from "lucide-react";
+import { Shield, Target } from "lucide-react";
 import { Button } from "@/components/nido/Button";
+import { SelectHint } from "@/components/nido/ClickHint";
 import { EmptyState } from "@/components/nido/EmptyState";
 import {
   Field,
@@ -406,14 +407,7 @@ function GoalPickCard({
             <p className="text-sm font-bold leading-tight truncate" style={{ color: P.text }}>
               {goal.name}
             </p>
-            {selected ? (
-              <span
-                className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: visual.accentDk }}
-              >
-                <Check size={12} strokeWidth={2.5} color="#FFFCFA" aria-hidden="true" />
-              </span>
-            ) : null}
+            {onSelect ? <SelectHint selected={selected} /> : null}
           </div>
           <p className="text-[10px] mt-0.5" style={{ color: P.muted }}>
             {goalKindLabel(goal.goalType)}

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChevronRight, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
 import type { AuthIdentity } from "@/lib/auth/identity";
 import {
   compactBalanceCopy,
@@ -15,8 +15,10 @@ import { formatHomeNidoName } from "@/lib/nido/format-nido-name";
 import { P } from "@/lib/palette";
 import type { Tab } from "@/lib/types";
 import { Button } from "@/components/nido/Button";
+import { NavChevron, SeeMoreHint, SeeMoreLink } from "@/components/nido/ClickHint";
 import { EmptyState } from "@/components/nido/EmptyState";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
+import { TextLink } from "@/components/nido/TextLink";
 import { Text } from "@/components/nido/Typography";
 import { HealthGauge } from "@/components/home/HealthGauge";
 
@@ -229,15 +231,14 @@ function DashboardBody({
           <Text size="caption" tone="danger">
             {error.message}
           </Text>
-          <button
-            type="button"
-            onClick={onRetry}
+          <TextLink
+            tone="danger"
             disabled={retrying}
-            className="mt-1 text-caption font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-            style={{ color: P.danger }}
+            className="mt-1 px-0 min-h-0 h-auto text-caption"
+            onClick={onRetry}
           >
             Reintentar
-          </button>
+          </TextLink>
         </div>
       ) : null}
 
@@ -320,14 +321,7 @@ function DashboardBody({
           <h3 className="text-xs font-semibold" style={{ color: P.text }}>
             Ingresos del mes
           </h3>
-          <button
-            type="button"
-            onClick={onOpenIncomes}
-            className="text-[10px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-            style={{ color: P.brnDk }}
-          >
-            Ver ingresos →
-          </button>
+          <SeeMoreLink onClick={onOpenIncomes}>Ver ingresos</SeeMoreLink>
         </div>
         {empty.incomes ? (
           <EmptyState
@@ -359,15 +353,7 @@ function DashboardBody({
               {range.label}
             </span>
           ) : (
-            <button
-              type="button"
-              onClick={onOpenBudgets}
-              className="inline-flex items-center gap-0.5 text-[10px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-              style={{ color: P.brnDk }}
-            >
-              Ver presupuestos
-              <ChevronRight size={12} aria-hidden="true" />
-            </button>
+            <SeeMoreLink onClick={onOpenBudgets}>Ver presupuestos</SeeMoreLink>
           )}
         </div>
         {empty.budget ? (
@@ -387,19 +373,22 @@ function DashboardBody({
               onClick={onOpenBudgets}
               className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
             >
-              <div className="flex items-baseline gap-2 mb-3">
-                <span className="text-[22px] font-bold font-sans" style={{ color: P.text }}>
-                  {formatCompactMoney(budget.totalSpent)}
-                </span>
-                {budget.hasBudget ? (
-                  <span className="text-xs" style={{ color: P.muted }}>
-                    de {formatCompactMoney(budget.totalBudget)}
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-baseline gap-2 min-w-0 flex-1">
+                  <span className="text-[22px] font-bold font-sans" style={{ color: P.text }}>
+                    {formatCompactMoney(budget.totalSpent)}
                   </span>
-                ) : (
-                  <span className="text-xs" style={{ color: P.muted }}>
-                    gastados este mes
-                  </span>
-                )}
+                  {budget.hasBudget ? (
+                    <span className="text-xs" style={{ color: P.muted }}>
+                      de {formatCompactMoney(budget.totalBudget)}
+                    </span>
+                  ) : (
+                    <span className="text-xs" style={{ color: P.muted }}>
+                      gastados este mes
+                    </span>
+                  )}
+                </div>
+                <NavChevron />
               </div>
               {budget.hasBudget ? (
                 <>
@@ -460,13 +449,7 @@ function DashboardBody({
                       >
                         {formatCompactMoney(category.spent)}
                       </div>
-                      <span
-                        className="mt-1 inline-flex items-center justify-center gap-0.5 text-[9px] font-semibold"
-                        style={{ color: P.brnDk }}
-                      >
-                        Ver
-                        <ChevronRight size={10} aria-hidden="true" />
-                      </span>
+                      <SeeMoreHint className="mt-1 text-[9px]">Ver</SeeMoreHint>
                     </button>
                   );
                 })}
@@ -487,9 +470,7 @@ function DashboardBody({
           <h3 className="text-xs font-semibold" style={{ color: P.text }}>
             Balance
           </h3>
-          <span className="text-[10px] font-semibold" style={{ color: P.brnDk }}>
-            Ver balance →
-          </span>
+          <SeeMoreHint>Ver balance</SeeMoreHint>
         </div>
         <p
           className="text-sm font-semibold"
@@ -524,7 +505,7 @@ function DashboardBody({
                       {copy.headline}
                     </p>
                   </div>
-                  <ChevronRight size={16} style={{ color: P.brnDk }} aria-hidden="true" />
+                  <NavChevron />
                 </button>
               );
             })}
@@ -537,14 +518,7 @@ function DashboardBody({
           <h3 className="text-xs font-semibold" style={{ color: P.text }}>
             Metas y fondos
           </h3>
-          <button
-            type="button"
-            onClick={() => onNavigate("goals")}
-            className="text-[10px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-            style={{ color: P.brnDk }}
-          >
-            Ver todas →
-          </button>
+          <SeeMoreLink onClick={() => onNavigate("goals")}>Ver todas</SeeMoreLink>
         </div>
         {empty.goals ? (
           <div className="px-6">
@@ -602,14 +576,7 @@ function DashboardBody({
           <h3 className="text-xs font-semibold" style={{ color: P.text }}>
             Actividad reciente
           </h3>
-          <button
-            type="button"
-            onClick={() => onNavigate("activity")}
-            className="text-[10px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-            style={{ color: P.brnDk }}
-          >
-            Ver todo →
-          </button>
+          <SeeMoreLink onClick={() => onNavigate("activity")}>Ver todo</SeeMoreLink>
         </div>
         {empty.activity ? (
           <EmptyState

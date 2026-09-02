@@ -3,8 +3,10 @@
 import { Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/nido/Button";
+import { NavChevron } from "@/components/nido/ClickHint";
 import { EmptyInline } from "@/components/nido/EmptyState";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
+import { TextLink } from "@/components/nido/TextLink";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
   ACTIVITY_PAGE_SIZE,
@@ -207,15 +209,14 @@ export function ActivityScreen({
               <Text size="caption" tone="danger">
                 {error.message}
               </Text>
-              <button
-                type="button"
-                onClick={() => void refresh()}
+              <TextLink
+                tone="danger"
                 disabled={refreshing}
-                className="mt-1 text-caption font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                style={{ color: P.danger }}
+                className="mt-1 px-0 min-h-0 h-auto text-caption"
+                onClick={() => void refresh()}
               >
                 Reintentar
-              </button>
+              </TextLink>
             </div>
           ) : null}
 
@@ -359,8 +360,11 @@ export function ActivityScreen({
                             <span className="text-[9px]" style={{ color: P.muted }}>
                               {activityCaption(item)}
                             </span>
-                            <span className="text-[10px] font-bold font-sans flex-shrink-0" style={{ color: P.text }}>
-                              {formatCompactMoney(item.amount)}
+                            <span className="inline-flex items-center gap-1 flex-shrink-0">
+                              <span className="text-[10px] font-bold font-sans" style={{ color: P.text }}>
+                                {formatCompactMoney(item.amount)}
+                              </span>
+                              <NavChevron size={14} />
                             </span>
                           </div>
                         </button>
