@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
+import { Shield, Target } from "lucide-react";
 import { Button } from "@/components/nido/Button";
 import { FieldError } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
@@ -17,6 +18,8 @@ import {
   formatRelativeActivityDate,
   formatWholeMoney,
   goalProgress,
+  isFund,
+  roundMoney,
   visibleGoalContributions,
   type GoalContributionRow,
   type GoalRow,
@@ -194,61 +197,27 @@ export function GoalDetail({
 
             {confirming ? null : (
               <>
-                <div
-                  className="rounded-2xl p-4 shadow-sm"
-                  style={{ backgroundColor: P.card }}
-                >
-                  <Text size="caption" tone="muted">
-                    Ahorrado
-                  </Text>
-                  <p className="mt-1 text-h2 font-bold font-sans" style={{ color: P.text }}>
-                    {formatWholeMoney(progress.contributed)}
-                  </p>
-                  <div
-                    className="mt-3 h-1.5 rounded-full overflow-hidden"
-                    style={{ backgroundColor: P.sub }}
-                  >
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${progress.percent}%`,
-                        backgroundColor: P.sage,
-                      }}
-                    />
-                  </div>
-                  <div className="flex justify-between mt-1">
-                    <Text size="caption" tone="muted">
-                      {formatCompactMoney(progress.contributed)} de{" "}
-                      {progress.invalidTarget ? "—" : formatCompactMoney(progress.targetAmount)}
-                    </Text>
-                    <Text size="caption" tone="muted">
-                      {progress.invalidTarget ? "—" : `${progress.percent}%`}
-                    </Text>
-                  </div>
-                  {progress.completed ? (
-                    <Text size="caption" className="mt-2 font-semibold">
-                      {goal.goalType === "saving" ? "Fondo alcanzado" : "Meta alcanzada"}
-                    </Text>
-                  ) : null}
-                </div>
+                <GoalProgressHero goalType={goal.goalType} progress={progress} />
 
-                <DetailRow
-                  label="Tipo"
-                  value={goalKindLabel(goal.goalType)}
-                />
-                <DetailRow
-                  label="Alcance"
-                  value={goalScopeLabel(goal.scope)}
-                />
-                <DetailRow
-                  label="Objetivo"
-                  value={progress.invalidTarget ? "—" : formatCompactMoney(goal.targetAmount)}
-                />
-                {targetLabel ? <DetailRow label="Fecha objetivo" value={targetLabel} /> : null}
-                {goal.description?.trim() ? (
-                  <DetailRow label="Descripción" value={goal.description.trim()} />
-                ) : null}
-                <DetailRow label="La creó" value={creatorName} />
+                <div className="rounded-2xl px-4 py-1" style={{ backgroundColor: P.bg }}>
+                  <DetailRow
+                    label="Tipo"
+                    value={goalKindLabel(goal.goalType)}
+                  />
+                  <DetailRow
+                    label="Alcance"
+                    value={goalScopeLabel(goal.scope)}
+                  />
+                  <DetailRow
+                    label="Objetivo"
+                    value={progress.invalidTarget ? "—" : formatCompactMoney(goal.targetAmount)}
+                  />
+                  {targetLabel ? <DetailRow label="Fecha objetivo" value={targetLabel} /> : null}
+                  {goal.description?.trim() ? (
+                    <DetailRow label="Descripción" value={goal.description.trim()} />
+                  ) : null}
+                  <DetailRow label="La creó" value={creatorName} last />
+                </div>
 
                 <div>
                   <Text size="label" tone="muted" className="mb-2">
@@ -285,7 +254,7 @@ export function GoalDetail({
                                   )}
                                 </Text>
                               </div>
-                              <Text size="body-sm" className="font-semibold shrink-0">
+                              <Text size="body-sm" className="font-semibold shrink-0 font-sans" style={{ color: P.sageDk }}>
                                 {formatCompactMoney(contribution.amount)}
                               </Text>
                             </div>
@@ -326,9 +295,152 @@ export function GoalDetail({
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function GoalProgressHero({
+  goalType,
+  progress,
+}: {
+  goalType: GoalRow["goalType"];
+  progress: ReturnType<typeof goalProgress>;
+}) {
+  const fund = isFund({ goalType });
+  const Icon = fund ? Shield : Target;
+  const remaining = progress.invalidTarget || progress.completed
+    ? null
+    : roundMoney(progress.targetAmount - progress.contributed);
+  const percent = progress.invalidTarget ? 0 : progress.percent;
+  const status = progress.completed
+    ? fund
+      ? "Fondo alcanzado"
+      : "Meta alcanzada"
+    : remaining != null
+      ? `Faltan ${formatCompactMoney(remaining)}`
+      : null;
+
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div
+      className="rounded-[1.5rem] overflow-hidden shadow-sm"
+      style={{
+        background: fund
+          ? "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)"
+          : "linear-gradient(135deg, #B87485 0%, #D88D9A 100%)",
+      }}
+    >
+      <div className="relative p-5">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full"
+          style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-12 right-8 h-24 w-24 rounded-full"
+          style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
+        />
+        <div className="relative flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-3">
+              <div
+                className="w-9 h-9 rounded-2xl flex items-center justify-center"
+                style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
+              >
+                <Icon size={16} strokeWidth={1.75} color="#E8F4EF" aria-hidden="true" />
+              </div>
+              <p
+                className="text-[10px] font-semibold uppercase tracking-widest"
+                style={{ color: "rgba(255,255,255,0.5)" }}
+              >
+                Ahorrado
+              </p>
+            </div>
+            <p className="text-[28px] font-bold font-sans leading-none" style={{ color: "#FFFCFA" }}>
+              {formatWholeMoney(progress.contributed)}
+            </p>
+            <p className="mt-2 text-[11px]" style={{ color: "rgba(255,255,255,0.55)" }}>
+              {progress.invalidTarget
+                ? "Sin objetivo definido"
+                : `de ${formatCompactMoney(progress.targetAmount)}`}
+            </p>
+          </div>
+          <ProgressRing percent={percent} />
+        </div>
+        <div
+          className="relative mt-4 h-2 rounded-full overflow-hidden"
+          style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percent}
+          aria-label={progress.invalidTarget ? "Sin objetivo" : `${percent}% completado`}
+        >
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${percent}%`, backgroundColor: "#E8F4EF" }}
+          />
+        </div>
+        {status ? (
+          <p className="relative mt-2 text-[11px] font-semibold" style={{ color: "#E8F4EF" }}>
+            {status}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function ProgressRing({ percent }: { percent: number }) {
+  const size = 64;
+  const stroke = 6;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c * (1 - Math.min(100, Math.max(0, percent)) / 100);
+
+  return (
+    <div className="relative flex-shrink-0" aria-hidden="true">
+      <svg width={size} height={size} className="-rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="rgba(255,255,255,0.18)"
+          strokeWidth={stroke}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="#E8F4EF"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+        />
+      </svg>
+      <span
+        className="absolute inset-0 flex items-center justify-center text-[11px] font-bold font-sans"
+        style={{ color: "#FFFCFA" }}
+      >
+        {`${percent}%`}
+      </span>
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  last = false,
+}: {
+  label: string;
+  value: string;
+  last?: boolean;
+}) {
+  return (
+    <div
+      className="flex items-start justify-between gap-4 py-3"
+      style={{ borderBottom: last ? undefined : `1px solid ${P.border}` }}
+    >
       <Text size="caption" tone="muted">
         {label}
       </Text>
