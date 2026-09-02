@@ -1,6 +1,5 @@
 "use client";
 
-import { Shield, Target } from "lucide-react";
 import { Button } from "@/components/nido/Button";
 import { EmptyState } from "@/components/nido/EmptyState";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
@@ -18,6 +17,7 @@ import {
 } from "@/lib/nido/financial";
 import type { DashboardQuery } from "@/lib/nido/use-dashboard";
 import { P } from "@/lib/palette";
+import { goalVisual } from "./visual";
 
 export function GoalsScreen({
   dashboard,
@@ -259,12 +259,8 @@ function GoalCard({
   onOpen: () => void;
 }) {
   const fund = isFund(progress);
-  const Icon = fund ? Shield : Target;
-  const well = fund ? "#E8F4EF" : "#FDEEF1";
-  const accentDk = fund ? P.sageDk : P.brnDp;
-  const bar = fund
-    ? `linear-gradient(90deg, ${P.sage}, ${P.sageDk})`
-    : `linear-gradient(90deg, ${P.brn}, ${P.brnDp})`;
+  const visual = goalVisual(progress.goalType);
+  const Icon = visual.Icon;
   const targetLabel = formatGoalTargetDate(progress.targetDate);
   const remaining = progress.invalidTarget || progress.completed
     ? null
@@ -284,14 +280,14 @@ function GoalCard({
       type="button"
       onClick={onOpen}
       className="w-full rounded-[1.5rem] p-4 text-left transition-transform active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      style={{ backgroundColor: well }}
+      style={{ backgroundColor: visual.well }}
     >
       <div className="flex items-start gap-3">
         <div
           className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
           style={{ backgroundColor: P.card }}
         >
-          <Icon size={18} strokeWidth={1.75} style={{ color: accentDk }} aria-hidden="true" />
+          <Icon size={18} strokeWidth={1.75} style={{ color: visual.accentDk }} aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -322,7 +318,7 @@ function GoalCard({
             {progress.invalidTarget ? "ahorrados" : `de ${formatCompactMoney(progress.targetAmount)}`}
           </span>
         </div>
-        <span className="text-xs font-bold font-sans flex-shrink-0" style={{ color: accentDk }}>
+        <span className="text-xs font-bold font-sans flex-shrink-0" style={{ color: visual.accentDk }}>
           {progress.invalidTarget ? "—" : `${progress.percent}%`}
         </span>
       </div>
@@ -344,7 +340,7 @@ function GoalCard({
           className="h-full rounded-full"
           style={{
             width: `${progress.percent}%`,
-            background: bar,
+            background: visual.bar,
           }}
         />
       </div>

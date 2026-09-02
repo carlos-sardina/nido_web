@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Check, Shield, Target } from "lucide-react";
 import { Button } from "@/components/nido/Button";
-import { ChoiceCard } from "@/components/nido/ChoiceCard";
 import { EmptyState } from "@/components/nido/EmptyState";
 import {
   Field,
@@ -13,21 +13,28 @@ import {
 } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
 import { Text } from "@/components/nido/Typography";
+import { goalVisual } from "@/components/goals/visual";
 import { canSubmitContribution, createContribution, updateContribution } from "@/lib/nido/contributions";
 import {
   amountToContributionInput,
+  clampedPercent,
   contributionAmountMessage,
   contributionDateMessage,
   formatCompactMoney,
   canContributeToGoal,
   goalKindLabel,
   goalProgress,
+  goalScopeLabel,
+  isFund,
   parseContributionAmountInput,
+  roundMoney,
   todayIso,
   type GoalContributionRow,
+  type GoalProgress,
   type GoalRow,
 } from "@/lib/nido/financial";
 import type { HouseholdMemberView } from "@/lib/nido/types";
+import { P } from "@/lib/palette";
 
 type FieldErrors = {
   goal?: string;
@@ -61,6 +68,8 @@ export function ContribFlow({
   const submittingRef = useRef(false);
   const isEditing = Boolean(contribution);
   const activeGoals = goals.filter((goal) => canContributeToGoal(goal, currentUserId));
+  const funds = activeGoals.filter((goal) => isFund(goal));
+  const metas = activeGoals.filter((goal) => !isFund(goal));
   const [goalId, setGoalId] = useState(() => contribution?.goalId ?? "");
   const [amount, setAmount] = useState(() =>
     contribution ? amountToContributionInput(contribution.amount) : "",
@@ -74,13 +83,13 @@ export function ContribFlow({
   const activeGoalIds = activeGoals.map((goal) => goal.id).join("\0");
 
   useEffect(() => {
-    const ids = activeGoalIds ? activeGoalIds.split("\0") : [];
+    const nextIds = activeGoalIds ? activeGoalIds.split("\0") : [];
     if (knownGoalIdsRef.current == null) {
-      knownGoalIdsRef.current = new Set(ids);
+      knownGoalIdsRef.current = new Set(nextIds);
       return;
     }
-    const added = ids.filter((id) => !knownGoalIdsRef.current!.has(id));
-    knownGoalIdsRef.current = new Set(ids);
+    const added = nextIds.filter((id) => !knownGoalIdsRef.current!.has(id));
+    knownGoalIdsRef.current = new Set(nextIds);
     if (isEditing || added.length !== 1) return;
     setGoalId(added[0]);
     setErrors((current) => ({ ...current, goal: undefined }));
@@ -94,6 +103,10 @@ export function ContribFlow({
     ? activeGoals.find((goal) => goal.id === contribution.goalId) ??
       goals.find((goal) => goal.id === contribution.goalId)
     : null;
+  const selectedGoal = isEditing
+    ? editingGoal
+    : activeGoals.find((goal) => goal.id === goalId) ?? null;
+  const parsedAmount = parseContributionAmountInput(amount);
   const saveLabel = submitting
     ? "Guardando…"
     : isEditing
@@ -118,8 +131,8 @@ export function ContribFlow({
       return;
     }
 
-    const parsedAmount = parseContributionAmountInput(amount);
-    if (parsedAmount == null) {
+    const parsed = parseContributionAmountInput(amount);
+    if (parsed == null) {
       setErrors({ amount: "Ingresa un monto válido." });
       return;
     }
@@ -132,7 +145,7 @@ export function ContribFlow({
       ? await updateContribution({
           householdId,
           goalId,
-          amount: parsedAmount,
+          amount: parsed,
           contributedAt,
           contributionId: contribution.id,
           activeMemberIds: members.map((member) => member.userId),
@@ -141,7 +154,7 @@ export function ContribFlow({
       : await createContribution({
           householdId,
           goalId,
-          amount: parsedAmount,
+          amount: parsed,
           contributedAt,
           activeMemberIds: members.map((member) => member.userId),
           allowedGoalIds: activeGoals.map((goal) => goal.id),
@@ -188,12 +201,28 @@ export function ContribFlow({
               Cargando metas y fondos…
             </Text>
           ) : empty ? (
-            <EmptyState
-              title="Todavía no hay metas ni fondos"
-              description="Crea una meta o un fondo primero para poder registrar una aportación."
-              actionLabel="Crear una meta o un fondo"
-              onAction={onCreateGoal}
-            />
+            <div>
+              <div className="flex justify-center gap-2 mb-4" aria-hidden="true">
+                <div
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                  style={{ backgroundColor: "#E8F4EF" }}
+                >
+                  <Shield size={20} strokeWidth={1.75} style={{ color: P.sageDk }} />
+                </div>
+                <div
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                  style={{ backgroundColor: "#FDEEF1" }}
+                >
+                  <Target size={20} strokeWidth={1.75} style={{ color: P.brnDp }} />
+                </div>
+              </div>
+              <EmptyState
+                title="Todavía no hay metas ni fondos"
+                description="Crea una meta o un fondo primero para poder registrar una aportación."
+                actionLabel="Crear una meta o un fondo"
+                onAction={onCreateGoal}
+              />
+            </div>
           ) : (
             <form
               id={`${ids}-form`}
@@ -210,45 +239,65 @@ export function ContribFlow({
                   Meta o fondo
                 </p>
                 {isEditing ? (
-                  <div
-                    className="rounded-2xl px-4 py-3"
-                    role="group"
-                    aria-labelledby={goalLabelId}
-                  >
-                    <Text size="body-sm" className="font-medium">
-                      {editingGoal?.name ?? "Meta o fondo"}
-                    </Text>
-                    <Text size="caption" tone="muted" className="mt-0.5">
-                      No se puede cambiar el destino de una aportación.
-                    </Text>
-                  </div>
+                  editingGoal ? (
+                    <GoalPickCard
+                      goal={editingGoal}
+                      selected
+                      locked
+                      disabled
+                    />
+                  ) : (
+                    <div
+                      className="rounded-2xl px-4 py-3"
+                      role="group"
+                      aria-labelledby={goalLabelId}
+                      style={{ backgroundColor: P.bg }}
+                    >
+                      <Text size="body-sm" className="font-medium">
+                        Meta o fondo
+                      </Text>
+                      <Text size="caption" tone="muted" className="mt-0.5">
+                        No se puede cambiar el destino de una aportación.
+                      </Text>
+                    </div>
+                  )
                 ) : (
-                  <div className="space-y-2" role="group" aria-labelledby={goalLabelId}>
-                    {activeGoals.map((goal) => {
-                      const progress = goalProgress(goal);
-                      const targetLabel = progress.invalidTarget
-                        ? "—"
-                        : formatCompactMoney(progress.targetAmount);
-                      return (
-                        <ChoiceCard
-                          key={goal.id}
-                          icon={goal.goalType === "purchase" ? "🎯" : "🛡️"}
-                          title={goal.name}
-                          description={`${goalKindLabel(goal.goalType)} · ${formatCompactMoney(progress.contributed)} de ${targetLabel} · ${
-                            progress.invalidTarget ? "—" : `${progress.percent}%`
-                          }`}
-                          selected={goalId === goal.id}
-                          disabled={submitting}
-                          onClick={() => {
-                            setGoalId(goal.id);
-                            setErrors((current) => ({ ...current, goal: undefined }));
-                          }}
-                        />
-                      );
-                    })}
+                  <div className="space-y-4" role="group" aria-labelledby={goalLabelId}>
+                    {funds.length > 0 ? (
+                      <GoalPickSection title="Fondos">
+                        {funds.map((goal) => (
+                          <GoalPickCard
+                            key={goal.id}
+                            goal={goal}
+                            selected={goalId === goal.id}
+                            disabled={submitting}
+                            onSelect={() => {
+                              setGoalId(goal.id);
+                              setErrors((current) => ({ ...current, goal: undefined }));
+                            }}
+                          />
+                        ))}
+                      </GoalPickSection>
+                    ) : null}
+                    {metas.length > 0 ? (
+                      <GoalPickSection title="Metas">
+                        {metas.map((goal) => (
+                          <GoalPickCard
+                            key={goal.id}
+                            goal={goal}
+                            selected={goalId === goal.id}
+                            disabled={submitting}
+                            onSelect={() => {
+                              setGoalId(goal.id);
+                              setErrors((current) => ({ ...current, goal: undefined }));
+                            }}
+                          />
+                        ))}
+                      </GoalPickSection>
+                    ) : null}
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="secondary"
                       disabled={submitting}
                       onClick={onCreateGoal}
                     >
@@ -276,6 +325,14 @@ export function ContribFlow({
                 <FieldError id={`${amountId}-error`}>{errors.amount}</FieldError>
               </Field>
 
+              {selectedGoal && parsedAmount != null ? (
+                <ContributionPreview
+                  goal={selectedGoal}
+                  amount={parsedAmount}
+                  editing={contribution}
+                />
+              ) : null}
+
               <Field>
                 <FieldLabel htmlFor={dateId}>Fecha</FieldLabel>
                 <TextInput
@@ -295,6 +352,224 @@ export function ContribFlow({
             </form>
           )}
       </FlowScreen>
+    </div>
+  );
+}
+
+function GoalPickSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: P.muted }}>
+        {title}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+function GoalPickCard({
+  goal,
+  selected,
+  locked = false,
+  disabled = false,
+  onSelect,
+}: {
+  goal: GoalRow;
+  selected: boolean;
+  locked?: boolean;
+  disabled?: boolean;
+  onSelect?: () => void;
+}) {
+  const progress = goalProgress(goal);
+  const visual = goalVisual(goal.goalType);
+  const Icon = visual.Icon;
+  const className =
+    "w-full rounded-[1.25rem] p-3.5 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-70";
+
+  const body = (
+    <>
+      <div className="flex items-start gap-3">
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: P.card }}
+        >
+          <Icon size={16} strokeWidth={1.75} style={{ color: visual.accentDk }} aria-hidden="true" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-bold leading-tight truncate" style={{ color: P.text }}>
+              {goal.name}
+            </p>
+            {selected ? (
+              <span
+                className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ backgroundColor: visual.accentDk }}
+              >
+                <Check size={12} strokeWidth={2.5} color="#FFFCFA" aria-hidden="true" />
+              </span>
+            ) : null}
+          </div>
+          <p className="text-[10px] mt-0.5" style={{ color: P.muted }}>
+            {goalKindLabel(goal.goalType)}
+            {" · "}
+            {goalScopeLabel(goal.scope)}
+          </p>
+        </div>
+      </div>
+      <GoalMiniBar progress={progress} bar={visual.bar} accent={visual.accentDk} />
+      {locked ? (
+        <p className="mt-2 text-[10px]" style={{ color: P.muted }}>
+          No se puede cambiar el destino de una aportación.
+        </p>
+      ) : null}
+    </>
+  );
+
+  const surfaceStyle = {
+    backgroundColor: visual.well,
+    boxShadow: selected ? `inset 0 0 0 2px ${visual.accent}` : undefined,
+  };
+
+  if (locked || !onSelect) {
+    return (
+      <div className={className} role="group" style={surfaceStyle}>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      disabled={disabled}
+      onClick={onSelect}
+      className={`${className} active:scale-[0.99]`}
+      style={surfaceStyle}
+    >
+      {body}
+    </button>
+  );
+}
+
+function GoalMiniBar({
+  progress,
+  bar,
+  accent,
+}: {
+  progress: GoalProgress;
+  bar: string;
+  accent: string;
+}) {
+  return (
+    <>
+      <div className="mt-2.5 flex items-baseline justify-between gap-2">
+        <span className="text-[11px] font-semibold font-sans" style={{ color: P.text }}>
+          {formatCompactMoney(progress.contributed)}
+          <span className="font-medium" style={{ color: P.muted }}>
+            {progress.invalidTarget ? " ahorrados" : ` de ${formatCompactMoney(progress.targetAmount)}`}
+          </span>
+        </span>
+        <span className="text-[11px] font-bold font-sans" style={{ color: accent }}>
+          {progress.invalidTarget ? "—" : `${progress.percent}%`}
+        </span>
+      </div>
+      <div
+        className="mt-1.5 h-1.5 rounded-full overflow-hidden"
+        style={{ backgroundColor: "rgba(47,42,40,0.08)" }}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress.invalidTarget ? 0 : progress.percent}
+        aria-label={
+          progress.invalidTarget ? "Sin objetivo" : `${progress.percent}% completado`
+        }
+      >
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${progress.percent}%`, background: bar }}
+        />
+      </div>
+    </>
+  );
+}
+
+function ContributionPreview({
+  goal,
+  amount,
+  editing,
+}: {
+  goal: GoalRow;
+  amount: number;
+  editing?: GoalContributionRow | null;
+}) {
+  const progress = goalProgress(goal);
+  const visual = goalVisual(goal.goalType);
+  const current = progress.contributed;
+  const projected = Math.max(
+    0,
+    roundMoney(
+      editing && editing.goalId === goal.id
+        ? current - editing.amount + amount
+        : current + amount,
+    ),
+  );
+  const projectedPercent = progress.invalidTarget
+    ? null
+    : clampedPercent(projected, progress.targetAmount);
+  const reached = !progress.invalidTarget && projected >= progress.targetAmount;
+
+  return (
+    <div
+      className="rounded-[1.25rem] p-4"
+      style={{ backgroundColor: visual.well }}
+      aria-live="polite"
+    >
+      <p
+        className="text-[10px] font-semibold uppercase tracking-widest mb-2"
+        style={{ color: visual.accentDk }}
+      >
+        {reached ? (isFund(goal) ? "Fondo alcanzado" : "Meta alcanzada") : "Después de aportar"}
+      </p>
+      <p className="text-lg font-bold font-sans leading-none" style={{ color: P.text }}>
+        {formatCompactMoney(projected)}
+        <span className="ml-1.5 text-[11px] font-medium" style={{ color: P.muted }}>
+          {progress.invalidTarget ? "ahorrados" : `de ${formatCompactMoney(progress.targetAmount)}`}
+        </span>
+      </p>
+      {projectedPercent != null ? (
+        <>
+          <div
+            className="relative mt-3 h-2 rounded-full overflow-hidden"
+            style={{ backgroundColor: "rgba(47,42,40,0.08)" }}
+          >
+            <div
+              className="absolute inset-y-0 left-0 rounded-full"
+              style={{
+                width: `${projectedPercent}%`,
+                background: visual.bar,
+                opacity: 0.4,
+              }}
+            />
+            <div
+              className="absolute inset-y-0 left-0 rounded-full"
+              style={{
+                width: `${Math.min(progress.percent, projectedPercent)}%`,
+                background: visual.bar,
+              }}
+            />
+          </div>
+          <p className="mt-1.5 text-[10px] font-semibold" style={{ color: visual.accentDk }}>
+            {`${progress.percent}% → ${projectedPercent}%`}
+          </p>
+        </>
+      ) : null}
     </div>
   );
 }

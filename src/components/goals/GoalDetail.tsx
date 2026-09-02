@@ -1,7 +1,6 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import { Shield, Target } from "lucide-react";
 import { Button } from "@/components/nido/Button";
 import { FieldError } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
@@ -26,6 +25,7 @@ import {
 } from "@/lib/nido/financial";
 import type { HouseholdMemberView } from "@/lib/nido/types";
 import { P } from "@/lib/palette";
+import { goalVisual } from "./visual";
 
 function memberName(
   userId: string,
@@ -302,14 +302,14 @@ function GoalProgressHero({
   goalType: GoalRow["goalType"];
   progress: ReturnType<typeof goalProgress>;
 }) {
-  const fund = isFund({ goalType });
-  const Icon = fund ? Shield : Target;
+  const visual = goalVisual(goalType);
+  const Icon = visual.Icon;
   const remaining = progress.invalidTarget || progress.completed
     ? null
     : roundMoney(progress.targetAmount - progress.contributed);
   const percent = progress.invalidTarget ? 0 : progress.percent;
   const status = progress.completed
-    ? fund
+    ? isFund({ goalType })
       ? "Fondo alcanzado"
       : "Meta alcanzada"
     : remaining != null
@@ -319,11 +319,7 @@ function GoalProgressHero({
   return (
     <div
       className="rounded-[1.5rem] overflow-hidden shadow-sm"
-      style={{
-        background: fund
-          ? "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)"
-          : "linear-gradient(135deg, #B87485 0%, #D88D9A 100%)",
-      }}
+      style={{ background: visual.hero }}
     >
       <div className="relative p-5">
         <div
