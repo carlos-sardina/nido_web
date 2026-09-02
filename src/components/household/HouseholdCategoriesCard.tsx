@@ -162,7 +162,7 @@ export function HouseholdCategoriesCard({
   };
 
   return (
-    <div className="mx-6 mb-3 rounded-[1.5rem] p-4 space-y-3" style={{ backgroundColor: P.card }}>
+    <div className="px-6 mb-5 space-y-3">
       <Text size="label">Categorías</Text>
       <Text size="caption" tone="muted" className="leading-relaxed">
         Puedes crear, renombrar o archivar. Archivar no borra los movimientos que ya la usan.
@@ -176,7 +176,7 @@ export function HouseholdCategoriesCard({
         const mode = rowMode[category.id] ?? "view";
         const busy = busyId === category.id;
         return (
-          <div key={category.id} className="rounded-2xl p-3 space-y-2" style={{ backgroundColor: P.sub }}>
+          <div key={category.id} className="rounded-2xl p-3 space-y-2 shadow-sm" style={{ backgroundColor: P.card }}>
             {mode === "rename" ? (
               <>
                 <input
@@ -198,7 +198,7 @@ export function HouseholdCategoriesCard({
                     });
                   }}
                   className="w-full h-11 px-3 rounded-xl text-sm outline-none border"
-                  style={{ backgroundColor: P.card, color: P.text, borderColor: P.border }}
+                  style={{ backgroundColor: P.sub, color: P.text, borderColor: P.border }}
                 />
                 {rowError[category.id] && (
                   <Text size="caption" tone="danger" role="alert">{rowError[category.id]}</Text>

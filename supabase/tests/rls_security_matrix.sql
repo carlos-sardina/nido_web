@@ -13,7 +13,7 @@
 --      onboarding financial persist, household categories/split,
 --      onboarding savings / budgets, personal visibility,
 --      budget consumption visibility, expense refunds,
---      remove household member)
+--      remove household member, monthly balance confirmations)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -6470,6 +6470,173 @@ BEGIN
     $sql$
       SELECT public.update_personal_visibility('nido')
     $sql$
+  );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Monthly balance confirmations — unanimous "Pagar"
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_nido_a uuid;
+  v_cat_expense_a uuid;
+  v_expense uuid := 'e0b1c2d3-e4f5-6789-abcd-ef0123456789';
+  v_split_c uuid := 'e0b1c2d3-e4f5-6789-abcd-ef0123456790';
+  v_split_d uuid := 'e0b1c2d3-e4f5-6789-abcd-ef0123456791';
+  v_today date := public.nido_today();
+  v_year integer := EXTRACT(YEAR FROM public.nido_today())::integer;
+  v_month integer := EXTRACT(MONTH FROM public.nido_today())::integer;
+  v_paid boolean;
+  v_count integer;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_cat_expense_a FROM rls_ids WHERE key = 'cat_expense_a';
+
+  INSERT INTO public.expenses (
+    id, household_id, category_id, amount, occurred_at, payer_id,
+    scope, distribution_method, created_by
+  ) VALUES (
+    v_expense, v_nido_a, v_cat_expense_a, 1000, v_today, v_carlos,
+    'shared', 'equal', v_carlos
+  );
+
+  INSERT INTO public.expense_splits (
+    id, expense_id, member_id, amount, percentage
+  ) VALUES
+    (v_split_c, v_expense, v_carlos, 500, 50),
+    (v_split_d, v_expense, v_diana, 500, 50);
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  EXECUTE format(
+    'SELECT public.confirm_monthly_balance(%s, %s)', v_year, v_month
+  ) INTO v_paid;
+  PERFORM pg_temp.record_result(
+    'BP01', 'Carlos', 'A', 'active', 'member can confirm own month',
+    'allow',
+    'allow'
+  );
+  PERFORM pg_temp.record_result(
+    'BP02', 'Carlos', 'A', 'active', 'one confirmation is not paid',
+    'pending',
+    CASE WHEN v_paid THEN 'paid' ELSE 'pending' END
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  EXECUTE format(
+    'SELECT public.confirm_monthly_balance(%s, %s)', v_year, v_month
+  ) INTO v_paid;
+  PERFORM pg_temp.record_result(
+    'BP03', 'Diana', 'A', 'active', 'peer can confirm the same month',
+    'allow',
+    'allow'
+  );
+  PERFORM pg_temp.record_result(
+    'BP04', 'Diana', 'A', 'active', 'all active members paid the month',
+    'paid',
+    CASE WHEN v_paid THEN 'paid' ELSE 'pending' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'BP05', 'Carlos', 'A', 'active', 'confirm is idempotent',
+    'allow',
+    pg_temp.expect_allow(format(
+      'SELECT public.confirm_monthly_balance(%s, %s)', v_year, v_month
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'BP06', 'Carlos', 'A', 'active', 'cannot insert confirmation for a peer',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.monthly_balance_confirmations (
+          household_id, year, month, user_id
+        ) VALUES (
+          %L, %s, %s, %L
+        )
+      $sql$,
+      v_nido_a,
+      v_year,
+      v_month,
+      v_diana
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'BP07', 'Carlos', 'A', 'active', 'future month cannot be confirmed',
+    'nido.invalid_date',
+    pg_temp.expect_exception('SELECT public.confirm_monthly_balance(2099, 1)')
+  );
+
+  PERFORM pg_temp.record_result(
+    'BP08', 'Carlos', 'A', 'active', 'invalid month is rejected',
+    'nido.invalid_date',
+    pg_temp.expect_exception('SELECT public.confirm_monthly_balance(2026, 13)')
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM pg_temp.record_result(
+    'BP09', 'Luis', 'A', 'other Nido', 'other household cannot insert',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+        INSERT INTO public.monthly_balance_confirmations (
+          household_id, year, month, user_id
+        ) VALUES (
+          %L, %s, %s, %L
+        )
+      $sql$,
+      v_nido_a,
+      v_year,
+      v_month,
+      v_luis
+    ))
+  );
+
+  PERFORM pg_temp.record_result(
+    'BP10', 'Luis', 'A', 'other Nido', 'other household cannot read',
+    'deny',
+    CASE WHEN pg_temp.expect_count(format(
+      'SELECT count(*) FROM public.monthly_balance_confirmations WHERE household_id = %L',
+      v_nido_a
+    )) = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.clear_auth();
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.record_result(
+    'BP11', 'none', '-', 'none', 'anonymous cannot confirm',
+    'deny',
+    pg_temp.expect_allow(format(
+      'SELECT public.confirm_monthly_balance(%s, %s)', v_year, v_month
+    ))
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.expect_allow(format(
+    $sql$
+      UPDATE public.expenses SET amount = 1200 WHERE id = %L
+    $sql$,
+    v_expense
+  ));
+  SELECT count(*) INTO v_count
+  FROM public.monthly_balance_confirmations
+  WHERE household_id = v_nido_a
+    AND year = v_year
+    AND month = v_month;
+  PERFORM pg_temp.record_result(
+    'BP12', 'Carlos', 'A', 'active', 'shared expense change clears confirmations',
+    'cleared',
+    CASE WHEN v_count = 0 THEN 'cleared' ELSE 'kept' END
   );
 END;
 $$;

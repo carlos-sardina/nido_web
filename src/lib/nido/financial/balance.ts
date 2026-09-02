@@ -1,5 +1,5 @@
 import type { HouseholdMemberView } from "../types.ts";
-import { type MonthRange } from "./dates.ts";
+import { monthRangeFromIsoDate, shiftMonth, type MonthRange } from "./dates.ts";
 import { visiblePeriodExpenses, isSharedExpense, memberPaid } from "./expenses.ts";
 import { memberPeriodIncomeTotal, visiblePeriodIncomes } from "./incomes.ts";
 import { MONEY_CENTS, roundMoney, sumMoney } from "./money.ts";
@@ -11,6 +11,7 @@ import type {
   MemberBalanceView,
   MemberIncomeView,
   MonthlyBalance,
+  MonthlyBalanceConfirmation,
 } from "./types.ts";
 
 export function shortMemberName(displayName: string | null | undefined): string {
@@ -216,6 +217,106 @@ export function calculateMonthlyBalance(input: {
   };
 }
 
+export const OUTSTANDING_BALANCE_LOOKBACK_MONTHS = 24;
+
+/**
+ * Overlay unanimous member confirmations on a derived monthly statement.
+ * When every current member has confirmed an unsettled month, debt displays as 0.
+ * Confirmations do not rewrite expenses.
+ */
+export function applyMonthlyBalancePayment(
+  balance: MonthlyBalance,
+  input: {
+    confirmations: readonly MonthlyBalanceConfirmation[];
+    memberIds: readonly string[];
+  },
+): MonthlyBalance {
+  const memberIds = [...new Set(input.memberIds.filter(Boolean))];
+  const confirmedUserIds = [
+    ...new Set(
+      input.confirmations
+        .filter(
+          (row) =>
+            row.year === balance.range.year &&
+            row.month === balance.range.month &&
+            memberIds.includes(row.userId),
+        )
+        .map((row) => row.userId),
+    ),
+  ];
+  const pendingUserIds = memberIds.filter((id) => !confirmedUserIds.includes(id));
+  const paid =
+    balance.status === "unsettled" && memberIds.length > 0 && pendingUserIds.length === 0;
+
+  if (!paid) {
+    return {
+      ...balance,
+      payment: {
+        paid: false,
+        confirmedUserIds,
+        pendingUserIds,
+      },
+    };
+  }
+
+  return {
+    ...balance,
+    status: "paid",
+    members: balance.members.map((row) => ({ ...row, balance: 0 })),
+    settlements: [],
+    payment: {
+      paid: true,
+      confirmedUserIds,
+      pendingUserIds: [],
+    },
+  };
+}
+
+/**
+ * Calendar months, newest first, whose derived shared debt is still unpaid.
+ * Includes the current month. Future months are ignored.
+ */
+export function findOutstandingBalanceMonths(input: {
+  expenses: readonly ExpenseRow[];
+  members: ReadonlyArray<Pick<HouseholdMemberView, "userId" | "displayName">>;
+  confirmations: readonly MonthlyBalanceConfirmation[];
+  through: MonthRange;
+  householdId?: string;
+  lookbackMonths?: number;
+}): MonthlyBalance[] {
+  const lookback = input.lookbackMonths ?? OUTSTANDING_BALANCE_LOOKBACK_MONTHS;
+  const start = shiftMonth(input.through, -(lookback - 1));
+  const memberIds = input.members.map((member) => member.userId).filter(Boolean);
+  const groups = new Map<string, { range: MonthRange; expenses: ExpenseRow[] }>();
+
+  for (const expense of input.expenses) {
+    if (expense.deletedAt != null || !isSharedExpense(expense)) continue;
+    const range = monthRangeFromIsoDate(expense.occurredAt, input.through.timeZone);
+    if (!range) continue;
+    if (range.start < start.start || range.start > input.through.start) continue;
+    const key = `${range.year}-${String(range.month).padStart(2, "0")}`;
+    const group = groups.get(key);
+    if (group) group.expenses.push(expense);
+    else groups.set(key, { range, expenses: [expense] });
+  }
+
+  return [...groups.values()]
+    .sort((a, b) => b.range.start.localeCompare(a.range.start))
+    .map((group) =>
+      applyMonthlyBalancePayment(
+        calculateMonthlyBalance({
+          expenses: group.expenses,
+          incomes: [],
+          members: input.members,
+          range: group.range,
+          householdId: input.householdId,
+        }),
+        { confirmations: input.confirmations, memberIds },
+      ),
+    )
+    .filter((row) => row.status === "unsettled");
+}
+
 export type CompactBalanceCopy = {
   headline: string;
   hasObligation: boolean;
@@ -227,6 +328,9 @@ export function compactBalanceCopy(
 ): CompactBalanceCopy {
   if (balance.status === "empty") {
     return { headline: "Sin gastos compartidos este mes", hasObligation: false };
+  }
+  if (balance.status === "paid") {
+    return { headline: "Deuda pagada", hasObligation: false };
   }
   if (balance.status === "settled") {
     return { headline: "Todo está equilibrado", hasObligation: false };

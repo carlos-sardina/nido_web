@@ -1,6 +1,7 @@
-import { getCurrentMonthRange, type MonthRange } from "../financial/dates.ts";
 import { ACTIVITY_PAGE_SIZE } from "../financial/activity.ts";
-import type { DashboardSnapshot } from "../financial/types.ts";
+import { OUTSTANDING_BALANCE_LOOKBACK_MONTHS } from "../financial/balance.ts";
+import { getCurrentMonthRange, shiftMonth, type MonthRange } from "../financial/dates.ts";
+import type { DashboardSnapshot, MonthlyBalanceConfirmation } from "../financial/types.ts";
 import { nidoErrorFromUnknown, nidoFail, nidoOk, type NidoResult } from "../errors";
 import { nidoClient, requireUser, type NidoClient } from "../session";
 import {
@@ -35,6 +36,24 @@ const GOAL_SELECT =
 const CONTRIBUTION_SELECT =
   "id, goal_id, member_id, amount, contributed_at, created_by, created_at, deleted_at, member:profiles!goal_contributions_member_id_fkey(id, display_name), goals(id, name, household_id)";
 
+type ConfirmationQueryRow = {
+  household_id: string;
+  year: number;
+  month: number;
+  user_id: string;
+  confirmed_at: string;
+};
+
+function mapConfirmationRow(row: ConfirmationQueryRow): MonthlyBalanceConfirmation {
+  return {
+    householdId: row.household_id,
+    year: Number(row.year),
+    month: Number(row.month),
+    userId: row.user_id,
+    confirmedAt: row.confirmed_at,
+  };
+}
+
 /**
  * Reads the active Nido's financial facts for the dashboard.
  *
@@ -47,6 +66,7 @@ export async function fetchDashboardSnapshot(
   range: MonthRange = getCurrentMonthRange(),
   supabase: NidoClient = nidoClient(),
   recentLimit: number = DEFAULT_RECENT_LIMIT,
+  options?: { includeSharedHistory?: boolean },
 ): Promise<NidoResult<DashboardSnapshot>> {
   const auth = await requireUser(supabase);
   if (auth.ok === false) return nidoFail(auth.error.code);
@@ -54,6 +74,10 @@ export async function fetchDashboardSnapshot(
 
   const client = auth.data.supabase;
   const historyLimit = Math.max(recentLimit, DEFAULT_RECENT_LIMIT);
+  const includeSharedHistory = options?.includeSharedHistory === true;
+  const historyFrom = includeSharedHistory
+    ? shiftMonth(range, -(OUTSTANDING_BALANCE_LOOKBACK_MONTHS - 1)).start
+    : null;
 
   const [
     periodExpensesRes,
@@ -65,6 +89,8 @@ export async function fetchDashboardSnapshot(
     budgetsRes,
     goalsRes,
     contributionsRes,
+    confirmationsRes,
+    sharedHistoryRes,
   ] = await Promise.all([
     client
       .from("expenses")
@@ -129,6 +155,22 @@ export async function fetchDashboardSnapshot(
       .is("deleted_at", null)
       .order("contributed_at", { ascending: false })
       .limit(historyLimit),
+    client
+      .from("monthly_balance_confirmations")
+      .select("household_id, year, month, user_id, confirmed_at")
+      .eq("household_id", householdId),
+    includeSharedHistory && historyFrom
+      ? client
+          .from("expenses")
+          .select(EXPENSE_SELECT)
+          .eq("household_id", householdId)
+          .eq("scope", "shared")
+          .is("deleted_at", null)
+          .gte("occurred_at", historyFrom)
+          .lte("occurred_at", range.end)
+          .order("occurred_at", { ascending: false })
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as ExpenseQueryRow[], error: null }),
   ]);
 
   const firstError =
@@ -140,7 +182,9 @@ export async function fetchDashboardSnapshot(
     recurringExpensesRes.error ??
     budgetsRes.error ??
     goalsRes.error ??
-    contributionsRes.error;
+    contributionsRes.error ??
+    confirmationsRes.error ??
+    sharedHistoryRes.error;
 
   if (firstError) {
     return nidoFail(
@@ -175,5 +219,9 @@ export async function fetchDashboardSnapshot(
     budgets: ((budgetsRes.data ?? []) as BudgetQueryRow[]).map(mapBudgetRow),
     goals,
     contributions,
+    balanceConfirmations: ((confirmationsRes.data ?? []) as ConfirmationQueryRow[]).map(
+      mapConfirmationRow,
+    ),
+    sharedHistoryExpenses: ((sharedHistoryRes.data ?? []) as ExpenseQueryRow[]).map(mapExpenseRow),
   });
 }

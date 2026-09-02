@@ -42,6 +42,7 @@ import type {
   IncomeRow,
   RecurringExpenseTemplate,
   RecurringIncomeTemplate,
+  MonthRange,
 } from "@/lib/nido/financial";
 import { useDashboard } from "@/lib/nido/use-dashboard";
 import type { Household, HouseholdMember, HouseholdMemberView, Profile } from "@/lib/nido/types";
@@ -89,6 +90,7 @@ export function MainApp({
   const [showBudgets, setShowBudgets] = useState(false);
   const [showIncomes, setShowIncomes] = useState(false);
   const [showBalance, setShowBalance] = useState(false);
+  const [balanceInitialRange, setBalanceInitialRange] = useState<MonthRange | undefined>();
   const [selectedBudget, setSelectedBudget] = useState<BudgetItemView | null>(null);
   const [editingBudget, setEditingBudget] = useState<BudgetItemView | null>(null);
   const [showRecurringExpenses, setShowRecurringExpenses] = useState(false);
@@ -225,7 +227,10 @@ export function MainApp({
               onOpenBudget={setSelectedBudget}
               onCreateBudget={openBudgetCreate}
               onCopyPreviousMonthBudgets={openCopyPreviousMonthBudgets}
-              onOpenBalance={() => setShowBalance(true)}
+              onOpenBalance={(range) => {
+                setBalanceInitialRange(range);
+                setShowBalance(true);
+              }}
               currentUserId={user?.id ?? null}
             />
           )}
@@ -361,7 +366,15 @@ export function MainApp({
           <BalanceScreen
             householdId={liveHousehold.id}
             members={members}
-            onClose={() => setShowBalance(false)}
+            currentUserId={user?.id ?? null}
+            initialRange={balanceInitialRange}
+            onClose={() => {
+              setShowBalance(false);
+              setBalanceInitialRange(undefined);
+            }}
+            onConfirmed={() => {
+              void dashboard.refresh();
+            }}
           />
         )}
 

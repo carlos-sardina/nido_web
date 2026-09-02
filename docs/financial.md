@@ -107,7 +107,7 @@ There is no product rule that rejects future expense dates. The form defaults to
 | Budget usage | `spent / budgets.amount * 100` (view model only; unbounded, may exceed 100; null if amount ≤ 0) |
 | Activity | union of expenses, incomes, goal contributions, and refunds, newest first |
 
-There is no `balances` table, no `settlements` table, no `current_amount` on goals, and no `current_spent` on budgets.
+There is no `balances` table and no `settlements` table. Unanimous month payment confirmations live in `monthly_balance_confirmations`; they do not replace derived settlements and do not rewrite expenses. There is no `current_amount` on goals and no `current_spent` on budgets.
 
 ### Monthly balance (Phase 9.4.6)
 
@@ -117,9 +117,9 @@ There is no `balances` table, no `settlements` table, no `current_amount` on goa
 - **Gastos / gastos netos:** live **shared** expenses in the month, gross and net of those expenses’ refunds. Personal expenses stay out of settlements even when visible to the Nido.
 - **Payer:** `expenses.payer_id`. Splits are `expense_splits.amount` (already stored). Do not recompute percentages.
 - **Refunds:** reduce the original expense’s paid and each participant’s owed. They are not a new income. A refund dated in a later month still belongs to the **expense month**. Soft-deleted expenses (and their refunds) are omitted.
-- **Settlements:** obligations derived from `balance = paid − owed`. There is no “marcar como pagado” and no Activity event.
+- **Settlements:** obligations derived from `balance = paid − owed`. Members can confirm a month as paid (`monthly_balance_confirmations`). The month is paid only when **every current active member** confirms from their own account. Paid months display debt as $0 without rewriting expenses. A later change to that month’s shared expenses (or their splits / refunds) deletes the confirmations.
 
-Home shows a compact card (`Diana te debe $1,500` / `Todo está equilibrado` / `Sin gastos compartidos este mes`). The **Balance** overlay (from Home, not a new tab) has a month selector for the current and previous months. Health is unchanged.
+Home shows a compact card (`Diana te debe $1,500` / `Todo está equilibrado` / `Sin gastos compartidos este mes` / `Deuda pagada`) and a **Meses con deuda** list of unpaid months. Tapping a month opens the Balance overlay on that month. The **Balance** overlay (from Home, not a new tab) has a month selector and a **Pagar** action. Health is unchanged.
 
 ### Pull-to-refresh (Phase 9.4.7)
 

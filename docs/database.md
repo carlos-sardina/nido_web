@@ -47,6 +47,7 @@ auth.users 1──1 profiles
                  ├── participates in ── expense_splits / recurring_expense_splits / expense_refund_splits
                  ├── owns optional ── budgets (personal)
                  ├── owns optional ── savings_balances (personal)
+                 ├── confirms ── monthly_balance_confirmations
                  └── contributes to ── goal_contributions
 
 households 1──* household_members
@@ -59,6 +60,7 @@ households 1──* recurring_expenses
 households 1──* budgets
 households 1──* savings_balances
 households 1──* goals
+households 1──* monthly_balance_confirmations
 
 categories 1──* incomes / recurring_incomes / expenses / recurring_expenses / budgets
 
@@ -467,6 +469,21 @@ One row per `(household_id, member_id)` (`UNIQUE NULLS NOT DISTINCT`). Update in
 
 Personal SELECT follows `profiles.personal_visibility` of `member_id` (9.4.3). Shared (`member_id` NULL) stays visible to household members. The owner always reads their own row.
 
+### 3.16 `monthly_balance_confirmations`
+
+Unanimous confirmation that a calendar month’s derived debt is paid. Added for the Balance **Pagar** action.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` PK | |
+| `household_id` | `uuid` FK → `households.id` | ON DELETE CASCADE. |
+| `year` | `integer` | Calendar year in `America/Mexico_City`. 2000–2100. |
+| `month` | `integer` | Calendar month 1–12. |
+| `user_id` | `uuid` FK → `profiles.id` | The member who confirmed. Must be `auth.uid()` on insert. |
+| `confirmed_at` | `timestamptz` | |
+
+Unique on `(household_id, year, month, user_id)`. SELECT is historical membership. INSERT is active membership of self only. There is no UPDATE or authenticated DELETE. `confirm_monthly_balance(year, month)` records the caller’s row using the active membership of `auth.uid()` (no client `household_id`) and returns true when every current active member has confirmed. Changing a live shared expense (or its splits / refunds) in that month deletes every confirmation for the month.
+
 ---
 
 ## 4. Enums
@@ -662,7 +679,7 @@ If Carlos also participates (equal split with Diana on `$1,000` that Carlos paid
 - Carlos: paid `1000`, owed `500` → balance `+500`
 - Diana: paid `0`, owed `500` → balance `-500`
 
-Positive balance means the Nido owes that person. Negative means that person owes others. `deriveSettlements()` turns those nets into concrete transfers (Diana → Carlos $500). There is no `balances` table, no `settlements` table, and no “marcar como pagado”.
+Positive balance means the Nido owes that person. Negative means that person owes others. `deriveSettlements()` turns those nets into concrete transfers (Diana → Carlos $500). Displayed debt is zeroed only after every current active member confirms the month (`monthly_balance_confirmations`). That overlay is not a transfer ledger and does not rewrite expenses.
 
 ### Goal progress
 

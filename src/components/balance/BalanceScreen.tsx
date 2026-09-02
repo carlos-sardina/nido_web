@@ -1,17 +1,24 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/nido/Button";
 import { EmptyState } from "@/components/nido/EmptyState";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { BackLink } from "@/components/nido/Screen";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
+  confirmMonthlyBalance,
+  canSubmitBalancePayment,
+} from "@/lib/nido/monthly-balance";
+import {
   formatExactMoney,
   formatSignedMoney,
   getCurrentMonthRange,
+  shortMemberName,
+  type MonthRange,
+  type MonthlyBalance,
 } from "@/lib/nido/financial";
-import type { MonthlyBalance } from "@/lib/nido/financial";
 import { useMonthlyBalance } from "@/lib/nido/use-monthly-balance";
 import type { HouseholdMemberView } from "@/lib/nido/types";
 import { P } from "@/lib/palette";
@@ -69,6 +76,15 @@ function Settlements({ balance }: { balance: MonthlyBalance }) {
     );
   }
 
+  if (balance.status === "paid") {
+    return (
+      <EmptyState
+        title="Deuda pagada"
+        description="Todos confirmaron el pago. El saldo de este mes quedó en $0."
+      />
+    );
+  }
+
   if (balance.status === "settled") {
     return (
       <EmptyState
@@ -98,17 +114,135 @@ function Settlements({ balance }: { balance: MonthlyBalance }) {
   );
 }
 
+function memberLabel(
+  memberId: string,
+  members: HouseholdMemberView[],
+  currentUserId: string | null,
+): string {
+  if (currentUserId && memberId === currentUserId) return "Tú";
+  const listed = members.find((member) => member.userId === memberId);
+  return shortMemberName(listed?.displayName);
+}
+
+function PaymentPanel({
+  balance,
+  members,
+  currentUserId,
+  paying,
+  error,
+  onPay,
+}: {
+  balance: MonthlyBalance;
+  members: HouseholdMemberView[];
+  currentUserId: string | null;
+  paying: boolean;
+  error: string | null;
+  onPay: () => void;
+}) {
+  if (balance.status !== "unsettled") return null;
+
+  const confirmed = new Set(balance.payment?.confirmedUserIds ?? []);
+  const alreadyConfirmed = Boolean(currentUserId && confirmed.has(currentUserId));
+  const pendingNames = (balance.payment?.pendingUserIds ?? [])
+    .filter((id) => id !== currentUserId)
+    .map((id) => memberLabel(id, members, currentUserId));
+  const waitingCopy =
+    pendingNames.length === 0
+      ? "Falta que confirmes tú para saldar este mes."
+      : pendingNames.length === 1
+        ? `Falta que ${pendingNames[0]} confirme desde su cuenta.`
+        : `Falta que confirmen: ${pendingNames.join(", ")}.`;
+
+  return (
+    <div className="rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
+      <p
+        className="text-[10px] font-semibold uppercase tracking-widest mb-2"
+        style={{ color: P.muted }}
+      >
+        Saldar el mes
+      </p>
+      <p className="text-sm leading-relaxed mb-4" style={{ color: P.text }}>
+        {alreadyConfirmed
+          ? waitingCopy
+          : "Para considerar la deuda pagada, cada persona tiene que darle a Pagar desde su cuenta."}
+      </p>
+      <div className="space-y-2 mb-4">
+        {members.map((member) => {
+          const done = confirmed.has(member.userId);
+          return (
+            <div key={member.userId} className="flex items-center justify-between gap-3">
+              <span className="text-sm" style={{ color: P.text }}>
+                {memberLabel(member.userId, members, currentUserId)}
+              </span>
+              <span
+                className="inline-flex items-center gap-1 text-[11px] font-semibold"
+                style={{ color: done ? P.sageDk : P.muted }}
+              >
+                {done ? <Check size={14} aria-hidden="true" /> : null}
+                {done ? "Confirmó" : "Pendiente"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {error ? (
+        <Text size="caption" tone="danger" className="mb-3">
+          {error}
+        </Text>
+      ) : null}
+      {alreadyConfirmed ? null : (
+        <Button
+          onClick={onPay}
+          loading={paying}
+          disabled={!canSubmitBalancePayment(paying, alreadyConfirmed)}
+        >
+          Pagar
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export function BalanceScreen({
   householdId,
   members,
+  currentUserId,
+  initialRange,
   onClose,
+  onConfirmed,
 }: {
   householdId: string;
   members: HouseholdMemberView[];
+  currentUserId: string | null;
+  initialRange?: MonthRange;
   onClose: () => void;
+  onConfirmed?: () => void;
 }) {
-  const query = useMonthlyBalance(householdId, members, true, getCurrentMonthRange());
+  const query = useMonthlyBalance(
+    householdId,
+    members,
+    true,
+    getCurrentMonthRange(),
+    initialRange,
+  );
   const { isLoading, refreshing, error, balance, range, canGoNext, goPrev, goNext, refresh } = query;
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+
+  async function handlePay() {
+    if (!canSubmitBalancePayment(paying, false)) return;
+    setPaying(true);
+    setPayError(null);
+    const result = await confirmMonthlyBalance({ year: range.year, month: range.month });
+    if (result.ok === false) {
+      setPayError(result.error.message);
+      setPaying(false);
+      return;
+    }
+    await refresh();
+    onConfirmed?.();
+    setPaying(false);
+  }
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col overflow-hidden" style={{ backgroundColor: P.bgL }}>
@@ -218,6 +352,15 @@ export function BalanceScreen({
                 ))}
               </div>
             ) : null}
+
+            <PaymentPanel
+              balance={balance}
+              members={members}
+              currentUserId={currentUserId}
+              paying={paying}
+              error={payError}
+              onPay={() => void handlePay()}
+            />
 
             <div>
               <h3 className="text-xs font-semibold mb-2" style={{ color: P.text }}>

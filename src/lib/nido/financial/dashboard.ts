@@ -1,6 +1,10 @@
 import type { HouseholdMemberView } from "../types.ts";
 import { buildActivityItems } from "./activity.ts";
-import { calculateMonthlyBalance } from "./balance.ts";
+import {
+  applyMonthlyBalancePayment,
+  calculateMonthlyBalance,
+  findOutstandingBalanceMonths,
+} from "./balance.ts";
 import { buildBudgetItemView, buildMonthBudgetView, visiblePeriodBudgets } from "./budgets.ts";
 import { greetingForNow, type MonthRange } from "./dates.ts";
 import { householdSpent, isActiveExpense, visiblePeriodExpenses } from "./expenses.ts";
@@ -106,6 +110,25 @@ export function buildDashboardViewModel(input: {
     householdId: snapshot.householdId,
   });
 
+  const memberIds = members.map((member) => member.userId).filter(Boolean);
+  const confirmations = snapshot.balanceConfirmations ?? [];
+  const monthlyBalance = applyMonthlyBalancePayment(
+    calculateMonthlyBalance({
+      expenses: periodExpenses,
+      incomes: periodIncomes,
+      members,
+      range,
+      householdId: snapshot.householdId,
+    }),
+    { confirmations, memberIds },
+  );
+
+  const sharedHistory = snapshot.sharedHistoryExpenses ?? [];
+  const historyExpenses =
+    sharedHistory.length > 0
+      ? sharedHistory
+      : [...periodExpenses, ...recentExpenses];
+
   return {
     range,
     greeting: greetingForNow(now, range.timeZone),
@@ -125,11 +148,12 @@ export function buildDashboardViewModel(input: {
       buildBudgetItemView(row, periodExpenses, members),
     ),
     activity,
-    monthlyBalance: calculateMonthlyBalance({
-      expenses: periodExpenses,
-      incomes: periodIncomes,
+    monthlyBalance,
+    outstandingBalanceMonths: findOutstandingBalanceMonths({
+      expenses: historyExpenses,
       members,
-      range,
+      confirmations,
+      through: range,
       householdId: snapshot.householdId,
     }),
     empty: {

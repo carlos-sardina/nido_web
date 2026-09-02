@@ -29,6 +29,8 @@ function emptySnapshot(overrides: Partial<DashboardSnapshot> = {}): DashboardSna
     budgets: [],
     goals: [],
     contributions: [],
+    balanceConfirmations: [],
+    sharedHistoryExpenses: [],
     ...overrides,
   };
 }
@@ -59,6 +61,7 @@ describe("dashboard view model", () => {
     assert.equal(model.greeting, "Buenos días");
     assert.equal(model.monthlyBalance.status, "empty");
     assert.deepEqual(model.monthlyBalance.settlements, []);
+    assert.deepEqual(model.outstandingBalanceMonths, []);
   });
 
   it("uses confirmed period totals and derived goal progress", () => {
@@ -1238,5 +1241,77 @@ describe("dashboard view model", () => {
     assert.equal(model.monthlyBalance.settlements[0]?.fromMemberId, "diana");
     assert.equal(model.monthlyBalance.settlements[0]?.toMemberId, "carlos");
     assert.equal(model.monthlyBalance.settlements[0]?.amount, 500);
+    assert.equal(model.outstandingBalanceMonths.length, 1);
+    assert.equal(model.outstandingBalanceMonths[0]?.status, "unsettled");
+  });
+
+  it("lists other unpaid months on the dashboard after unanimous payment overlay", () => {
+    const julyShared: ExpenseRow = {
+      id: "e-july",
+      householdId: "h1",
+      categoryId: "c1",
+      amount: 800,
+      description: "Luz",
+      occurredAt: "2026-07-12",
+      payerId: "carlos",
+      scope: "shared",
+      distributionMethod: "equal",
+      recurringId: null,
+      createdBy: "carlos",
+      createdAt: "2026-07-12T12:00:00.000Z",
+      deletedAt: null,
+      category: { id: "c1", name: "Servicios", icon: "⚡" },
+      payer: { id: "carlos", displayName: "Carlos Pérez" },
+      splits: [
+        { id: "sj1", expenseId: "e-july", memberId: "carlos", amount: 400, percentage: 50 },
+        { id: "sj2", expenseId: "e-july", memberId: "diana", amount: 400, percentage: 50 },
+      ],
+    };
+    const householdMembers = [
+      {
+        userId: "carlos",
+        role: "member" as const,
+        joinedAt: "2026-01-01T00:00:00.000Z",
+        displayName: "Carlos Pérez",
+        avatarUrl: null,
+      },
+      ...members,
+    ];
+
+    const unpaid = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        sharedHistoryExpenses: [julyShared],
+      }),
+      members: householdMembers,
+      range,
+    });
+    assert.equal(unpaid.monthlyBalance.status, "empty");
+    assert.equal(unpaid.outstandingBalanceMonths.length, 1);
+    assert.equal(unpaid.outstandingBalanceMonths[0]?.range.month, 7);
+
+    const paid = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        sharedHistoryExpenses: [julyShared],
+        balanceConfirmations: [
+          {
+            householdId: "h1",
+            year: 2026,
+            month: 7,
+            userId: "carlos",
+            confirmedAt: "2026-07-31T12:00:00.000Z",
+          },
+          {
+            householdId: "h1",
+            year: 2026,
+            month: 7,
+            userId: "diana",
+            confirmedAt: "2026-07-31T12:05:00.000Z",
+          },
+        ],
+      }),
+      members: householdMembers,
+      range,
+    });
+    assert.deepEqual(paid.outstandingBalanceMonths, []);
   });
 });

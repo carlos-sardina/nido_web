@@ -6,7 +6,6 @@ import { Text } from "@/components/nido/Typography";
 import { canSubmitHouseholdSplitMethod, updateHouseholdSplitMethod } from "@/lib/nido/household";
 import type { HouseholdSplitMethod } from "@/lib/nido/split-method";
 import type { Household } from "@/lib/nido/types";
-import { P } from "@/lib/palette";
 
 const OPTIONS: Array<{ method: HouseholdSplitMethod; title: string; description: string }> = [
   {
@@ -63,7 +62,7 @@ export function HouseholdSplitCard({
   };
 
   return (
-    <div className="mx-6 mb-3 rounded-[1.5rem] p-4 space-y-3" style={{ backgroundColor: P.card }}>
+    <div className="px-6 mb-5 space-y-3">
       <Text size="label">Método de división</Text>
       <Text size="caption" tone="muted" className="leading-relaxed">
         Esta preferencia es del Nido. Solo afecta a los gastos compartidos nuevos. Los personales no la usan.
@@ -76,6 +75,7 @@ export function HouseholdSplitCard({
             description={option.description}
             selected={draft === option.method}
             disabled={saving}
+            className="shadow-sm"
             onClick={() => { void save(option.method); }}
           />
         ))}

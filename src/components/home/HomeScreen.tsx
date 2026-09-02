@@ -8,6 +8,7 @@ import {
   formatRelativeActivityDate,
   formatWholeMoney,
   type BudgetItemView,
+  type MonthRange,
 } from "@/lib/nido/financial";
 import type { DashboardQuery } from "@/lib/nido/use-dashboard";
 import { formatHomeNidoName } from "@/lib/nido/format-nido-name";
@@ -75,7 +76,7 @@ export function HomeScreen({
   onOpenBudget: (budget: BudgetItemView) => void;
   onCreateBudget: () => void;
   onCopyPreviousMonthBudgets?: () => void;
-  onOpenBalance: () => void;
+  onOpenBalance: (range?: MonthRange) => void;
   currentUserId: string | null;
 }) {
   const { isLoading, refreshing, error, model, refresh } = dashboard;
@@ -191,10 +192,10 @@ function DashboardBody({
   onOpenBudget: (budget: BudgetItemView) => void;
   onCreateBudget: () => void;
   onCopyPreviousMonthBudgets?: () => void;
-  onOpenBalance: () => void;
+  onOpenBalance: (range?: MonthRange) => void;
   currentUserId: string | null;
 }) {
-  const { health, budget, featuredGoal, activeGoals, activity, empty, range, monthlyBalance } = model;
+  const { health, budget, featuredGoal, activeGoals, activity, empty, range, monthlyBalance, outstandingBalanceMonths } = model;
   const balanceCopy = compactBalanceCopy(monthlyBalance, currentUserId);
   const diff = Math.abs(budget.remaining);
 
@@ -465,7 +466,7 @@ function DashboardBody({
       <div className="mx-6 mb-3">
       <button
         type="button"
-        onClick={onOpenBalance}
+        onClick={() => onOpenBalance()}
         className="w-full rounded-[1.5rem] p-5 shadow-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         style={{ backgroundColor: P.card }}
       >
@@ -485,6 +486,38 @@ function DashboardBody({
         </p>
       </button>
       </div>
+
+      {outstandingBalanceMonths.length > 0 ? (
+        <div className="mx-6 mb-3 rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
+          <h3 className="text-xs font-semibold mb-3" style={{ color: P.text }}>
+            Meses con deuda
+          </h3>
+          <div className="space-y-2">
+            {outstandingBalanceMonths.map((month) => {
+              const copy = compactBalanceCopy(month, currentUserId);
+              return (
+                <button
+                  key={`${month.range.year}-${month.range.month}`}
+                  type="button"
+                  onClick={() => onOpenBalance(month.range)}
+                  className="w-full rounded-2xl px-3 py-3 text-left flex items-center justify-between gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  style={{ backgroundColor: P.sub }}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold" style={{ color: P.text }}>
+                      {month.range.label}
+                    </p>
+                    <p className="text-[11px] mt-0.5 truncate" style={{ color: P.muted }}>
+                      {copy.headline}
+                    </p>
+                  </div>
+                  <ChevronRight size={16} style={{ color: P.brnDk }} aria-hidden="true" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       {featuredGoal ? (
         <div className="mx-6 mb-3 rounded-[1.5rem] p-4 shadow-sm" style={{ backgroundColor: P.card }}>

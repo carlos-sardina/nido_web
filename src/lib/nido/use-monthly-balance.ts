@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { calculateMonthlyBalance } from "./financial/balance.ts";
+import { applyMonthlyBalancePayment, calculateMonthlyBalance } from "./financial/balance.ts";
 import { getCurrentMonthRange, isSameMonth, shiftMonth, type MonthRange } from "./financial/dates.ts";
 import type { MonthlyBalance } from "./financial/types.ts";
 import { NidoError } from "./errors";
@@ -25,13 +25,23 @@ function membersKey(members: HouseholdMemberView[]): string {
   return members.map((member) => `${member.userId}:${member.displayName}`).join("|");
 }
 
+function isAfterMonth(
+  a: Pick<MonthRange, "year" | "month">,
+  b: Pick<MonthRange, "year" | "month">,
+): boolean {
+  return a.year > b.year || (a.year === b.year && a.month > b.month);
+}
+
 export function useMonthlyBalance(
   householdId: string | null,
   members: HouseholdMemberView[],
   enabled: boolean,
   currentRange: MonthRange = getCurrentMonthRange(),
+  initialRange?: MonthRange,
 ): MonthlyBalanceQuery {
-  const [range, setRange] = useState<MonthRange>(currentRange);
+  const [range, setRange] = useState<MonthRange>(
+    initialRange && !isAfterMonth(initialRange, currentRange) ? initialRange : currentRange,
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<NidoError | null>(null);
@@ -85,13 +95,19 @@ export function useMonthlyBalance(
       previous: balanceRef.current,
       result: {
         ok: true,
-        data: calculateMonthlyBalance({
-          expenses: result.data.periodExpenses,
-          incomes: result.data.periodIncomes,
-          members: membersRef.current,
-          range,
-          householdId: result.data.householdId,
-        }),
+        data: applyMonthlyBalancePayment(
+          calculateMonthlyBalance({
+            expenses: result.data.periodExpenses,
+            incomes: result.data.periodIncomes,
+            members: membersRef.current,
+            range,
+            householdId: result.data.householdId,
+          }),
+          {
+            confirmations: result.data.balanceConfirmations,
+            memberIds: membersRef.current.map((member) => member.userId),
+          },
+        ),
       },
     });
     setError(null);

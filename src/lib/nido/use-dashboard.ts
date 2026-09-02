@@ -109,6 +109,7 @@ export function useDashboard(
       range,
       nidoClient(),
       recentLimit,
+      { includeSharedHistory: true },
     );
     if (generation !== generationRef.current) return;
     if (result.ok === false) {

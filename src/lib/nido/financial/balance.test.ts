@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  applyMonthlyBalancePayment,
   calculateMemberBalances,
   calculateMonthlyBalance,
   compactBalanceCopy,
   deriveSettlements,
+  findOutstandingBalanceMonths,
 } from "./balance.ts";
 import { getMonthRange } from "./dates.ts";
 import { allocateEqualSplits, allocateIncomeBasedSplits } from "./splits.ts";
@@ -775,5 +777,177 @@ describe("compactBalanceCopy", () => {
   it("phrases a single settlement for the current member", () => {
     assert.equal(compactBalanceCopy(unsettled, "carlos").headline, "Diana te debe $500");
     assert.equal(compactBalanceCopy(unsettled, "diana").headline, "Le debes $500 a Carlos");
+  });
+
+  it("says the debt was paid after unanimous confirmation", () => {
+    const paid = applyMonthlyBalancePayment(unsettled, {
+      confirmations: [
+        {
+          householdId: "h1",
+          year: 2026,
+          month: 8,
+          userId: "carlos",
+          confirmedAt: "2026-08-31T12:00:00.000Z",
+        },
+        {
+          householdId: "h1",
+          year: 2026,
+          month: 8,
+          userId: "diana",
+          confirmedAt: "2026-08-31T12:05:00.000Z",
+        },
+      ],
+      memberIds: ["carlos", "diana"],
+    });
+    assert.equal(paid.status, "paid");
+    assert.deepEqual(compactBalanceCopy(paid, "carlos"), {
+      headline: "Deuda pagada",
+      hasObligation: false,
+    });
+  });
+});
+
+describe("applyMonthlyBalancePayment", () => {
+  const unsettled = calculateMonthlyBalance({
+    expenses: [equalExpense(1000, "carlos", ["carlos", "diana"])],
+    incomes: [],
+    members,
+    range: august,
+    householdId: "h1",
+  });
+
+  it("keeps the derived debt until every current member confirms", () => {
+    const partial = applyMonthlyBalancePayment(unsettled, {
+      confirmations: [
+        {
+          householdId: "h1",
+          year: 2026,
+          month: 8,
+          userId: "carlos",
+          confirmedAt: "2026-08-31T12:00:00.000Z",
+        },
+      ],
+      memberIds: ["carlos", "diana"],
+    });
+    assert.equal(partial.status, "unsettled");
+    assert.equal(partial.settlements[0]?.amount, 500);
+    assert.deepEqual(partial.payment?.confirmedUserIds, ["carlos"]);
+    assert.deepEqual(partial.payment?.pendingUserIds, ["diana"]);
+  });
+
+  it("zeros displayed balances when every member confirmed the same month", () => {
+    const paid = applyMonthlyBalancePayment(unsettled, {
+      confirmations: [
+        {
+          householdId: "h1",
+          year: 2026,
+          month: 8,
+          userId: "carlos",
+          confirmedAt: "2026-08-31T12:00:00.000Z",
+        },
+        {
+          householdId: "h1",
+          year: 2026,
+          month: 8,
+          userId: "diana",
+          confirmedAt: "2026-08-31T12:05:00.000Z",
+        },
+      ],
+      memberIds: ["carlos", "diana"],
+    });
+    assert.equal(paid.status, "paid");
+    assert.deepEqual(paid.settlements, []);
+    assert.equal(paid.members.every((row) => row.balance === 0), true);
+    assert.equal(paid.members.find((row) => row.memberId === "carlos")?.paid, 1000);
+  });
+
+  it("ignores confirmations for another month", () => {
+    const next = applyMonthlyBalancePayment(unsettled, {
+      confirmations: [
+        {
+          householdId: "h1",
+          year: 2026,
+          month: 7,
+          userId: "carlos",
+          confirmedAt: "2026-07-31T12:00:00.000Z",
+        },
+        {
+          householdId: "h1",
+          year: 2026,
+          month: 7,
+          userId: "diana",
+          confirmedAt: "2026-07-31T12:05:00.000Z",
+        },
+      ],
+      memberIds: ["carlos", "diana"],
+    });
+    assert.equal(next.status, "unsettled");
+  });
+});
+
+describe("findOutstandingBalanceMonths", () => {
+  it("lists unpaid months newest first and skips paid or settled ones", () => {
+    const rows = findOutstandingBalanceMonths({
+      expenses: [
+        equalExpense(1000, "carlos", ["carlos", "diana"], {
+          id: "e-aug",
+          occurredAt: "2026-08-10",
+        }),
+        equalExpense(400, "diana", ["carlos", "diana"], {
+          id: "e-jul",
+          occurredAt: "2026-07-08",
+        }),
+        equalExpense(1000, "carlos", ["carlos", "diana"], {
+          id: "e-jun-a",
+          occurredAt: "2026-06-04",
+        }),
+        equalExpense(1000, "diana", ["carlos", "diana"], {
+          id: "e-jun-b",
+          occurredAt: "2026-06-18",
+        }),
+      ],
+      members,
+      confirmations: [
+        {
+          householdId: "h1",
+          year: 2026,
+          month: 7,
+          userId: "carlos",
+          confirmedAt: "2026-07-31T12:00:00.000Z",
+        },
+        {
+          householdId: "h1",
+          year: 2026,
+          month: 7,
+          userId: "diana",
+          confirmedAt: "2026-07-31T12:05:00.000Z",
+        },
+      ],
+      through: august,
+      householdId: "h1",
+    });
+
+    assert.deepEqual(
+      rows.map((row) => `${row.range.year}-${row.range.month}`),
+      ["2026-8"],
+    );
+    assert.equal(rows[0]?.status, "unsettled");
+  });
+
+  it("does not include months outside the lookback window", () => {
+    const rows = findOutstandingBalanceMonths({
+      expenses: [
+        equalExpense(1000, "carlos", ["carlos", "diana"], {
+          id: "e-old",
+          occurredAt: "2024-01-10",
+        }),
+      ],
+      members,
+      confirmations: [],
+      through: august,
+      householdId: "h1",
+      lookbackMonths: 6,
+    });
+    assert.deepEqual(rows, []);
   });
 });

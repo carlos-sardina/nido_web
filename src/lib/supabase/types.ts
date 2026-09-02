@@ -688,6 +688,48 @@ export type Database = {
           },
         ]
       }
+      monthly_balance_confirmations: {
+        Row: {
+          confirmed_at: string
+          household_id: string
+          id: string
+          month: number
+          user_id: string
+          year: number
+        }
+        Insert: {
+          confirmed_at?: string
+          household_id: string
+          id?: string
+          month: number
+          user_id: string
+          year: number
+        }
+        Update: {
+          confirmed_at?: string
+          household_id?: string
+          id?: string
+          month?: number
+          user_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_balance_confirmations_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_balance_confirmations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -1048,6 +1090,14 @@ export type Database = {
         Args: { p_category_id: string; p_household_id: string }
         Returns: boolean
       }
+      clear_monthly_balance_confirmations: {
+        Args: { p_household_id: string; p_occurred_at: string }
+        Returns: undefined
+      }
+      confirm_monthly_balance: {
+        Args: { p_month: number; p_year: number }
+        Returns: boolean
+      }
       create_budget: {
         Args: {
           p_amount: number
@@ -1074,7 +1124,7 @@ export type Database = {
           p_description: string
           p_household_id: string
           p_occurred_at: string
-          p_payer_id?: string | null
+          p_payer_id: string
           p_scope: Database["public"]["Enums"]["expense_scope"]
           p_splits: Json
         }
@@ -1301,7 +1351,7 @@ export type Database = {
           p_description: string
           p_expense_id: string
           p_occurred_at: string
-          p_payer_id?: string | null
+          p_payer_id: string
           p_scope: Database["public"]["Enums"]["expense_scope"]
           p_splits: Json
         }

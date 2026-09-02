@@ -48,10 +48,13 @@ export {
   parseBudgetMonthInput,
 } from "./budget-input.ts";
 export {
+  applyMonthlyBalancePayment,
   calculateMemberBalances,
   calculateMonthlyBalance,
   compactBalanceCopy,
   deriveSettlements,
+  findOutstandingBalanceMonths,
+  OUTSTANDING_BALANCE_LOOKBACK_MONTHS,
   shortMemberName,
 } from "./balance.ts";
 export { buildDashboardViewModel } from "./dashboard.ts";
@@ -271,6 +274,8 @@ export type {
   IncomeRow,
   MemberBalanceView,
   MonthlyBalance,
+  MonthlyBalanceConfirmation,
+  MonthlyBalancePayment,
   RecurrenceFrequency,
   RecurringExpenseTemplate,
   RecurringIncomeTemplate,

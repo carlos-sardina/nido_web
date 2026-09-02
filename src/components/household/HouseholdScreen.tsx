@@ -207,7 +207,7 @@ export function HouseholdScreen({
         </Text>
       </div>
       <HouseholdNameCard household={household} onSaved={onHouseholdUpdated} />
-      <div className="px-6 my-3 space-y-2">
+      <div className="px-6 mt-3 mb-5 space-y-2">
         {removeSuccess && (
           <Text size="caption" tone="brand" role="status">{removeSuccess}</Text>
         )}
@@ -282,11 +282,11 @@ export function HouseholdScreen({
       <HouseholdSplitCard household={household} onSaved={onHouseholdUpdated} />
       <HouseholdCategoriesCard householdId={household.id} refreshKey={categoryRefreshKey} />
       {isOwner && (
-        <div className="mx-6 mb-3">
+        <div className="px-6 mb-5">
           <button
             onClick={inviteBusy ? undefined : handleInvite}
-            className="w-full flex items-center gap-3 p-4 rounded-[1.5rem] border text-left"
-            style={{ borderColor: P.border, backgroundColor: P.card, opacity: inviteBusy ? 0.7 : 1 }}
+            className="w-full flex items-center gap-3 p-4 rounded-[1.5rem] shadow-sm text-left"
+            style={{ backgroundColor: P.card, opacity: inviteBusy ? 0.7 : 1 }}
           >
             <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: P.sagePl }}>
               <Link size={16} style={{ color: P.sageDk }} />
@@ -304,7 +304,7 @@ export function HouseholdScreen({
         </div>
       )}
       {isOwner && (
-        <div className="mx-6 mb-3 rounded-[1.5rem] p-4 space-y-3" style={{ backgroundColor: P.card }}>
+        <div className="px-6 mb-5 space-y-3">
           <Text size="label">Invitaciones</Text>
           {invitationsLoading && (
             <Text size="caption" tone="muted">Cargando invitaciones...</Text>
@@ -322,7 +322,7 @@ export function HouseholdScreen({
             const expiryLabel = formatInvitationDay(invitation.expiresAt);
             const createdLabel = formatInvitationDay(invitation.createdAt);
             return (
-              <div key={invitation.id} className="rounded-2xl p-3 space-y-2" style={{ backgroundColor: P.sub }}>
+              <div key={invitation.id} className="rounded-2xl p-3 space-y-2 shadow-sm" style={{ backgroundColor: P.card }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold" style={{ color: P.text }}>
@@ -405,7 +405,7 @@ export function HouseholdScreen({
         </div>
       )}
       {isOwner && candidates.length > 0 && (
-        <div className="mx-6 mb-3 rounded-[1.5rem] p-4 space-y-3" style={{ backgroundColor: P.card }}>
+        <div className="px-6 mb-5 space-y-3">
           {transferStep === "idle" && (
             <>
               <Text size="label">Propiedad del Nido</Text>
@@ -437,6 +437,7 @@ export function HouseholdScreen({
                     title={member.displayName}
                     description="Miembro activo"
                     selected={selectedTargetId === member.userId}
+                    className="shadow-sm"
                     onClick={() => {
                       setSelectedTargetId(member.userId);
                       setTransferError(null);

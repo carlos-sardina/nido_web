@@ -12,6 +12,7 @@ export function ChoiceCard({
   selected = false,
   disabled = false,
   badge,
+  className,
   onClick,
 }: {
   icon?: ReactNode;
@@ -20,6 +21,7 @@ export function ChoiceCard({
   selected?: boolean;
   disabled?: boolean;
   badge?: ReactNode;
+  className?: string;
   onClick: () => void;
 }) {
   return (
@@ -33,6 +35,7 @@ export function ChoiceCard({
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         "disabled:cursor-not-allowed disabled:opacity-70",
         selected ? "border-primary bg-card" : "border-border bg-card",
+        className,
       )}
     >
       {icon && (
