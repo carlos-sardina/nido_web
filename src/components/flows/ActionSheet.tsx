@@ -39,7 +39,7 @@ export function ActionSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby="nido-action-sheet-title"
-        className="absolute bottom-0 left-0 right-0 z-50 rounded-t-[2rem] pt-3 pb-[max(2rem,env(safe-area-inset-bottom))]"
+        className="absolute bottom-0 left-0 right-0 z-50 rounded-t-[2rem] pt-3 pb-[var(--app-screen-bottom)]"
         style={{ backgroundColor: P.card }}
       >
         <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ backgroundColor: P.sub }} />

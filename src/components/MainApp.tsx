@@ -258,7 +258,7 @@ export function MainApp({
             backgroundColor: "rgba(255,252,250,0.96)",
             backdropFilter: "blur(20px)",
             borderColor: P.border,
-            paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))",
+            paddingBottom: "var(--app-nav-bottom)",
             touchAction: "none",
           }}
         >

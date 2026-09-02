@@ -171,7 +171,7 @@ export function ProfilePanel({
       <PullToRefresh
         onRefresh={handleRefresh}
         refreshing={refreshing}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-[var(--app-screen-bottom)]"
       >
         <h2
           className="px-6 pt-2 pb-2 text-center text-sm font-bold"

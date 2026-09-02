@@ -141,7 +141,7 @@ export function ExpenseEntryModal({
             </div>
           </div>
 
-          <div className="px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-8">
+          <div className="px-6 pb-[var(--app-screen-bottom)] pt-8">
             {error && (
               <FieldError className="mb-3 text-center">{error}</FieldError>
             )}

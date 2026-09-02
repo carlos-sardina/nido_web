@@ -46,7 +46,7 @@ export function FlowScreen({
           <div
             ref={scrollRef}
             className={cn(
-              "flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-6 pb-[max(2rem,env(safe-area-inset-bottom))]",
+              "flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-6 pb-[var(--app-screen-bottom)]",
               !header && "pt-[max(1rem,env(safe-area-inset-top))]",
               columnClass,
             )}
@@ -56,7 +56,7 @@ export function FlowScreen({
           </div>
         </FlowScrollRefContext.Provider>
       ) : (
-        <div className={cn("flex min-h-dvh flex-col px-6 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]", columnClass)}>
+        <div className={cn("flex min-h-dvh flex-col px-6 pt-[max(1rem,env(safe-area-inset-top))] pb-[var(--app-screen-bottom)]", columnClass)}>
           {header}
           {children}
           {footer}

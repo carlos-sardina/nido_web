@@ -79,7 +79,7 @@ export function BudgetScreen({
       <PullToRefresh
         onRefresh={refresh}
         refreshing={refreshing}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-[var(--app-screen-bottom)]"
       >
         <div className="px-6 pb-1">
           <Heading as="h2" size="h2">

@@ -178,10 +178,17 @@
     font-size: var(--font-size);
     --app-height: 100dvh;
     --app-offset-top: 0px;
+    --app-screen-bottom: max(2rem, env(safe-area-inset-bottom, 0px));
+    --app-nav-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
     touch-action: pan-x pan-y;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     overflow-x: hidden;
+  }
+
+  html.nido-keyboard-open {
+    --app-screen-bottom: 0.5rem;
+    --app-nav-bottom: 0.5rem;
   }
 
   html.nido-app-shell,

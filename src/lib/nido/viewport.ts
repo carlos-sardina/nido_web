@@ -1,5 +1,7 @@
 export const APP_HEIGHT_VAR = "--app-height";
 export const APP_OFFSET_TOP_VAR = "--app-offset-top";
+export const APP_KEYBOARD_CLASS = "nido-keyboard-open";
+export const KEYBOARD_HEIGHT_THRESHOLD_PX = 150;
 
 export type VisualViewportMetrics = {
   height: number;
@@ -33,10 +35,35 @@ export function isViewportZoomed(scale: number, epsilon = 0.01): boolean {
   return Math.abs(scale - 1) > epsilon;
 }
 
+export function isSoftKeyboardOpen(input: {
+  visualHeight: number;
+  layoutHeight: number;
+  restingVisualHeight?: number;
+  threshold?: number;
+}): boolean {
+  const threshold = input.threshold ?? KEYBOARD_HEIGHT_THRESHOLD_PX;
+  if (input.layoutHeight - input.visualHeight >= threshold) return true;
+  if (
+    input.restingVisualHeight != null
+    && input.restingVisualHeight - input.visualHeight >= threshold
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function resolveShellOffsetTop(
   viewport: Pick<VisualViewportMetrics, "offsetTop" | "scale">,
+  keyboardOpen = false,
 ): number {
-  return isViewportZoomed(viewport.scale) ? viewport.offsetTop : 0;
+  return keyboardOpen || isViewportZoomed(viewport.scale) ? viewport.offsetTop : 0;
+}
+
+export function applyKeyboardOpenState(
+  root: { classList: { toggle(token: string, force?: boolean): boolean } },
+  open: boolean,
+): void {
+  root.classList.toggle(APP_KEYBOARD_CLASS, open);
 }
 
 export function shouldPreventPinchZoom(touchCount: number): boolean {
