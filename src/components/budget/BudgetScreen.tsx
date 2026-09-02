@@ -57,12 +57,14 @@ export function BudgetScreen({
   onClose,
   onOpenBudget,
   onCreateBudget,
+  onCopyPreviousMonthBudgets,
 }: {
   dashboard: DashboardQuery;
   currentUserId: string | null;
   onClose: () => void;
   onOpenBudget: (budget: BudgetItemView) => void;
   onCreateBudget: () => void;
+  onCopyPreviousMonthBudgets?: () => void;
 }) {
   const { isLoading, refreshing, error, model, refresh } = dashboard;
   const budgets = model?.periodBudgets ?? [];
@@ -114,6 +116,8 @@ export function BudgetScreen({
               description="Crea un límite por categoría. El gasto se calcula de tus gastos reales."
               actionLabel="Crear un presupuesto"
               onAction={onCreateBudget}
+              secondaryActionLabel={onCopyPreviousMonthBudgets ? "Copiar del mes pasado" : undefined}
+              onSecondaryAction={onCopyPreviousMonthBudgets}
             />
           </div>
         ) : (

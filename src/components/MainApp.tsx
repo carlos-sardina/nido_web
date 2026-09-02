@@ -12,6 +12,7 @@ import { ExpenseDetail } from "@/components/expenses/ExpenseDetail";
 import { ExpensesScreen } from "@/components/expenses/ExpensesScreen";
 import { ActionSheet } from "@/components/flows/ActionSheet";
 import { BudgetFlow } from "@/components/flows/BudgetFlow";
+import { CopyBudgetsFlow } from "@/components/flows/CopyBudgetsFlow";
 import { ContribFlow } from "@/components/flows/ContribFlow";
 import { ExpenseFlow } from "@/components/flows/ExpenseFlow";
 import { GoalFlow } from "@/components/flows/GoalFlow";
@@ -99,6 +100,7 @@ export function MainApp({
   const [creatingRecurringExpense, setCreatingRecurringExpense] = useState(false);
   const [creatingRecurringIncome, setCreatingRecurringIncome] = useState(false);
   const [recurringRefresh, setRecurringRefresh] = useState(0);
+  const [showCopyBudgets, setShowCopyBudgets] = useState(false);
   const dashboard = useDashboard(household.id, members);
   const liveSelectedExpense = selectedExpense
     ? dashboard.model?.recentExpenses.find((row) => row.id === selectedExpense.id)
@@ -192,6 +194,10 @@ export function MainApp({
     setActiveFlow("budget");
   };
 
+  const openCopyPreviousMonthBudgets = () => {
+    setShowCopyBudgets(true);
+  };
+
   useEffect(() => {
     const html = document.documentElement;
     html.classList.add("nido-app-shell");
@@ -218,6 +224,7 @@ export function MainApp({
               onOpenIncomes={() => setShowIncomes(true)}
               onOpenBudget={setSelectedBudget}
               onCreateBudget={openBudgetCreate}
+              onCopyPreviousMonthBudgets={openCopyPreviousMonthBudgets}
               onOpenBalance={() => setShowBalance(true)}
               currentUserId={user?.id ?? null}
             />
@@ -383,13 +390,14 @@ export function MainApp({
           />
         )}
 
-        {showBudgets && activeFlow !== "budget" && !liveSelectedBudget && (
+        {showBudgets && activeFlow !== "budget" && !showCopyBudgets && !liveSelectedBudget && (
           <BudgetScreen
             dashboard={dashboard}
             currentUserId={user?.id ?? null}
             onClose={() => setShowBudgets(false)}
             onOpenBudget={setSelectedBudget}
             onCreateBudget={openBudgetCreate}
+            onCopyPreviousMonthBudgets={openCopyPreviousMonthBudgets}
           />
         )}
 
@@ -432,6 +440,18 @@ export function MainApp({
               setEditingIncome(null);
             }}
             onDone={handleFlowDone}
+          />
+        )}
+
+        {showCopyBudgets && (
+          <CopyBudgetsFlow
+            householdId={household.id}
+            members={members}
+            onClose={() => setShowCopyBudgets(false)}
+            onDone={() => {
+              setShowCopyBudgets(false);
+              void dashboard.refresh();
+            }}
           />
         )}
 

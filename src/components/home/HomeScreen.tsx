@@ -60,6 +60,7 @@ export function HomeScreen({
   onOpenIncomes,
   onOpenBudget,
   onCreateBudget,
+  onCopyPreviousMonthBudgets,
   onOpenBalance,
   currentUserId,
 }: {
@@ -73,6 +74,7 @@ export function HomeScreen({
   onOpenIncomes: () => void;
   onOpenBudget: (budget: BudgetItemView) => void;
   onCreateBudget: () => void;
+  onCopyPreviousMonthBudgets?: () => void;
   onOpenBalance: () => void;
   currentUserId: string | null;
 }) {
@@ -156,6 +158,7 @@ export function HomeScreen({
           onOpenIncomes={onOpenIncomes}
           onOpenBudget={onOpenBudget}
           onCreateBudget={onCreateBudget}
+          onCopyPreviousMonthBudgets={onCopyPreviousMonthBudgets}
           onOpenBalance={onOpenBalance}
           currentUserId={currentUserId}
         />
@@ -174,6 +177,7 @@ function DashboardBody({
   onOpenIncomes,
   onOpenBudget,
   onCreateBudget,
+  onCopyPreviousMonthBudgets,
   onOpenBalance,
   currentUserId,
 }: {
@@ -186,6 +190,7 @@ function DashboardBody({
   onOpenIncomes: () => void;
   onOpenBudget: (budget: BudgetItemView) => void;
   onCreateBudget: () => void;
+  onCopyPreviousMonthBudgets?: () => void;
   onOpenBalance: () => void;
   currentUserId: string | null;
 }) {
@@ -358,6 +363,8 @@ function DashboardBody({
             description="Crea un límite por categoría. El gasto se calcula de tus gastos reales."
             actionLabel="Crear un presupuesto"
             onAction={onCreateBudget}
+            secondaryActionLabel={onCopyPreviousMonthBudgets ? "Copiar del mes pasado" : undefined}
+            onSecondaryAction={onCopyPreviousMonthBudgets}
           />
         ) : (
           <>

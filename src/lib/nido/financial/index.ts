@@ -27,6 +27,12 @@ export {
   visiblePersonalPeriodBudgets,
 } from "./budgets.ts";
 export {
+  budgetCopyDraftKey,
+  copyablePreviousMonthBudgets,
+  draftsFromPreviousMonthBudgets,
+  hasDuplicateBudgetCopyDrafts,
+} from "./copy-budgets.ts";
+export {
   amountToBudgetInput,
   budgetAmountMessage,
   budgetDateMessage,
@@ -238,6 +244,7 @@ export {
   sumMoney,
 } from "./money.ts";
 export type { CompactBalanceCopy } from "./balance.ts";
+export type { BudgetCopyDraft } from "./copy-budgets.ts";
 export type {
   ActivityItem,
   ActivitySource,
