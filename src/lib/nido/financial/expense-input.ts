@@ -32,7 +32,7 @@ export type CreateExpensePayload = {
   householdId: string;
   categoryId: string;
   amount: number;
-  description: string;
+  description: string | null;
   occurredAt: string;
   payerId: string | null;
   scope: ExpenseScope;
@@ -142,7 +142,7 @@ export function normalizeExpenseDescription(raw: string | null | undefined): str
 
 export function expenseDescriptionMessage(raw: string): string | null {
   const trimmed = raw.trim();
-  if (!trimmed) return "Ingresa una descripción del gasto.";
+  if (!trimmed) return null;
   if (Array.from(trimmed).length > EXPENSE_DESCRIPTION_MAX) {
     return `La descripción debe tener ${EXPENSE_DESCRIPTION_MAX} caracteres o menos.`;
   }
@@ -171,8 +171,11 @@ export function buildCreateExpensePayload(
     return { ok: false, error: "invalid_amount" };
   }
 
+  const descriptionInput = input.description?.trim() ?? "";
+  if (descriptionInput && Array.from(descriptionInput).length > EXPENSE_DESCRIPTION_MAX) {
+    return { ok: false, error: "invalid_description" };
+  }
   const description = normalizeExpenseDescription(input.description);
-  if (!description) return { ok: false, error: "invalid_description" };
 
   if (!isCalendarDate(input.occurredAt)) return { ok: false, error: "invalid_date" };
 

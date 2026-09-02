@@ -77,10 +77,14 @@ export function recurrenceAmountMessage(raw: string): string | null {
 }
 
 export function recurrenceExpenseDescriptionMessage(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return "Ingresa una descripción del gasto.";
   return expenseDescriptionMessage(raw);
 }
 
 export function recurrenceIncomeDescriptionMessage(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return "Ingresa una descripción del ingreso.";
   return incomeDescriptionMessage(raw);
 }
 

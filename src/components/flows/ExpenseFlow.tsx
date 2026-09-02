@@ -299,7 +299,7 @@ export function ExpenseFlow({
             </Field>
 
             <Field>
-              <FieldLabel htmlFor={descriptionId}>Descripción</FieldLabel>
+              <FieldLabel htmlFor={descriptionId}>Descripción (opcional)</FieldLabel>
               <TextInput
                 id={descriptionId}
                 value={description}

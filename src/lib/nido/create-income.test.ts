@@ -108,6 +108,20 @@ describe("createIncomeWithAuth (unit, mocked auth adapter)", () => {
     assert.equal(called, 0);
   });
 
+  it("sends a null description when the field is blank", async () => {
+    const result = await createIncomeWithAuth(
+      { ...validInput, description: "  " },
+      {
+        getUserId: async () => "u1",
+        rpc: async (_fn, args) => {
+          assert.equal(args.p_description, null);
+          return { data: "i-blank", error: null };
+        },
+      },
+    );
+    assert.equal(result.ok, true);
+  });
+
   it("does not send created_by or member_id from the client", async () => {
     const result = await createIncomeWithAuth(validInput, {
       getUserId: async () => "u1",

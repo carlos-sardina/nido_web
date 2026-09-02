@@ -4,7 +4,9 @@ import {
   buildCreateRecurringExpensePayload,
   buildCreateRecurringIncomePayload,
   recurrenceEndDateMessage,
+  recurrenceExpenseDescriptionMessage,
   recurrenceFrequencyMessage,
+  recurrenceIncomeDescriptionMessage,
 } from "./recurrence-input.ts";
 
 const incomeInput = {
@@ -65,6 +67,12 @@ describe("buildCreateRecurringIncomePayload", () => {
     if (ended.ok === false) assert.equal(ended.error, "invalid_date");
   });
 
+  it("rejects an empty description", () => {
+    const result = buildCreateRecurringIncomePayload({ ...incomeInput, description: "  " }, "u1");
+    assert.equal(result.ok, false);
+    if (result.ok === false) assert.equal(result.error, "invalid_description");
+  });
+
   it("rejects another household membership", () => {
     const result = buildCreateRecurringIncomePayload(
       { ...incomeInput, householdId: "", activeMemberIds: ["u2"] },
@@ -102,6 +110,15 @@ describe("buildCreateRecurringExpensePayload", () => {
     }
   });
 
+  it("rejects an empty description", () => {
+    const result = buildCreateRecurringExpensePayload(
+      { ...expenseInput, description: "" },
+      "u1",
+    );
+    assert.equal(result.ok, false);
+    if (result.ok === false) assert.equal(result.error, "invalid_description");
+  });
+
   it("rejects a shared template with one participant", () => {
     const result = buildCreateRecurringExpensePayload(
       { ...expenseInput, scope: "shared", participantIds: ["u1"] },
@@ -118,5 +135,12 @@ describe("recurrence field messages", () => {
     assert.match(recurrenceFrequencyMessage("daily") ?? "", /frecuencia/i);
     assert.equal(recurrenceEndDateMessage("", "2026-08-01"), null);
     assert.match(recurrenceEndDateMessage("2026-07-01", "2026-08-01") ?? "", /fin/i);
+  });
+
+  it("still requires a description on recurring templates", () => {
+    assert.match(recurrenceExpenseDescriptionMessage("   ") ?? "", /descripción/i);
+    assert.match(recurrenceIncomeDescriptionMessage("") ?? "", /descripción/i);
+    assert.equal(recurrenceExpenseDescriptionMessage("Renta"), null);
+    assert.equal(recurrenceIncomeDescriptionMessage("Sueldo"), null);
   });
 });

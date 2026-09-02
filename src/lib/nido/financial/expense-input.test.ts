@@ -62,15 +62,17 @@ describe("expenseAmountMessage", () => {
 });
 
 describe("expense description", () => {
-  it("trims and rejects empty or whitespace-only copy", () => {
+  it("trims and treats empty or whitespace-only copy as omitted", () => {
     assert.equal(normalizeExpenseDescription("  Netflix  "), "Netflix");
     assert.equal(normalizeExpenseDescription("   "), null);
-    assert.match(expenseDescriptionMessage("   "), /descripción/i);
+    assert.equal(expenseDescriptionMessage("   "), null);
+    assert.equal(expenseDescriptionMessage(""), null);
   });
 
   it("keeps unicode and enforces a max length", () => {
     assert.equal(normalizeExpenseDescription("Niño 🎁"), "Niño 🎁");
     assert.equal(normalizeExpenseDescription("a".repeat(81)), null);
+    assert.match(expenseDescriptionMessage("a".repeat(81)), /80/);
   });
 });
 
@@ -107,8 +109,18 @@ describe("buildCreateExpensePayload", () => {
     assert.equal(buildCreateExpensePayload(request({ amount: Number.NaN }), "diana").ok, false);
   });
 
-  it("rejects an empty or whitespace description", () => {
-    assert.equal(buildCreateExpensePayload(request({ description: "  " }), "diana").ok, false);
+  it("accepts an empty or whitespace description", () => {
+    const blank = buildCreateExpensePayload(request({ description: "  " }), "diana");
+    assert.equal(blank.ok, true);
+    if (blank.ok) assert.equal(blank.data.description, null);
+
+    const empty = buildCreateExpensePayload(request({ description: "" }), "diana");
+    assert.equal(empty.ok, true);
+    if (empty.ok) assert.equal(empty.data.description, null);
+
+    const tooLong = buildCreateExpensePayload(request({ description: "a".repeat(81) }), "diana");
+    assert.equal(tooLong.ok, false);
+    if (tooLong.ok === false) assert.equal(tooLong.error, "invalid_description");
   });
 
   it("requires a category from the active household", () => {

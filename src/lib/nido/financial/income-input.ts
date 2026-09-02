@@ -23,7 +23,7 @@ export type CreateIncomePayload = {
   householdId: string;
   categoryId: string;
   amount: number;
-  description: string;
+  description: string | null;
   occurredAt: string;
 };
 
@@ -50,7 +50,7 @@ export function normalizeIncomeDescription(raw: string | null | undefined): stri
 
 export function incomeDescriptionMessage(raw: string): string | null {
   const trimmed = raw.trim();
-  if (!trimmed) return "Ingresa una descripción del ingreso.";
+  if (!trimmed) return null;
   if (Array.from(trimmed).length > INCOME_DESCRIPTION_MAX) {
     return `La descripción debe tener ${INCOME_DESCRIPTION_MAX} caracteres o menos.`;
   }
@@ -80,8 +80,11 @@ export function buildCreateIncomePayload(
     return { ok: false, error: "invalid_amount" };
   }
 
+  const descriptionInput = input.description?.trim() ?? "";
+  if (descriptionInput && Array.from(descriptionInput).length > INCOME_DESCRIPTION_MAX) {
+    return { ok: false, error: "invalid_description" };
+  }
   const description = normalizeIncomeDescription(input.description);
-  if (!description) return { ok: false, error: "invalid_description" };
 
   if (!isCalendarDate(input.occurredAt)) return { ok: false, error: "invalid_date" };
 

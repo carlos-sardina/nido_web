@@ -156,6 +156,20 @@ describe("createExpenseWithAuth (unit, mocked auth adapter)", () => {
     assert.equal(result.ok, true);
   });
 
+  it("sends a null description when the field is blank", async () => {
+    const result = await createExpenseWithAuth(
+      { ...validInput, description: "  " },
+      {
+        getUserId: async () => "u1",
+        rpc: async (_fn, args) => {
+          assert.equal(args.p_description, null);
+          return { data: "e-blank", error: null };
+        },
+      },
+    );
+    assert.equal(result.ok, true);
+  });
+
   it("returns the created id when the RPC succeeds", async () => {
     const result = await createExpenseWithAuth(validInput, {
       getUserId: async () => "u1",

@@ -58,16 +58,18 @@ describe("income amount parsing", () => {
 });
 
 describe("income description", () => {
-  it("trims and rejects empty or whitespace-only copy", () => {
+  it("trims and treats empty or whitespace-only copy as omitted", () => {
     assert.equal(normalizeIncomeDescription("  Sueldo  "), "Sueldo");
     assert.equal(normalizeIncomeDescription("   "), null);
-    assert.match(incomeDescriptionMessage("   "), /descripción/i);
+    assert.equal(incomeDescriptionMessage("   "), null);
+    assert.equal(incomeDescriptionMessage(""), null);
   });
 
   it("keeps unicode and enforces a max length", () => {
     assert.equal(normalizeIncomeDescription("Niño 🎁"), "Niño 🎁");
     assert.equal(normalizeIncomeDescription("a".repeat(81)), null);
     assert.equal(normalizeIncomeDescription("a".repeat(80)), "a".repeat(80));
+    assert.match(incomeDescriptionMessage("a".repeat(81)), /80/);
   });
 });
 
@@ -108,10 +110,18 @@ describe("buildCreateIncomePayload", () => {
     );
   });
 
-  it("rejects an empty or whitespace description", () => {
-    const result = buildCreateIncomePayload(request({ description: "  " }), "carlos");
-    assert.equal(result.ok, false);
-    if (result.ok === false) assert.equal(result.error, "invalid_description");
+  it("accepts an empty or whitespace description", () => {
+    const blank = buildCreateIncomePayload(request({ description: "  " }), "carlos");
+    assert.equal(blank.ok, true);
+    if (blank.ok) assert.equal(blank.data.description, null);
+
+    const empty = buildCreateIncomePayload(request({ description: "" }), "carlos");
+    assert.equal(empty.ok, true);
+    if (empty.ok) assert.equal(empty.data.description, null);
+
+    const tooLong = buildCreateIncomePayload(request({ description: "a".repeat(81) }), "carlos");
+    assert.equal(tooLong.ok, false);
+    if (tooLong.ok === false) assert.equal(tooLong.error, "invalid_description");
   });
 
   it("rejects an impossible date", () => {
