@@ -620,6 +620,7 @@ export type Database = {
           member_id: string
           occurred_at: string
           recurring_id: string | null
+          copied_from_id: string | null
           updated_at: string
         }
         Insert: {
@@ -634,6 +635,7 @@ export type Database = {
           member_id: string
           occurred_at: string
           recurring_id?: string | null
+          copied_from_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -648,6 +650,7 @@ export type Database = {
           member_id?: string
           occurred_at?: string
           recurring_id?: string | null
+          copied_from_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -684,6 +687,13 @@ export type Database = {
             columns: ["recurring_id"]
             isOneToOne: false
             referencedRelation: "recurring_incomes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incomes_copied_from_id_fkey"
+            columns: ["copied_from_id"]
+            isOneToOne: false
+            referencedRelation: "incomes"
             referencedColumns: ["id"]
           },
         ]
@@ -1191,6 +1201,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      copy_forward_month_salaries: { Args: never; Returns: number }
       create_income: {
         Args: {
           p_amount: number

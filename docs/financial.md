@@ -325,7 +325,7 @@ The Ingresos tab lists `model.periodIncomes` from the same snapshot. Home shows 
 | Category | `category_id` of Sueldo or Extra in the same household. Extra is one-time; recurring templates use Sueldo. |
 | Date | `occurred_at` calendar date in the current `America/Mexico_City` month, default today |
 | Earner / created_by | `auth.uid()` (v1 does not let the UI pick another member) |
-| Recurrence | One-time rows keep `recurring_id` NULL. Recurring templates live in `recurring_*` and become movements only after `materialize_recurring_*` |
+| Recurrence | One-time Extra keeps `recurring_id` NULL. **Sueldo** is treated as recurring: Home copies last month's live Sueldo into the current `America/Mexico_City` month (and any missed months in the last 12) via `copy_forward_month_salaries`. Extra is never copied. A delete of this month's Sueldo stops future copies. Editing the amount updates only this row; later months copy the new amount. Past months are not rewritten. `copied_from_id` points at the previous-month source. Recurring templates still become movements only after `materialize_recurring_*` and are not copy-forward sources. |
 
 There is no payer, split, percentage, or recurrence field on this form. Those are not invented on `incomes`.
 
@@ -352,7 +352,8 @@ There is no physical `DELETE FROM incomes`. `soft_delete_income` sets `deleted_a
 Confirmation copy:
 
 - **¿Eliminar este ingreso?**
-- **Esta acción quitará el ingreso de tus totales y actividad.**
+- Extra: **Esta acción quitará el ingreso de tus totales y actividad.**
+- Sueldo: **Esta acción quitará el ingreso de tus totales y no se copiará a los meses siguientes.**
 - Cancelar (ghost) / Eliminar ingreso (`Button` danger)
 
 Already-deleted incomes cannot be edited or deleted again.
@@ -466,10 +467,11 @@ Double submit: **Guardando…** (`aria-busy`). After create, edit, or delete, Ho
 
 | Module | Role |
 | --- | --- |
-| `queries/dashboard.ts` | `fetchDashboardSnapshot(householdId)` |
+| `queries/dashboard.ts` | `fetchDashboardSnapshot(householdId)`. For the current month it first calls `copy_forward_month_salaries` so last month's Sueldo is already in `periodIncomes`. |
 | `queries/categories.ts` | `fetchActiveExpenseCategories` / `fetchActiveIncomeCategories` |
 | `expenses.ts` | `createExpense` / `updateExpense` / `deleteExpense` / `createRefund` |
 | `incomes.ts` | `createIncome` / `updateIncome` / `deleteIncome` |
+| `copy-month-salaries.ts` | `copyForwardMonthSalariesWithAuth` — rolls Sueldo into the current month when `fetchDashboardSnapshot` loads "este mes" |
 | `budgets.ts` | `createBudget` / `updateBudget` / `deleteBudget` |
 | `goals.ts` | `createGoal` / `updateGoal` / `archiveGoal` |
 | `contributions.ts` | `createContribution` / `updateContribution` / `deleteContribution` |
@@ -548,7 +550,7 @@ A newly created Nido has default **expense and income categories**. If the user 
 
 SELECT policies require historical membership (`is_household_member`). INSERT still requires active membership and `created_by = auth.uid()`. Expense, income, contribution, and budget **UPDATE** (including soft-delete) and goal **UPDATE** (including archive) require the same plus `created_by = auth.uid()` and a live row (`deleted_at IS NULL` / `status <> archived`). Income INSERT also requires `member_id = auth.uid()`. Budget create writes `member_id` NULL (Nido) or `auth.uid()` when `p_personal`. Contribution **UPDATE** also requires parent goal `status = active`. Physical DELETE remains denied on incomes/expenses/goals/budgets and is revoked on `goal_contributions` for `authenticated`.
 
-`create_expense`, `update_expense`, `soft_delete_expense`, `create_expense_refund`, `create_income`, `update_income`, `soft_delete_income`, `create_budget`, `update_budget`, `soft_delete_budget`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, `soft_delete_goal_contribution`, `create_recurring_income`, `update_recurring_income`, `set_recurring_income_active`, `materialize_recurring_income`, `create_recurring_expense`, `update_recurring_expense`, `set_recurring_expense_active`, `materialize_recurring_expense`, `update_household_name`, `update_household_default_split_method`, `create_category`, `rename_category`, and `archive_category` are `SECURITY INVOKER`. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Recurring split writes follow `can_mutate_recurring_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
+`create_expense`, `update_expense`, `soft_delete_expense`, `create_expense_refund`, `create_income`, `update_income`, `soft_delete_income`, `create_budget`, `update_budget`, `soft_delete_budget`, `create_goal`, `update_goal`, `archive_goal`, `create_goal_contribution`, `update_goal_contribution`, `soft_delete_goal_contribution`, `create_recurring_income`, `update_recurring_income`, `set_recurring_income_active`, `materialize_recurring_income`, `create_recurring_expense`, `update_recurring_expense`, `set_recurring_expense_active`, `materialize_recurring_expense`, `update_household_name`, `update_household_default_split_method`, `create_category`, `rename_category`, and `archive_category` are `SECURITY INVOKER`. `copy_forward_month_salaries` is `SECURITY DEFINER` so one active member can roll forward every active member's Sueldo; it takes no household_id and uses `auth.uid()` as the only actor identity. Split INSERT/UPDATE/DELETE follow `can_mutate_expense`. Recurring split writes follow `can_mutate_recurring_expense`. Contribution INSERT requires active membership, `member_id = created_by = auth.uid()`, and `goal_is_active(goal_id)`.
 
 SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `Y01`–`Y12`, `HS01`–`HS20`, `Z01`–`Z22`, `I01`–`I13`, `K01`–`K16`, `RE01`–`RE16`, `OB01`–`OB28`, `V01`–`V22`, `C01`–`C17`, `BC01`–`BC06`, `RF01`–`RF12`). 9.4.10 executed that matrix against `nido_dev` (317 passed, `ROLLBACK`). Those tests are not run by the default unit-test command. Mocked unit tests are not RLS proofs.
 
@@ -560,7 +562,7 @@ SQL coverage lives in `supabase/tests/rls_security_matrix.sql` (`X01`–`X14`, `
 - Only the recurrence creator may edit, pause, reactivate, or materialize
 - Creating a template does not insert `incomes` / `expenses`. The first movement is an explicit **Registrar este periodo** when `next_occurrence <= today`
 - Only the expense creator may update, soft-delete, or create a refund. `update_expense` is rejected while refunds exist. Refunds are immutable.
-- Only the income creator may update or soft-delete
+- Only the income creator may update or soft-delete. Soft-deleting a Sueldo stops copy-forward into later months. The amount of a past month is never changed by a later edit.
 - Only the budget creator may update or soft-delete
 - Only the goal creator may update or archive
 - Any active member may contribute to an active goal of that Nido

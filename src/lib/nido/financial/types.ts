@@ -72,6 +72,8 @@ export type IncomeRow = {
   description: string | null;
   occurredAt: string;
   recurringId: string | null;
+  /** Previous-month Sueldo this row was copied from, if any. */
+  copiedFromId?: string | null;
   createdBy: string;
   createdAt: string;
   deletedAt: string | null;

@@ -10,6 +10,7 @@ import {
   canMutateIncome,
   formatCompactMoney,
   formatRelativeActivityDate,
+  isSueldoIncomeCategory,
   type IncomeRow,
 } from "@/lib/nido/financial";
 import type { HouseholdMemberView } from "@/lib/nido/types";
@@ -46,6 +47,7 @@ export function IncomeDetail({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canMutate = canMutateIncome(income, currentUserId);
+  const isSueldo = income.category != null && isSueldoIncomeCategory(income.category);
   const ownerName = memberName(income.memberId, members, income.member?.displayName);
   const creatorName = memberName(
     income.createdBy,
@@ -129,7 +131,9 @@ export function IncomeDetail({
           }
           description={
             confirming
-              ? "Esta acción quitará el ingreso de tus totales y actividad."
+              ? isSueldo
+                ? "Esta acción quitará el ingreso de tus totales y no se copiará a los meses siguientes."
+                : "Esta acción quitará el ingreso de tus totales y actividad."
               : undefined
           }
         />

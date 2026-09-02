@@ -23,6 +23,7 @@ import {
   parseIncomeAmountInput,
   todayIso,
   selectableIncomeCategories,
+  isSueldoIncomeCategory,
   withCurrentCategory,
   type HouseholdCategory,
   type IncomeRow,
@@ -188,8 +189,10 @@ export function IncomeFlow({
           title={isEditing ? "Editar ingreso" : "Registrar un ingreso"}
           description={
             isEditing
-              ? "Los cambios se guardan en tu Nido activo."
-              : "Sueldo o extra. El extra se suma cada vez que lo registras, no como recurrencia."
+              ? income?.category && isSueldoIncomeCategory(income.category)
+                ? "Si cambias un sueldo, el nuevo monto aplica a este mes y a los siguientes. Los meses anteriores no cambian."
+                : "Los cambios se guardan en tu Nido activo."
+              : "El sueldo se copia al mes siguiente hasta que lo elimines o cambies el monto. El extra se registra cada vez."
           }
         />
 

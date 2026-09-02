@@ -38,6 +38,15 @@ export {
   hasDuplicateBudgetCopyDrafts,
 } from "./copy-budgets.ts";
 export {
+  copiedSalaryOccurredAt,
+  isCopyableSalaryIncome,
+  SALARY_COPY_LOOKBACK_MONTHS,
+  salariesToCopy,
+  salariesToCopyAcrossMonths,
+  salaryAlreadyRepresentedInTarget,
+  salaryMatchKey,
+} from "./copy-salaries.ts";
+export {
   amountToBudgetInput,
   budgetAmountMessage,
   budgetDateMessage,
@@ -256,6 +265,7 @@ export {
 } from "./money.ts";
 export type { CompactBalanceCopy } from "./balance.ts";
 export type { BudgetCopyDraft } from "./copy-budgets.ts";
+export type { SalaryCopyCandidate } from "./copy-salaries.ts";
 export type {
   ActivityItem,
   ActivitySource,

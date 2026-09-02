@@ -1,6 +1,12 @@
+import { copyForwardMonthSalariesWithAuth } from "../copy-month-salaries.ts";
 import { ACTIVITY_PAGE_SIZE } from "../financial/activity.ts";
 import { OUTSTANDING_BALANCE_LOOKBACK_MONTHS } from "../financial/balance.ts";
-import { getCurrentMonthRange, shiftMonth, type MonthRange } from "../financial/dates.ts";
+import {
+  getCurrentMonthRange,
+  isSameMonth,
+  shiftMonth,
+  type MonthRange,
+} from "../financial/dates.ts";
 import type { DashboardSnapshot, MonthlyBalanceConfirmation } from "../financial/types.ts";
 import { nidoErrorFromUnknown, nidoFail, nidoOk, type NidoResult } from "../errors";
 import { nidoClient, requireUser, type NidoClient } from "../session";
@@ -73,6 +79,16 @@ export async function fetchDashboardSnapshot(
   if (!householdId) return nidoFail("not_a_member");
 
   const client = auth.data.supabase;
+  if (isSameMonth(range, getCurrentMonthRange())) {
+    await copyForwardMonthSalariesWithAuth({
+      getUserId: async () => auth.data.user.id,
+      rpc: async (fn) => {
+        const result = await client.rpc(fn);
+        return { data: result.data, error: result.error };
+      },
+    });
+  }
+
   const historyLimit = Math.max(recentLimit, DEFAULT_RECENT_LIMIT);
   const includeSharedHistory = options?.includeSharedHistory === true;
   const historyFrom = includeSharedHistory

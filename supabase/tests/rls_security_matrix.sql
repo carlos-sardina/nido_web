@@ -13,7 +13,8 @@
 --      onboarding financial persist, household categories/split,
 --      onboarding savings / budgets, personal visibility,
 --      budget consumption visibility, expense refunds,
---      remove household member, monthly balance confirmations)
+--      remove household member, monthly balance confirmations,
+--      copy-forward salaries)
 --   3. Roles `authenticated` and `service_role`
 --   4. `auth.uid()` and `auth.users`
 --
@@ -6638,6 +6639,180 @@ BEGIN
     'cleared',
     CASE WHEN v_count = 0 THEN 'cleared' ELSE 'kept' END
   );
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Copy-forward Sueldo (current month + missed months)
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_sueldo_a uuid;
+  v_extra_a uuid;
+  v_sueldo_b uuid;
+  v_today date := (timezone('America/Mexico_City', now()))::date;
+  v_current_start date := date_trunc('month', v_today)::date;
+  v_prev_start date := (date_trunc('month', v_today)::date - interval '1 month')::date;
+  v_current_count integer;
+  v_copied integer;
+  v_carlos_copy uuid;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+
+  SELECT id INTO v_sueldo_a
+  FROM public.categories
+  WHERE household_id = v_nido_a
+    AND type = 'income'
+    AND lower(name) = 'sueldo'
+    AND archived_at IS NULL;
+  IF v_sueldo_a IS NULL THEN
+    INSERT INTO public.categories (household_id, name, type, icon, created_by)
+    VALUES (v_nido_a, 'Sueldo', 'income', '💰', v_carlos)
+    RETURNING id INTO v_sueldo_a;
+  END IF;
+
+  SELECT id INTO v_extra_a
+  FROM public.categories
+  WHERE household_id = v_nido_a
+    AND type = 'income'
+    AND lower(name) = 'extra'
+    AND archived_at IS NULL;
+  IF v_extra_a IS NULL THEN
+    INSERT INTO public.categories (household_id, name, type, icon, created_by)
+    VALUES (v_nido_a, 'Extra', 'income', '✨', v_carlos)
+    RETURNING id INTO v_extra_a;
+  END IF;
+
+  SELECT id INTO v_sueldo_b
+  FROM public.categories
+  WHERE household_id = v_nido_b
+    AND type = 'income'
+    AND lower(name) = 'sueldo'
+    AND archived_at IS NULL;
+  IF v_sueldo_b IS NULL THEN
+    INSERT INTO public.categories (household_id, name, type, icon, created_by)
+    VALUES (v_nido_b, 'Sueldo', 'income', '💰', v_luis)
+    RETURNING id INTO v_sueldo_b;
+  END IF;
+
+  INSERT INTO public.incomes (
+    household_id, member_id, category_id, amount, description,
+    occurred_at, created_by
+  ) VALUES
+    (v_nido_a, v_carlos, v_sueldo_a, 40000, 'Nómina Carlos', v_prev_start, v_carlos),
+    (v_nido_a, v_diana, v_sueldo_a, 28000, 'Nómina Diana', v_prev_start, v_diana),
+    (v_nido_a, v_carlos, v_extra_a, 5000, 'Bono', v_prev_start, v_carlos);
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.copy_forward_month_salaries() INTO v_copied;
+
+  SELECT count(*) INTO v_current_count
+  FROM public.incomes
+  WHERE household_id = v_nido_a
+    AND deleted_at IS NULL
+    AND occurred_at >= v_current_start
+    AND category_id = v_sueldo_a;
+
+  PERFORM pg_temp.record_result(
+    'CS01', 'Carlos', 'A', 'active', 'copy_forward copies every member Sueldo',
+    'copied',
+    CASE WHEN v_copied >= 2 AND v_current_count >= 2 THEN 'copied' ELSE 'missing' END
+  );
+
+  SELECT count(*) INTO v_current_count
+  FROM public.incomes
+  WHERE household_id = v_nido_a
+    AND deleted_at IS NULL
+    AND occurred_at >= v_current_start
+    AND category_id = v_extra_a;
+
+  PERFORM pg_temp.record_result(
+    'CS02', 'Carlos', 'A', 'active', 'copy_forward skips Extra',
+    'none',
+    CASE WHEN v_current_count = 0 THEN 'none' ELSE 'copied' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.copy_forward_month_salaries() INTO v_copied;
+  PERFORM pg_temp.record_result(
+    'CS03', 'Carlos', 'A', 'active', 'second copy_forward is idempotent',
+    'zero',
+    CASE WHEN v_copied = 0 THEN 'zero' ELSE 'again' END
+  );
+
+  SELECT id INTO v_carlos_copy
+  FROM public.incomes
+  WHERE household_id = v_nido_a
+    AND member_id = v_carlos
+    AND category_id = v_sueldo_a
+    AND deleted_at IS NULL
+    AND occurred_at >= v_current_start
+    AND copied_from_id IS NOT NULL
+  LIMIT 1;
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM public.soft_delete_income(v_carlos_copy);
+  PERFORM pg_temp.set_auth(v_carlos);
+  SELECT public.copy_forward_month_salaries() INTO v_copied;
+
+  SELECT count(*) INTO v_current_count
+  FROM public.incomes
+  WHERE household_id = v_nido_a
+    AND member_id = v_carlos
+    AND category_id = v_sueldo_a
+    AND deleted_at IS NULL
+    AND occurred_at >= v_current_start;
+
+  PERFORM pg_temp.record_result(
+    'CS04', 'Carlos', 'A', 'active', 'deleted Sueldo is not resurrected',
+    'stopped',
+    CASE WHEN v_copied = 0 AND v_current_count = 0 THEN 'stopped' ELSE 'resurrected' END
+  );
+
+  PERFORM pg_temp.clear_auth();
+  SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.record_result(
+    'CS05', 'none', '-', 'none', 'copy_forward unauthenticated',
+    'deny',
+    pg_temp.expect_allow('SELECT public.copy_forward_month_salaries()')
+  );
+
+  SELECT count(*) INTO v_current_count
+  FROM public.incomes
+  WHERE household_id = v_nido_a
+    AND occurred_at >= v_current_start
+    AND category_id = v_sueldo_a;
+
+  PERFORM pg_temp.set_auth(v_luis);
+  PERFORM public.copy_forward_month_salaries();
+
+  PERFORM pg_temp.record_result(
+    'CS06', 'Luis', 'B', 'other household', 'copy_forward does not write into another Nido',
+    'unchanged',
+    CASE
+      WHEN (
+        SELECT count(*)
+        FROM public.incomes
+        WHERE household_id = v_nido_a
+          AND occurred_at >= v_current_start
+          AND category_id = v_sueldo_a
+      ) = v_current_count
+      THEN 'unchanged'
+      ELSE 'changed'
+    END
+  );
+
+  PERFORM pg_temp.clear_auth();
 END;
 $$;
 

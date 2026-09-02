@@ -140,6 +140,7 @@ export type IncomeQueryRow = {
   description: string | null;
   occurred_at: string;
   recurring_id: string | null;
+  copied_from_id?: string | null;
   created_by: string;
   created_at: string;
   deleted_at: string | null;
@@ -157,6 +158,7 @@ export function mapIncomeRow(row: IncomeQueryRow): IncomeRow {
     description: row.description,
     occurredAt: row.occurred_at,
     recurringId: row.recurring_id,
+    copiedFromId: row.copied_from_id ?? null,
     createdBy: row.created_by,
     createdAt: row.created_at,
     deletedAt: row.deleted_at,
