@@ -273,8 +273,8 @@ export function applyMonthlyBalancePayment(
 }
 
 /**
- * Calendar months, newest first, whose derived shared debt is still unpaid.
- * Includes the current month. Future months are ignored.
+ * Past calendar months, newest first, whose derived shared debt is still unpaid.
+ * The current month is omitted (Home already shows it on Balance). Future months are ignored.
  */
 export function findOutstandingBalanceMonths(input: {
   expenses: readonly ExpenseRow[];
@@ -293,7 +293,7 @@ export function findOutstandingBalanceMonths(input: {
     if (expense.deletedAt != null || !isSharedExpense(expense)) continue;
     const range = monthRangeFromIsoDate(expense.occurredAt, input.through.timeZone);
     if (!range) continue;
-    if (range.start < start.start || range.start > input.through.start) continue;
+    if (range.start < start.start || range.start >= input.through.start) continue;
     const key = `${range.year}-${String(range.month).padStart(2, "0")}`;
     const group = groups.get(key);
     if (group) group.expenses.push(expense);

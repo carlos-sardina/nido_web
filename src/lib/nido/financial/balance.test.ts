@@ -905,6 +905,10 @@ describe("findOutstandingBalanceMonths", () => {
           id: "e-jun-b",
           occurredAt: "2026-06-18",
         }),
+        equalExpense(1000, "carlos", ["carlos", "diana"], {
+          id: "e-may",
+          occurredAt: "2026-05-09",
+        }),
       ],
       members,
       confirmations: [
@@ -929,9 +933,25 @@ describe("findOutstandingBalanceMonths", () => {
 
     assert.deepEqual(
       rows.map((row) => `${row.range.year}-${row.range.month}`),
-      ["2026-8"],
+      ["2026-5"],
     );
     assert.equal(rows[0]?.status, "unsettled");
+  });
+
+  it("does not include the current month", () => {
+    const rows = findOutstandingBalanceMonths({
+      expenses: [
+        equalExpense(1000, "carlos", ["carlos", "diana"], {
+          id: "e-aug",
+          occurredAt: "2026-08-10",
+        }),
+      ],
+      members,
+      confirmations: [],
+      through: august,
+      householdId: "h1",
+    });
+    assert.deepEqual(rows, []);
   });
 
   it("does not include months outside the lookback window", () => {

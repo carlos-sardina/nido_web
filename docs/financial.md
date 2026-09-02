@@ -119,7 +119,7 @@ There is no `balances` table and no `settlements` table. Unanimous month payment
 - **Refunds:** reduce the original expense’s paid and each participant’s owed. They are not a new income. A refund dated in a later month still belongs to the **expense month**. Soft-deleted expenses (and their refunds) are omitted.
 - **Settlements:** obligations derived from `balance = paid − owed`. Members can confirm a month as paid (`monthly_balance_confirmations`). The month is paid only when **every current active member** confirms from their own account. Paid months display debt as $0 without rewriting expenses. A later change to that month’s shared expenses (or their splits / refunds) deletes the confirmations.
 
-Home shows a compact card (`Diana te debe $1,500` / `Todo está equilibrado` / `Sin gastos compartidos este mes` / `Deuda pagada`) and a **Meses con deuda** list of unpaid months. Tapping a month opens the Balance overlay on that month. The **Balance** overlay (from Home, not a new tab) has a month selector and a **Pagar** action. Health is unchanged.
+Home shows a compact card (`Diana te debe $1,500` / `Todo está equilibrado` / `Sin gastos compartidos este mes` / `Deuda pagada`) and a **Meses con deuda** list of unpaid **past** months (the current month is already on Balance). Tapping a month opens the Balance overlay on that month. The **Balance** overlay (from Home, not a new tab) has a month selector and a **Pagar** action. Health is unchanged.
 
 ### Pull-to-refresh (Phase 9.4.7)
 

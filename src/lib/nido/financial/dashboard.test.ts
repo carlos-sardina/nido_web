@@ -1241,8 +1241,7 @@ describe("dashboard view model", () => {
     assert.equal(model.monthlyBalance.settlements[0]?.fromMemberId, "diana");
     assert.equal(model.monthlyBalance.settlements[0]?.toMemberId, "carlos");
     assert.equal(model.monthlyBalance.settlements[0]?.amount, 500);
-    assert.equal(model.outstandingBalanceMonths.length, 1);
-    assert.equal(model.outstandingBalanceMonths[0]?.status, "unsettled");
+    assert.deepEqual(model.outstandingBalanceMonths, []);
   });
 
   it("lists other unpaid months on the dashboard after unanimous payment overlay", () => {
