@@ -267,14 +267,19 @@ export type MonthBudgetView = {
   items: BudgetItemView[];
 };
 
+export type HealthTone = "excellent" | "stable" | "attention" | "critical" | "pending";
+
 export type HealthView =
   | {
       available: false;
     }
   | {
       available: true;
-      score: number;
+      score: number | null;
       label: string;
+      tone: HealthTone;
+      hint: string | null;
+      tips: string[];
       savingsRatePercent: number | null;
       emergencyMonths: number | null;
       budgetUsagePercent: number | null;

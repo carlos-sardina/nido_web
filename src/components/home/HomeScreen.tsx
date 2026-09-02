@@ -6,8 +6,11 @@ import type { AuthIdentity } from "@/lib/auth/identity";
 import {
   compactBalanceCopy,
   formatCompactMoney,
+  formatHealthMonths,
   formatRelativeActivityDate,
   type BudgetItemView,
+  type HealthTone,
+  type HealthView,
   type MonthRange,
 } from "@/lib/nido/financial";
 import type { DashboardQuery } from "@/lib/nido/use-dashboard";
@@ -38,11 +41,53 @@ function SkeletonBlock({ className }: { className: string }) {
   );
 }
 
-function HealthHero({ children }: { children: ReactNode }) {
+function healthMetricChips(health: Extract<HealthView, { available: true }>) {
+  if (health.tone === "pending") return [];
+  return [
+    health.savingsRatePercent != null
+      ? {
+          label: "Tasa de ahorro",
+          value: `${health.savingsRatePercent}%`,
+          warn: health.savingsRatePercent < 0,
+        }
+      : null,
+    health.budgetUsagePercent != null
+      ? {
+          label: "Del presupuesto",
+          value: `${health.budgetUsagePercent}%`,
+          warn: health.budgetUsagePercent > 100,
+        }
+      : null,
+    health.emergencyMonths != null
+      ? {
+          label: "Fondo de respaldo",
+          value: formatHealthMonths(health.emergencyMonths),
+          warn: health.emergencyMonths < 3,
+        }
+      : null,
+  ].filter((chip): chip is { label: string; value: string; warn: boolean } => chip != null);
+}
+
+const HEALTH_HERO_GRADIENT: Record<HealthTone | "empty", string> = {
+  excellent: "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)",
+  stable: "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)",
+  attention: "linear-gradient(135deg, #5C4A38 0%, #8A6A4E 100%)",
+  critical: "linear-gradient(135deg, #5A3530 0%, #8B4A42 100%)",
+  pending: "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)",
+  empty: "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)",
+};
+
+function HealthHero({
+  tone = "empty",
+  children,
+}: {
+  tone?: HealthTone | "empty";
+  children: ReactNode;
+}) {
   return (
     <div
       className="mx-6 mb-3 rounded-[1.5rem] overflow-hidden"
-      style={{ background: "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)" }}
+      style={{ background: HEALTH_HERO_GRADIENT[tone] }}
     >
       <div className="relative p-5">
         <div
@@ -223,6 +268,7 @@ function DashboardBody({
   const { health, budget, activeGoals, activity, empty, range, monthlyBalance, outstandingBalanceMonths } = model;
   const balanceCopy = compactBalanceCopy(monthlyBalance, currentUserId);
   const diff = Math.abs(budget.remaining);
+  const healthChips = health.available ? healthMetricChips(health) : [];
 
   return (
     <>
@@ -243,7 +289,7 @@ function DashboardBody({
       ) : null}
 
       {health.available ? (
-        <HealthHero>
+        <HealthHero tone={health.tone}>
           <div className="flex items-start justify-between mb-2">
             <div>
               <p
@@ -253,7 +299,7 @@ function DashboardBody({
                 Salud Financiera
               </p>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold" style={{ color: P.sageLt }}>
+                <span className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.92)" }}>
                   {health.label}
                 </span>
               </div>
@@ -262,44 +308,56 @@ function DashboardBody({
               {range.label}
             </span>
           </div>
-          <div className="flex items-end justify-between gap-4">
-            <HealthGauge score={health.score} />
-            <div className="flex flex-col gap-2">
-              {[
-                health.savingsRatePercent != null
-                  ? { label: "Tasa ahorro", value: `${health.savingsRatePercent}%` }
-                  : null,
-                health.emergencyMonths != null
-                  ? { label: "Fondo compart.", value: `${health.emergencyMonths} mes` }
-                  : null,
-                health.budgetUsagePercent != null
-                  ? { label: "Presupuesto", value: `${health.budgetUsagePercent}%` }
-                  : null,
-                health.activeGoalCount > 0
-                  ? {
-                      label: health.activeGoalCount === 1 ? "meta activa" : "metas activas",
-                      value: String(health.activeGoalCount),
-                    }
-                  : null,
-              ]
-                .filter((chip): chip is { label: string; value: string } => chip != null)
-                .slice(0, 2)
-                .map((chip) => (
-                  <div
-                    key={chip.label}
-                    className="rounded-xl px-3 py-2 flex items-center gap-2.5"
-                    style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
-                  >
-                    <span className="text-xs font-bold font-sans" style={{ color: P.sageLt }}>
-                      {chip.value}
-                    </span>
-                    <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.4)" }}>
-                      {chip.label}
-                    </span>
-                  </div>
-                ))}
+          {health.score != null && health.tone !== "pending" ? (
+            <div
+              className={
+                healthChips.length > 0
+                  ? "flex items-center justify-between gap-4"
+                  : "flex justify-center"
+              }
+            >
+              <HealthGauge score={health.score} tone={health.tone} />
+              {healthChips.length > 0 ? (
+                <div className="flex flex-col gap-2 min-w-0 flex-1">
+                  {healthChips.map((chip) => (
+                    <div
+                      key={chip.label}
+                      className="rounded-xl px-3 py-2 flex items-center gap-2.5"
+                      style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+                    >
+                      <span
+                        className="text-xs font-bold font-sans"
+                        style={{ color: chip.warn ? "#F0C4B4" : "rgba(255,255,255,0.92)" }}
+                      >
+                        {chip.value}
+                      </span>
+                      <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                        {chip.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
-          </div>
+          ) : null}
+          {health.tips.length > 0 ? (
+            <ul className={health.score != null ? "mt-3 space-y-1.5" : "mt-1 space-y-1.5"}>
+              {health.tips.map((tip) => (
+                <li
+                  key={tip}
+                  className="flex gap-2 text-[11px] leading-relaxed"
+                  style={{ color: "rgba(255,255,255,0.55)" }}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="mt-[6px] h-1 w-1 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: "rgba(255,255,255,0.4)" }}
+                  />
+                  <span>{tip}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </HealthHero>
       ) : (
         <HealthHero>
@@ -311,7 +369,7 @@ function DashboardBody({
           </p>
           <p className="text-sm font-semibold text-white mb-1">Aún no hay datos</p>
           <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
-            Agrega tus ingresos para tener una mejor visión de su patrimonio.
+            Registra ingresos o gastos para ver cómo va el Nido este mes.
           </p>
         </HealthHero>
       )}

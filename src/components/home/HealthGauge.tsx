@@ -1,10 +1,25 @@
 "use client";
 
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import type { HealthTone } from "@/lib/nido/financial";
 import { P } from "@/lib/palette";
 
-export function HealthGauge({ score }: { score: number }) {
-  const data = [{ v: score }, { v: 100 - score }];
+const GAUGE_FILL: Record<Exclude<HealthTone, "pending">, string> = {
+  excellent: P.sageLt,
+  stable: P.sageLt,
+  attention: "#E8C4A0",
+  critical: "#E8B4A8",
+};
+
+export function HealthGauge({
+  score,
+  tone = "stable",
+}: {
+  score: number;
+  tone?: Exclude<HealthTone, "pending">;
+}) {
+  const filled = Math.min(100, Math.max(0, score));
+  const data = [{ v: filled }, { v: Math.max(0, 100 - filled) }];
   return (
     <div className="relative w-28 h-[68px]">
       <ResponsiveContainer width="100%" height="100%">
@@ -20,7 +35,7 @@ export function HealthGauge({ score }: { score: number }) {
             outerRadius={52}
             strokeWidth={0}
           >
-            <Cell fill={P.sageLt} />
+            <Cell fill={GAUGE_FILL[tone]} />
             <Cell fill="rgba(255,255,255,0.15)" />
           </Pie>
         </PieChart>

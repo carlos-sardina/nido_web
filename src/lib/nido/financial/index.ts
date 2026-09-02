@@ -239,7 +239,7 @@ export {
   sharedFundTarget,
   visibleGoalContributions,
 } from "./goals.ts";
-export { computeHealth, healthLabel } from "./health.ts";
+export { computeHealth, formatHealthMonths, healthLabel, healthTone } from "./health.ts";
 export {
   activeRecurringIncomeBasis,
   canMutateIncome,
@@ -283,6 +283,7 @@ export type {
   GoalRow,
   GoalStatus,
   GoalType,
+  HealthTone,
   HealthView,
   IncomeRow,
   MemberBalanceView,

@@ -139,7 +139,7 @@ Nido-level budgets (`member_id IS NULL`) overlapping the current month feed “P
 
 The canonical helpers are `calculateBudgetConsumption()` and `budgetSpent()` in `src/lib/nido/financial/budgets.ts`. They run on the RLS-filtered dashboard snapshot (period expenses already loaded). There is no consumption RPC and no persisted spent column. `netExpense()` / `refundableRemaining()` live in `refunds.ts`.
 
-Financial health is unchanged: `computeHealth` still uses `budgetTotal` / `budgetUsagePercent` when a Nido-level budget exists. Those inputs now come from live snapshot budgets and **net** spent. The score formula was not modified and is not persisted.
+Financial health is a derived presentation score (not persisted). `computeHealth` only scores metrics that have a real value this month (savings rate needs income and spend; budget use needs a Nido plan and spend; backup-fund months need a plan plus shared funds, and only after there is already a primary signal). Missing budget, fund, or goals do not pull the score down. If nothing is scoreable yet, Home shows **En curso** instead of Atención/Crítico. A deficit still cannot look healthy. Home shows the scored metrics and up to two tips (detected issues first, then a constructive next step).
 
 ### Refunds (Phase 9.4.5)
 
