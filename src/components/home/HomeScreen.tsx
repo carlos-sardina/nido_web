@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Settings } from "lucide-react";
+import { Home, Settings } from "lucide-react";
 import type { AuthIdentity } from "@/lib/auth/identity";
 import {
   compactBalanceCopy,
@@ -14,7 +14,6 @@ import {
   type MonthRange,
 } from "@/lib/nido/financial";
 import type { DashboardQuery } from "@/lib/nido/use-dashboard";
-import { formatHomeNidoName } from "@/lib/nido/format-nido-name";
 import { P } from "@/lib/palette";
 import type { Tab } from "@/lib/types";
 import { Button } from "@/components/nido/Button";
@@ -106,6 +105,49 @@ function HealthHero({
   );
 }
 
+function DashboardNidoMark({ name }: { name: string }) {
+  return (
+    <div
+      className="mx-6 mb-3 rounded-[1.5rem] overflow-hidden shadow-sm"
+      style={{ background: "linear-gradient(135deg, #E8F4EF 0%, #F4EFE6 58%, #FAF4EC 100%)" }}
+    >
+      <div className="relative flex items-center gap-3 px-4 py-3.5">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full"
+          style={{ backgroundColor: "rgba(47,125,102,0.08)" }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-12 right-10 h-24 w-24 rounded-full"
+          style={{ backgroundColor: "rgba(169,200,166,0.32)" }}
+        />
+        <div
+          className="relative w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: P.sage }}
+        >
+          <Home size={20} strokeWidth={1.75} color="#E8F4EF" aria-hidden="true" />
+        </div>
+        <div className="relative min-w-0 flex-1">
+          <p
+            className="text-[10px] font-semibold uppercase tracking-widest mb-0.5"
+            style={{ color: P.sage }}
+          >
+            Hoy en tu Nido
+          </p>
+          <p
+            className="text-[18px] font-bold leading-tight break-words [overflow-wrap:anywhere] line-clamp-2"
+            title={name}
+            style={{ fontFamily: "Fraunces, serif", color: P.text }}
+          >
+            {name}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DashboardSkeleton() {
   return (
     <div className="px-6 pt-3 space-y-3" aria-busy="true" aria-live="polite">
@@ -150,7 +192,7 @@ export function HomeScreen({
   currentUserId: string | null;
 }) {
   const { isLoading, refreshing, error, model, refresh } = dashboard;
-  const nidoLabel = householdName ? formatHomeNidoName(householdName) : "";
+  const nidoName = householdName.trim();
 
   return (
     <PullToRefresh
@@ -158,7 +200,7 @@ export function HomeScreen({
       refreshing={refreshing}
       className="h-full min-h-0 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-20"
     >
-      <div className="px-6 pt-3 pb-1 flex items-start justify-between gap-3">
+      <div className="px-6 pt-3 pb-2 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium" style={{ color: P.muted }}>
             {model?.greeting ?? "Buenos días"}
@@ -169,15 +211,6 @@ export function HomeScreen({
           >
             {identity ? `${identity.firstName} 👋` : "Hola 👋"}
           </h1>
-          {nidoLabel ? (
-            <p
-              className="text-[11px] mt-0.5 break-words [overflow-wrap:anywhere] line-clamp-2"
-              title={nidoLabel}
-              style={{ color: P.muted }}
-            >
-              {nidoLabel}
-            </p>
-          ) : null}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
@@ -204,6 +237,8 @@ export function HomeScreen({
           </button>
         </div>
       </div>
+
+      {nidoName ? <DashboardNidoMark name={nidoName} /> : null}
 
       {isLoading && !model ? (
         <DashboardSkeleton />
