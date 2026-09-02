@@ -200,7 +200,7 @@ export function BudgetScreen({
               </>
             ) : null}
 
-            <Button variant="ghost" onClick={onCreateBudget}>
+            <Button variant="secondary" onClick={onCreateBudget}>
               Crear otro presupuesto
             </Button>
           </div>

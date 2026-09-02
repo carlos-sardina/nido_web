@@ -74,7 +74,7 @@ export function RecurringExpenseDetail({
                 ) : null}
                 {status !== "ended" ? (
                   <Button
-                    variant={due ? "ghost" : "primary"}
+                    variant={due ? "secondary" : "primary"}
                     loading={submitting}
                     onClick={() =>
                       void run(() => setRecurringExpenseActive(template.id, !template.isActive))

@@ -146,6 +146,10 @@ export function GoalsScreen({
               })}
             </section>
           ) : null}
+
+          <Button variant="secondary" onClick={onCreateGoal}>
+            Crear otra meta o fondo
+          </Button>
         </div>
       )}
     </PullToRefresh>

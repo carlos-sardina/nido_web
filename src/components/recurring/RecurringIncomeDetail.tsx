@@ -74,7 +74,7 @@ export function RecurringIncomeDetail({
                 ) : null}
                 {status !== "ended" ? (
                   <Button
-                    variant={due ? "ghost" : "primary"}
+                    variant={due ? "secondary" : "primary"}
                     loading={submitting}
                     onClick={() =>
                       void run(() => setRecurringIncomeActive(template.id, !template.isActive))

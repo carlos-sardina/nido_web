@@ -157,6 +157,9 @@ export function ExpensesScreen({
               </button>
             );
           })}
+          <Button variant="secondary" onClick={onRegisterExpense}>
+            Registrar un gasto
+          </Button>
         </div>
       )}
     </PullToRefresh>

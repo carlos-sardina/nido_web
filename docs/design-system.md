@@ -56,13 +56,13 @@ Shared shell: `FlowScreen`.
 
 | Variant | Use |
 | --- | --- |
-| `primary` | Main action (Crear cuenta, Continuar, Crear mi Nido) |
-| `secondary` | Alternate action (Iniciar sesión on landing) |
+| `primary` | Main action (Crear cuenta, Continuar, Crear mi Nido, submit in a flow) |
+| `secondary` | Alternate or create-another action (Iniciar sesión, Crear otra meta o fondo) |
 | `ghost` | Cancel / close in nested surfaces |
 | `danger` | Destructive confirmations (`--danger`, e.g. Eliminar gasto) |
 | `compact` size | 44px, only inside nested forms |
 
-Tertiary actions use `TextLink` (brand or muted), not a fourth button style.
+Tertiary actions use `TextLink` (brand or muted), not a fourth button style. List screens use `secondary` for “crear/registrar otro”, never `ghost`.
 
 Hover, active scale, disabled, loading (`aria-busy`), and `focus-visible` ring are built in.
 

@@ -3,6 +3,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/app/components/ui/utils";
 
+/** primary = main action · secondary = alternate/create-another · ghost = cancel/close · danger = destructive confirm */
 export type NidoButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type NidoButtonSize = "default" | "compact";
 

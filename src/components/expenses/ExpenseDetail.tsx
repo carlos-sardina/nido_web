@@ -191,7 +191,7 @@ export function ExpenseDetail({
                       Devolver dinero
                     </Button>
                   ) : null}
-                  {canEdit ? <Button variant={canRefund ? "ghost" : undefined} onClick={onEdit}>Editar</Button> : null}
+                  {canEdit ? <Button variant={canRefund ? "secondary" : "primary"} onClick={onEdit}>Editar</Button> : null}
                   <Button variant="ghost" onClick={() => setConfirming(true)}>
                     Eliminar
                   </Button>

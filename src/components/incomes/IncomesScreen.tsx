@@ -153,7 +153,7 @@ export function IncomesScreen({
                 </button>
               );
             })}
-            <Button variant="ghost" onClick={onRegisterIncome}>
+            <Button variant="secondary" onClick={onRegisterIncome}>
               Registrar un ingreso
             </Button>
           </div>

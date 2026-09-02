@@ -57,7 +57,7 @@ export function EmptyState({
           ) : null}
           {hasSecondary ? (
             <Button
-              variant={hasPrimary ? "primary" : "ghost"}
+              variant={hasPrimary ? "ghost" : "secondary"}
               size="compact"
               className="w-auto shrink-0 px-4 whitespace-nowrap"
               onClick={onSecondaryAction}

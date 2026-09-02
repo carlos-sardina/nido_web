@@ -262,7 +262,7 @@ export function CopyBudgetsFlow({
           ) : (
             <ScreenFooter>
               <div className="space-y-3">
-                <Button variant="ghost" onClick={openAdd} disabled={submitting}>
+                <Button variant="secondary" onClick={openAdd} disabled={submitting}>
                   Agregar presupuesto
                 </Button>
                 <Button
