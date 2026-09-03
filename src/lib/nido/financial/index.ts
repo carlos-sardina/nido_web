@@ -12,6 +12,10 @@ export {
   type ActivityScopeFilter,
 } from "./activity.ts";
 export {
+  computeActivityScopeHealth,
+  type ActivityScopeHealth,
+} from "./activity-health.ts";
+export {
   BUDGET_NEAR_LIMIT_PERCENT,
   budgetRemaining,
   budgetSpent,

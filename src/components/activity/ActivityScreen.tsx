@@ -10,6 +10,7 @@ import { TextLink } from "@/components/nido/TextLink";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
   ACTIVITY_PAGE_SIZE,
+  computeActivityScopeHealth,
   filterActivityByScope,
   findActivitySource,
   formatCompactMoney,
@@ -116,12 +117,29 @@ export function ActivityScreen({
   const filteredEmpty = Boolean(model && activity.length > 0 && filteredActivity.length === 0);
   const canRevealMore = filteredActivity.length > visibleCount;
   const showLoadMore = !empty && (canRevealMore || activityHasMore);
-  const health = model?.health;
+  const scopedHealth = useMemo(() => {
+    if (!model) return null;
+    return computeActivityScopeHealth({
+      filter: scopeFilter,
+      viewerId: currentUserId,
+      household: {
+        income: model.periodIncome,
+        spent: model.periodSpent,
+        health: model.health,
+        emergencyMonths: model.featuredGoal?.emergencyMonths ?? null,
+      },
+      periodExpenses: model.periodExpenses,
+      periodIncomes: model.periodIncomes,
+      periodBudgets: model.periodBudgets,
+      goals: model.goals,
+    });
+  }, [model, scopeFilter, currentUserId]);
+  const health = scopedHealth?.health;
   const chips = health?.available
     ? [
         {
           label: "Ingreso del mes",
-          value: formatCompactMoney(model?.periodIncome ?? 0),
+          value: formatCompactMoney(scopedHealth.incomeThisMonth),
         },
         health.savingsRatePercent != null
           ? { label: "Tasa de ahorro", value: `${health.savingsRatePercent}%` }
@@ -220,9 +238,16 @@ export function ActivityScreen({
             </div>
           ) : null}
 
+          {!empty && model ? (
+            <div className="px-6 pt-1 pb-1">
+              <ScopeFilterBar value={scopeFilter} onChange={setScopeFilter} />
+            </div>
+          ) : null}
+
           {chips.length > 0 ? (
             <div
               className="mx-6 my-3 rounded-[1.5rem] overflow-hidden"
+              aria-live="polite"
               style={{ background: "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)" }}
             >
               <div className="relative p-5">
@@ -265,12 +290,6 @@ export function ActivityScreen({
                   </div>
                 </div>
               </div>
-            </div>
-          ) : null}
-
-          {!empty && model ? (
-            <div className="px-6 pt-1 pb-3">
-              <ScopeFilterBar value={scopeFilter} onChange={setScopeFilter} />
             </div>
           ) : null}
 
