@@ -11,7 +11,7 @@ import { BudgetScreen } from "@/components/budget/BudgetScreen";
 import { ExpenseDetail } from "@/components/expenses/ExpenseDetail";
 import { ExpensesScreen } from "@/components/expenses/ExpensesScreen";
 import { ActionSheet } from "@/components/flows/ActionSheet";
-import { BudgetFlow } from "@/components/flows/BudgetFlow";
+import { BudgetFlow, type BudgetCreateTarget } from "@/components/flows/BudgetFlow";
 import { CopyBudgetsFlow } from "@/components/flows/CopyBudgetsFlow";
 import { ContribFlow } from "@/components/flows/ContribFlow";
 import { ExpenseFlow } from "@/components/flows/ExpenseFlow";
@@ -90,6 +90,7 @@ export function MainApp({
   const [balanceInitialRange, setBalanceInitialRange] = useState<MonthRange | undefined>();
   const [selectedBudget, setSelectedBudget] = useState<BudgetItemView | null>(null);
   const [editingBudget, setEditingBudget] = useState<BudgetItemView | null>(null);
+  const [creatingBudgetCategory, setCreatingBudgetCategory] = useState<BudgetCreateTarget | null>(null);
   const [showRecurringIncomes, setShowRecurringIncomes] = useState(false);
   const [selectedRecurringIncome, setSelectedRecurringIncome] = useState<RecurringIncomeTemplate | null>(null);
   const [editingRecurringIncome, setEditingRecurringIncome] = useState<RecurringIncomeTemplate | null>(null);
@@ -133,6 +134,7 @@ export function MainApp({
     setCreatingGoalFromContrib(false);
     setEditingBudget(null);
     setSelectedBudget(null);
+    setCreatingBudgetCategory(null);
     setCreatingRecurringIncome(false);
     setEditingRecurringIncome(null);
     setRecurringRefresh((value) => value + 1);
@@ -148,6 +150,7 @@ export function MainApp({
     setCreatingGoalFromContrib(false);
     setEditingBudget(null);
     setSelectedBudget(null);
+    setCreatingBudgetCategory(null);
     setActiveFlow(flow);
   };
 
@@ -180,10 +183,11 @@ export function MainApp({
     setCreatingGoalFromContrib(true);
   };
 
-  const openBudgetCreate = () => {
+  const openBudgetCreate = (category?: BudgetCreateTarget) => {
     setShowSheet(false);
     setSelectedBudget(null);
     setEditingBudget(null);
+    setCreatingBudgetCategory(category ?? null);
     setActiveFlow("budget");
   };
 
@@ -231,6 +235,9 @@ export function MainApp({
               members={members}
               onOpenExpense={setSelectedExpense}
               onRegisterExpense={openExpenseCreate}
+              onOpenBudgets={() => setShowBudgets(true)}
+              onOpenBudget={setSelectedBudget}
+              onCreateBudget={openBudgetCreate}
             />
           )}
           {tab === "goals"     && (
@@ -466,9 +473,11 @@ export function MainApp({
             householdId={household.id}
             members={members}
             budget={editingBudget}
+            initialCategory={creatingBudgetCategory}
             onClose={() => {
               setActiveFlow(null);
               setEditingBudget(null);
+              setCreatingBudgetCategory(null);
             }}
             onDone={handleFlowDone}
           />

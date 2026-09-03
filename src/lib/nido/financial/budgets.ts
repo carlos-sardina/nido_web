@@ -4,6 +4,7 @@ import { ratioPercent, roundMoney, sumMoney } from "./money.ts";
 import { isActiveExpense, isPersonalExpense } from "./expenses.ts";
 import { netExpense } from "./refunds.ts";
 import type {
+  BudgetCategoryView,
   BudgetConsumption,
   BudgetItemView,
   BudgetRow,
@@ -213,10 +214,53 @@ export function visiblePersonalPeriodBudgets(
   return visiblePeriodBudgets(budgets, range, householdId).filter(isPersonalBudget);
 }
 
+function spentCategoriesFromExpenses(periodExpenses: ExpenseRow[]): Map<string, BudgetCategoryView> {
+  const spentOnly = new Map<string, BudgetCategoryView>();
+  for (const expense of periodExpenses.filter(isActiveExpense)) {
+    const existing = spentOnly.get(expense.categoryId);
+    const spent = roundMoney((existing?.spent ?? 0) + netExpense(expense.amount, expense.refunds));
+    spentOnly.set(expense.categoryId, {
+      categoryId: expense.categoryId,
+      name: expense.category?.name?.trim() || existing?.name || "Categoría",
+      icon: expense.category?.icon?.trim() || existing?.icon || "📌",
+      budget: 0,
+      spent,
+      unbudgeted: true,
+    });
+  }
+  return spentOnly;
+}
+
+function sortCategorySpend(a: BudgetCategoryView, b: BudgetCategoryView): number {
+  const bySpent = b.spent - a.spent;
+  if (bySpent !== 0) return bySpent;
+  return a.name.localeCompare(b.name, "es");
+}
+
+/**
+ * Period spend in categories that have no overlapping budget of any scope.
+ * These rows still consume the Nido monthly total.
+ */
+export function unbudgetedCategorySpend(
+  periodExpenses: ExpenseRow[],
+  budgets: BudgetRow[],
+  range: MonthRange,
+): BudgetCategoryView[] {
+  const covered = new Set(
+    budgetsOverlappingRange(budgets, range).map((budget) => budget.categoryId),
+  );
+  return [...spentCategoriesFromExpenses(periodExpenses).values()]
+    .filter((row) => row.spent > 0 && !covered.has(row.categoryId))
+    .sort(sortCategorySpend);
+}
+
 /**
  * Budget.amount is a planning target, not a spending cap.
  * Spent is derived from confirmed expenses in the same category and period.
  * There is no current_spent column.
+ *
+ * `categories` includes Nido-budgeted rows plus any other category with
+ * spend, so unbudgeted outflow stays visible in the monthly plan.
  */
 export function buildMonthBudgetView(
   budgets: BudgetRow[],
@@ -233,30 +277,21 @@ export function buildMonthBudgetView(
   );
   const remaining = roundMoney(totalBudget - totalSpent);
   const over = totalBudget > 0 && totalSpent > totalBudget;
+  const nidoCategoryIds = new Set(items.map((item) => item.categoryId));
 
-  const categories = items.map((item) => ({
+  const categories: BudgetCategoryView[] = items.map((item) => ({
     categoryId: item.categoryId,
     name: item.name,
     icon: item.icon,
     budget: item.amount,
     spent: item.spent,
+    unbudgeted: false,
   }));
 
-  if (categories.length === 0) {
-    const spentOnly = new Map<string, (typeof categories)[number]>();
-    for (const expense of periodExpenses.filter(isActiveExpense)) {
-      const existing = spentOnly.get(expense.categoryId);
-      const spent = (existing?.spent ?? 0) + netExpense(expense.amount, expense.refunds);
-      spentOnly.set(expense.categoryId, {
-        categoryId: expense.categoryId,
-        name: expense.category?.name?.trim() || "Categoría",
-        icon: expense.category?.icon?.trim() || "📌",
-        budget: 0,
-        spent,
-      });
-    }
-    categories.push(...spentOnly.values());
-  }
+  const extras = [...spentCategoriesFromExpenses(periodExpenses).values()]
+    .filter((row) => row.spent > 0 && !nidoCategoryIds.has(row.categoryId))
+    .sort(sortCategorySpend);
+  categories.push(...extras);
 
   return {
     hasBudget: totalBudget > 0,
@@ -266,6 +301,7 @@ export function buildMonthBudgetView(
     over,
     usagePercent: ratioPercent(totalSpent, totalBudget),
     categories,
+    unbudgetedCategories: unbudgetedCategorySpend(periodExpenses, budgets, range),
     items,
   };
 }

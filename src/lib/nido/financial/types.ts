@@ -204,6 +204,8 @@ export type BudgetCategoryView = {
   icon: string;
   budget: number;
   spent: number;
+  /** Spend in this category with no Nido budget for the month. */
+  unbudgeted: boolean;
 };
 
 export type BudgetItemView = {
@@ -234,6 +236,8 @@ export type MonthBudgetView = {
   over: boolean;
   usagePercent: number | null;
   categories: BudgetCategoryView[];
+  /** Spend that counts in the monthly total but has no budget row. */
+  unbudgetedCategories: BudgetCategoryView[];
   items: BudgetItemView[];
 };
 

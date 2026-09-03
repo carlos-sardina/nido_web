@@ -31,6 +31,7 @@ export {
   isNidoBudget,
   isPersonalBudget,
   nidoBudgetsForMonth,
+  unbudgetedCategorySpend,
   visibleNidoPeriodBudgets,
   visiblePeriodBudgets,
   visiblePersonalPeriodBudgets,
@@ -271,6 +272,7 @@ export type { SalaryCopyCandidate } from "./copy-salaries.ts";
 export type {
   ActivityItem,
   ActivitySource,
+  BudgetCategoryView,
   BudgetConsumption,
   BudgetItemView,
   BudgetRow,

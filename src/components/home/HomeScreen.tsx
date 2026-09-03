@@ -186,7 +186,7 @@ export function HomeScreen({
   onOpenBudgets: () => void;
   onOpenIncomes: () => void;
   onOpenBudget: (budget: BudgetItemView) => void;
-  onCreateBudget: () => void;
+  onCreateBudget: (category?: { categoryId: string; name?: string; icon?: string | null }) => void;
   onCopyPreviousMonthBudgets?: () => void;
   onOpenBalance: (range?: MonthRange) => void;
   currentUserId: string | null;
@@ -295,7 +295,7 @@ function DashboardBody({
   onOpenBudgets: () => void;
   onOpenIncomes: () => void;
   onOpenBudget: (budget: BudgetItemView) => void;
-  onCreateBudget: () => void;
+  onCreateBudget: (category?: { categoryId: string; name?: string; icon?: string | null }) => void;
   onCopyPreviousMonthBudgets?: () => void;
   onOpenBalance: (range?: MonthRange) => void;
   currentUserId: string | null;
@@ -513,19 +513,31 @@ function DashboardBody({
             {budget.categories.length > 0 ? (
               <div className="flex gap-2 mt-4 overflow-x-auto [&::-webkit-scrollbar]:hidden">
                 {budget.categories.map((category) => {
-                  const item = budget.items.find((row) => row.categoryId === category.categoryId);
+                  const item = budget.items.find((row) => row.categoryId === category.categoryId)
+                    ?? model.periodBudgets.find((row) => row.categoryId === category.categoryId);
+                  const unbudgeted = !item;
                   return (
                     <button
                       key={category.categoryId}
                       type="button"
                       onClick={() => {
                         if (item) onOpenBudget(item);
-                        else onOpenBudgets();
+                        else {
+                          onCreateBudget({
+                            categoryId: category.categoryId,
+                            name: category.name,
+                            icon: category.icon,
+                          });
+                        }
                       }}
                       title={category.name}
-                      aria-label={`Ver presupuesto de ${category.name}`}
+                      aria-label={
+                        item
+                          ? `Ver presupuesto de ${category.name}`
+                          : `Crear presupuesto de ${category.name}`
+                      }
                       className="flex-none w-[4.75rem] rounded-xl px-1.5 py-2 text-center overflow-hidden active:scale-[0.97] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      style={{ backgroundColor: P.sub }}
+                      style={{ backgroundColor: unbudgeted ? P.warnBg : P.sub }}
                     >
                       <div className="text-sm mb-0.5">{category.icon}</div>
                       <div className="text-[9px] mb-0.5 truncate" style={{ color: P.muted }}>
@@ -537,12 +549,16 @@ function DashboardBody({
                           color:
                             category.budget > 0 && category.spent > category.budget
                               ? P.danger
-                              : P.text,
+                              : unbudgeted
+                                ? P.warn
+                                : P.text,
                         }}
                       >
                         {formatCompactMoney(category.spent)}
                       </div>
-                      <SeeMoreHint className="mt-1 text-[9px]">Ver</SeeMoreHint>
+                      <SeeMoreHint className="mt-1 text-[9px]">
+                        {item ? "Ver" : "Crear"}
+                      </SeeMoreHint>
                     </button>
                   );
                 })}

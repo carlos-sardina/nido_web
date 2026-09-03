@@ -1,8 +1,9 @@
 "use client";
 
 import { Repeat } from "lucide-react";
+import type { BudgetCreateTarget } from "@/components/flows/BudgetFlow";
 import { Button } from "@/components/nido/Button";
-import { NavChevron } from "@/components/nido/ClickHint";
+import { NavChevron, SeeMoreHint, SeeMoreLink } from "@/components/nido/ClickHint";
 import {
   EmeraldHero,
   HeroAmount,
@@ -23,6 +24,8 @@ import {
   isRecurringExpense,
   isSharedExpense,
   netExpense,
+  type BudgetCategoryView,
+  type BudgetItemView,
   type ExpenseRow,
 } from "@/lib/nido/financial";
 import type { DashboardQuery } from "@/lib/nido/use-dashboard";
@@ -132,22 +135,121 @@ function ExpensesHero({
   );
 }
 
+function budgetForCategory(
+  categoryId: string,
+  nidoItems: BudgetItemView[],
+  periodBudgets: BudgetItemView[],
+): BudgetItemView | undefined {
+  return nidoItems.find((item) => item.categoryId === categoryId)
+    ?? periodBudgets.find((item) => item.categoryId === categoryId);
+}
+
+function ExpenseCategoryChip({
+  category,
+  budgetItem,
+  onOpenBudget,
+  onCreateBudget,
+}: {
+  category: BudgetCategoryView;
+  budgetItem: BudgetItemView | undefined;
+  onOpenBudget: (budget: BudgetItemView) => void;
+  onCreateBudget: (category?: BudgetCreateTarget) => void;
+}) {
+  const unbudgeted = !budgetItem;
+  const over = Boolean(budgetItem && budgetItem.amount > 0 && category.spent > budgetItem.amount);
+  const ratio = budgetItem?.usagePercent != null
+    ? Math.min(100, budgetItem.usagePercent)
+    : budgetItem && budgetItem.amount > 0
+      ? Math.min(100, (category.spent / budgetItem.amount) * 100)
+      : 0;
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (budgetItem) {
+          onOpenBudget(budgetItem);
+          return;
+        }
+        onCreateBudget({
+          categoryId: category.categoryId,
+          name: category.name,
+          icon: category.icon,
+        });
+      }}
+      title={category.name}
+      aria-label={
+        budgetItem
+          ? `Ver presupuesto de ${category.name}`
+          : `Crear presupuesto de ${category.name}`
+      }
+      className="flex-none min-w-[6.25rem] max-w-[7.5rem] rounded-2xl px-2.5 py-2 text-center active:scale-[0.97] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      style={{
+        backgroundColor: unbudgeted ? P.warnBg : P.card,
+      }}
+    >
+      <div className="text-sm mb-0.5">{category.icon}</div>
+      <div className="text-[9px] mb-0.5 truncate" style={{ color: P.muted }}>
+        {category.name}
+      </div>
+      <div
+        className="text-[10px] font-bold font-sans truncate"
+        style={{ color: over ? P.danger : P.text }}
+      >
+        {formatCompactMoney(category.spent)}
+      </div>
+      {budgetItem ? (
+        <>
+          <div className="text-[9px] truncate mt-0.5" style={{ color: over ? P.danger : P.muted }}>
+            de {formatCompactMoney(budgetItem.amount)}
+          </div>
+          <div className="h-1 rounded-full overflow-hidden mt-1.5" style={{ backgroundColor: P.sub }}>
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${ratio}%`,
+                backgroundColor: over ? P.danger : budgetItem.nearLimit ? P.warn : P.sageDk,
+              }}
+            />
+          </div>
+          <SeeMoreHint className="mt-1 w-full justify-center text-[9px]">Ver</SeeMoreHint>
+        </>
+      ) : (
+        <>
+          <div className="text-[9px] font-semibold truncate mt-0.5" style={{ color: P.warn }}>
+            Sin presupuesto
+          </div>
+          <SeeMoreHint className="mt-1 w-full justify-center text-[9px]">Crear</SeeMoreHint>
+        </>
+      )}
+    </button>
+  );
+}
+
 export function ExpensesScreen({
   dashboard,
   members,
   onOpenExpense,
   onRegisterExpense,
+  onOpenBudgets,
+  onOpenBudget,
+  onCreateBudget,
 }: {
   dashboard: DashboardQuery;
   members: HouseholdMemberView[];
   onOpenExpense: (expense: ExpenseRow) => void;
   onRegisterExpense: () => void;
+  onOpenBudgets: () => void;
+  onOpenBudget: (budget: BudgetItemView) => void;
+  onCreateBudget: (category?: BudgetCreateTarget) => void;
 }) {
   const { isLoading, refreshing, error, model, refresh } = dashboard;
   const expenses = model?.periodExpenses ?? [];
   const empty = Boolean(model && expenses.length === 0);
   const sharedSpent = householdSpent(expenses.filter(isSharedExpense));
   const personalSpent = householdSpent(expenses.filter(isPersonalExpense));
+  const nidoItems = model?.budget.items ?? [];
+  const periodBudgets = model?.periodBudgets ?? [];
   const categories = (model?.budget.categories ?? [])
     .filter((category) => category.spent > 0)
     .slice()
@@ -215,22 +317,27 @@ export function ExpensesScreen({
           />
 
           {categories.length > 0 ? (
-            <div className="flex gap-2 px-6 mb-3 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-              {categories.map((category) => (
-                <div
-                  key={category.categoryId}
-                  className="flex-none min-w-[4.75rem] rounded-2xl px-2.5 py-2 text-center"
-                  style={{ backgroundColor: P.card }}
+            <div className="mb-3">
+              <div className="flex items-center justify-between gap-3 px-6 mb-2">
+                <p
+                  className="text-[10px] font-semibold uppercase tracking-widest"
+                  style={{ color: P.muted }}
                 >
-                  <div className="text-sm mb-0.5">{category.icon}</div>
-                  <div className="text-[9px] mb-0.5 truncate" style={{ color: P.muted }}>
-                    {category.name}
-                  </div>
-                  <div className="text-[10px] font-bold font-sans truncate" style={{ color: P.text }}>
-                    {formatCompactMoney(category.spent)}
-                  </div>
-                </div>
-              ))}
+                  Por presupuesto
+                </p>
+                <SeeMoreLink onClick={onOpenBudgets}>Ver presupuestos</SeeMoreLink>
+              </div>
+              <div className="flex gap-2 px-6 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+                {categories.map((category) => (
+                  <ExpenseCategoryChip
+                    key={category.categoryId}
+                    category={category}
+                    budgetItem={budgetForCategory(category.categoryId, nidoItems, periodBudgets)}
+                    onOpenBudget={onOpenBudget}
+                    onCreateBudget={onCreateBudget}
+                  />
+                ))}
+              </div>
             </div>
           ) : null}
 

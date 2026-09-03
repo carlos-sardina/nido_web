@@ -38,26 +38,35 @@ export type BudgetFormValue = {
   icon?: string | null;
 };
 
+export type BudgetCreateTarget = {
+  categoryId: string;
+  name?: string;
+  icon?: string | null;
+};
+
 export function BudgetFlow({
   householdId,
   members,
   budget,
+  initialCategory,
   onClose,
   onDone,
 }: {
   householdId: string;
   members: HouseholdMemberView[];
   budget?: BudgetFormValue | null;
+  initialCategory?: BudgetCreateTarget | null;
   onClose: () => void;
   onDone: () => void;
 }) {
   const ids = useId();
   const submittingRef = useRef(false);
   const isEditing = Boolean(budget);
+  const seedCategory = budget ?? initialCategory ?? null;
   const [amount, setAmount] = useState(() =>
     budget ? amountToBudgetInput(budget.amount) : "",
   );
-  const [categoryId, setCategoryId] = useState(() => budget?.categoryId ?? "");
+  const [categoryId, setCategoryId] = useState(() => seedCategory?.categoryId ?? "");
   const [personal, setPersonal] = useState(() => Boolean(budget?.memberId));
   const [categories, setCategories] = useState<HouseholdCategory[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
@@ -79,15 +88,15 @@ export function BudgetFlow({
         setLoadingCategories(false);
         return;
       }
-      const current = budget
+      const current = seedCategory
         ? {
-            id: budget.categoryId,
+            id: seedCategory.categoryId,
             householdId,
-            name: budget.name?.trim() || "Categoría",
-            icon: budget.icon ?? "📌",
+            name: seedCategory.name?.trim() || "Categoría",
+            icon: seedCategory.icon ?? "📌",
             type: "expense" as const,
             isDefault: false,
-            archivedAt: result.data.some((row) => row.id === budget.categoryId)
+            archivedAt: result.data.some((row) => row.id === seedCategory.categoryId)
               ? null
               : "archived",
           }
@@ -99,7 +108,7 @@ export function BudgetFlow({
     return () => {
       cancelled = true;
     };
-  }, [householdId]);
+  }, [householdId, budget, initialCategory]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();

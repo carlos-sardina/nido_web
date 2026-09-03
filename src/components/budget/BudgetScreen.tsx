@@ -1,5 +1,6 @@
 "use client";
 
+import type { BudgetCreateTarget } from "@/components/flows/BudgetFlow";
 import { Button } from "@/components/nido/Button";
 import { NavChevron } from "@/components/nido/ClickHint";
 import { EmeraldHero, HeroAmount, HeroChip, HeroKicker } from "@/components/nido/DecoratedCard";
@@ -13,6 +14,7 @@ import {
   formatMonthLabel,
   isNidoBudget,
   isPersonalBudget,
+  type BudgetCategoryView,
   type BudgetItemView,
 } from "@/lib/nido/financial";
 import type { DashboardQuery } from "@/lib/nido/use-dashboard";
@@ -66,14 +68,15 @@ export function BudgetScreen({
   currentUserId: string | null;
   onClose: () => void;
   onOpenBudget: (budget: BudgetItemView) => void;
-  onCreateBudget: () => void;
+  onCreateBudget: (category?: BudgetCreateTarget) => void;
   onCopyPreviousMonthBudgets?: () => void;
 }) {
   const { isLoading, refreshing, error, model, refresh } = dashboard;
   const budgets = model?.periodBudgets ?? [];
   const nidoBudgets = budgets.filter(isNidoBudget);
   const personalBudgets = budgets.filter(isPersonalBudget);
-  const empty = Boolean(model && budgets.length === 0);
+  const unbudgeted = model?.budget.unbudgetedCategories ?? [];
+  const empty = Boolean(model && budgets.length === 0 && unbudgeted.length === 0);
   const summary = model?.budget;
 
   return (
@@ -148,6 +151,12 @@ export function BudgetScreen({
                     label={personalBudgets.length === 1 ? "personal" : "personales"}
                   />
                 ) : null}
+                {unbudgeted.length > 0 ? (
+                  <HeroChip
+                    value={String(unbudgeted.length)}
+                    label={unbudgeted.length === 1 ? "sin presupuesto" : "sin presupuesto"}
+                  />
+                ) : null}
               </div>
               {summary?.hasBudget ? (
                 <div className="mt-4">
@@ -189,29 +198,38 @@ export function BudgetScreen({
                 secondaryActionLabel={onCopyPreviousMonthBudgets ? "Copiar del mes pasado" : undefined}
                 onSecondaryAction={onCopyPreviousMonthBudgets}
               />
-            ) : nidoBudgets.length > 0 || personalBudgets.length > 0 ? (
+            ) : (
               <>
-                <BudgetSection
-                  title="Presupuestos del Nido"
-                  emptyLabel="No hay presupuestos del Nido este mes."
-                  items={nidoBudgets}
-                  currentUserId={currentUserId}
-                  onOpenBudget={onOpenBudget}
-                />
-                <BudgetSection
-                  title="Presupuestos personales"
-                  emptyLabel="No hay presupuestos personales visibles este mes."
-                  items={personalBudgets}
-                  currentUserId={currentUserId}
-                  onOpenBudget={onOpenBudget}
-                />
+                {nidoBudgets.length > 0 || personalBudgets.length > 0 ? (
+                  <>
+                    <BudgetSection
+                      title="Presupuestos del Nido"
+                      emptyLabel="No hay presupuestos del Nido este mes."
+                      items={nidoBudgets}
+                      currentUserId={currentUserId}
+                      onOpenBudget={onOpenBudget}
+                    />
+                    <BudgetSection
+                      title="Presupuestos personales"
+                      emptyLabel="No hay presupuestos personales visibles este mes."
+                      items={personalBudgets}
+                      currentUserId={currentUserId}
+                      onOpenBudget={onOpenBudget}
+                    />
+                  </>
+                ) : null}
+                {unbudgeted.length > 0 ? (
+                  <UnbudgetedSection items={unbudgeted} onCreateBudget={onCreateBudget} />
+                ) : null}
+                <Button variant="secondary" onClick={() => onCreateBudget()}>
+                  {budgets.length === 0 ? "Crear un presupuesto" : "Crear otro presupuesto"}
+                </Button>
+                {budgets.length === 0 && onCopyPreviousMonthBudgets ? (
+                  <Button variant="ghost" onClick={onCopyPreviousMonthBudgets}>
+                    Copiar del mes pasado
+                  </Button>
+                ) : null}
               </>
-            ) : null}
-
-            {empty ? null : (
-              <Button variant="secondary" onClick={onCreateBudget}>
-                Crear otro presupuesto
-              </Button>
             )}
           </div>
         ) : null}
@@ -322,6 +340,89 @@ function BudgetCard({
           </div>
           <p className="text-[10px] mt-1.5" style={{ color: usageColor(item) }}>
             {consumptionCaption(item)}
+          </p>
+        </div>
+        <NavChevron />
+      </div>
+    </button>
+  );
+}
+
+function UnbudgetedSection({
+  items,
+  onCreateBudget,
+}: {
+  items: BudgetCategoryView[];
+  onCreateBudget: (category?: BudgetCreateTarget) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: P.warn }}>
+        Gastos sin presupuesto
+      </p>
+      <p className="text-[11px]" style={{ color: P.muted }}>
+        Cuentan en el total del mes. Créales un límite para verlos en el plan.
+      </p>
+      {items.map((item) => (
+        <UnbudgetedCard
+          key={item.categoryId}
+          item={item}
+          onCreate={() =>
+            onCreateBudget({
+              categoryId: item.categoryId,
+              name: item.name,
+              icon: item.icon,
+            })
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+function UnbudgetedCard({
+  item,
+  onCreate,
+}: {
+  item: BudgetCategoryView;
+  onCreate: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onCreate}
+      className="w-full rounded-[1.5rem] p-4 text-left active:scale-[0.99] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      style={{
+        backgroundColor: P.warnBg,
+        boxShadow: `inset 0 0 0 1px rgba(201, 120, 93, 0.28)`,
+      }}
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className="w-11 h-11 rounded-2xl flex items-center justify-center text-lg flex-shrink-0"
+          style={{ backgroundColor: "#F6E4DC" }}
+        >
+          {item.icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-1.5 gap-2">
+            <div className="min-w-0">
+              <span className="text-sm font-semibold truncate block" style={{ color: P.text }}>
+                {item.name}
+              </span>
+              <span
+                className="inline-block mt-1 text-[9px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5"
+                style={{ backgroundColor: "#F6E4DC", color: P.warn }}
+              >
+                Sin presupuesto
+              </span>
+            </div>
+            <span className="text-sm font-bold font-sans flex-shrink-0" style={{ color: P.warn }}>
+              {formatCompactMoney(item.spent)}
+            </span>
+          </div>
+          <p className="text-[10px]" style={{ color: P.warn }}>
+            Crear presupuesto
           </p>
         </div>
         <NavChevron />

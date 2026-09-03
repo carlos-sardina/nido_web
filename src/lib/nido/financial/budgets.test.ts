@@ -7,6 +7,7 @@ import {
   buildBudgetItemView,
   buildMonthBudgetView,
   calculateBudgetConsumption,
+  unbudgetedCategorySpend,
   canMutateBudget,
   isActiveBudget,
   isBudgetNearLimit,
@@ -113,6 +114,44 @@ describe("month budget view", () => {
     assert.equal(view.hasBudget, false);
     assert.equal(view.totalSpent, 700);
     assert.equal(view.categories[0].name, "Internet");
+    assert.equal(view.categories[0].unbudgeted, true);
+    assert.equal(view.unbudgetedCategories[0].name, "Internet");
+  });
+
+  it("lists unbudgeted category spend next to existing Nido budgets", () => {
+    const view = buildMonthBudgetView(
+      [budget({ amount: 20000, categoryId: "rent" })],
+      [
+        expense({ amount: 20000, categoryId: "rent" }),
+        expense({
+          id: "e-net",
+          amount: 700,
+          categoryId: "net",
+          category: { id: "net", name: "Internet", icon: "📡" },
+        }),
+      ],
+      range,
+    );
+    assert.equal(view.totalSpent, 20700);
+    assert.equal(view.totalBudget, 20000);
+    assert.equal(view.over, true);
+    assert.equal(view.items.length, 1);
+    const extra = view.categories.find((category) => category.categoryId === "net");
+    assert.equal(extra?.unbudgeted, true);
+    assert.equal(extra?.spent, 700);
+    assert.equal(view.unbudgetedCategories.length, 1);
+    assert.equal(view.unbudgetedCategories[0].categoryId, "net");
+  });
+
+  it("does not treat a personal-only budget as covering the Nido category chip", () => {
+    const view = buildMonthBudgetView(
+      [budget({ id: "b-me", amount: 5000, categoryId: "gym", memberId: "u1", category: { id: "gym", name: "Gimnasio", icon: "🏋️" } })],
+      [expense({ amount: 400, categoryId: "gym", category: { id: "gym", name: "Gimnasio", icon: "🏋️" } })],
+      range,
+    );
+    assert.equal(view.hasBudget, false);
+    assert.equal(view.categories[0].unbudgeted, true);
+    assert.equal(view.unbudgetedCategories.length, 0);
   });
 
   it("excludes budgets that do not overlap the current month", () => {
@@ -122,6 +161,43 @@ describe("month budget view", () => {
       range,
     );
     assert.equal(view.hasBudget, false);
+  });
+});
+
+describe("unbudgetedCategorySpend", () => {
+  it("omits categories that already have a Nido or personal budget", () => {
+    const rows = unbudgetedCategorySpend(
+      [
+        expense({ amount: 20000, categoryId: "rent" }),
+        expense({
+          id: "e-net",
+          amount: 700,
+          categoryId: "net",
+          category: { id: "net", name: "Internet", icon: "📡" },
+        }),
+        expense({
+          id: "e-gym",
+          amount: 400,
+          categoryId: "gym",
+          category: { id: "gym", name: "Gimnasio", icon: "🏋️" },
+        }),
+      ],
+      [
+        budget({ amount: 20000, categoryId: "rent" }),
+        budget({
+          id: "b-me",
+          amount: 5000,
+          categoryId: "gym",
+          memberId: "u1",
+          category: { id: "gym", name: "Gimnasio", icon: "🏋️" },
+        }),
+      ],
+      range,
+    );
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].categoryId, "net");
+    assert.equal(rows[0].spent, 700);
+    assert.equal(rows[0].unbudgeted, true);
   });
 });
 
