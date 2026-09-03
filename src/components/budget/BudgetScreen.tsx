@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/nido/Button";
 import { NavChevron } from "@/components/nido/ClickHint";
+import { EmeraldHero, HeroAmount, HeroChip, HeroKicker } from "@/components/nido/DecoratedCard";
 import { EmptyState } from "@/components/nido/EmptyState";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { BackLink } from "@/components/nido/Screen";
@@ -85,20 +86,19 @@ export function BudgetScreen({
         refreshing={refreshing}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-[var(--app-screen-bottom)]"
       >
-        <div className="px-6 pb-1">
+        <div className="px-6 pb-2">
           <Heading as="h2" size="h2">
             Presupuestos
           </Heading>
-          <Text size="caption" tone="muted" className="mt-1">
-            {model?.range.label ?? "Este mes"}
-          </Text>
         </div>
 
         {isLoading && !model ? (
-          <div className="px-6 pt-4" aria-busy="true" aria-live="polite">
+          <div className="px-6 pt-1 space-y-3" aria-busy="true" aria-live="polite">
             <Text size="caption" tone="muted">
               Cargando presupuestos…
             </Text>
+            <div className="h-36 rounded-[1.5rem] animate-pulse" style={{ backgroundColor: P.sub }} />
+            <div className="h-16 rounded-[1.5rem] animate-pulse" style={{ backgroundColor: P.sub }} />
           </div>
         ) : error && !model ? (
           <div className="px-6 pt-4">
@@ -111,19 +111,8 @@ export function BudgetScreen({
               </Button>
             </div>
           </div>
-        ) : empty ? (
-          <div className="px-6 pt-4">
-            <EmptyState
-              title="Sin presupuestos este mes"
-              description="Crea un límite por categoría. El gasto se calcula de tus gastos reales."
-              actionLabel="Crear un presupuesto"
-              onAction={onCreateBudget}
-              secondaryActionLabel={onCopyPreviousMonthBudgets ? "Copiar del mes pasado" : undefined}
-              onSecondaryAction={onCopyPreviousMonthBudgets}
-            />
-          </div>
-        ) : (
-          <div className="px-6 pt-3 pb-6 space-y-3">
+        ) : model ? (
+          <div className="px-6 pt-1 pb-6 space-y-3">
             {error ? (
               <div className="rounded-2xl px-4 py-3" style={{ backgroundColor: P.dangerBg }}>
                 <Text size="caption" tone="danger">
@@ -140,49 +129,67 @@ export function BudgetScreen({
               </div>
             ) : null}
 
-            {summary?.hasBudget ? (
-              <div className="rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
-                <div className="flex items-end justify-between mb-3">
-                  <div>
-                    <p className="text-[10px] mb-0.5" style={{ color: P.muted }}>
-                      Gastado este mes
-                    </p>
-                    <p className="text-[26px] font-bold font-sans" style={{ color: P.text }}>
-                      {formatCompactMoney(summary.totalSpent)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px]" style={{ color: P.muted }}>
-                      Presupuestado
-                    </p>
-                    <p className="text-lg font-bold font-sans" style={{ color: P.text }}>
-                      {formatCompactMoney(summary.totalBudget)}
-                    </p>
-                  </div>
-                </div>
-                <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: P.sub }}>
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.min(100, summary.usagePercent ?? 0)}%`,
-                      background: summary.over
-                        ? P.danger
-                        : `linear-gradient(90deg, ${P.sage}, ${P.sageDk})`,
-                    }}
-                  />
-                </div>
-                <p
-                  className="text-[10px] font-semibold mt-2"
-                  style={{ color: summary.over ? P.danger : P.sageDk }}
-                >
-                  {summary.over
-                    ? `${formatCompactMoney(Math.abs(summary.remaining))} sobre el plan`
-                    : `${formatCompactMoney(summary.remaining)} disponible`}
-                </p>
+            <EmeraldHero>
+              <HeroKicker trailing={model.range.label}>El plan del Nido</HeroKicker>
+              <div className="mb-3">
+                <HeroAmount
+                  value={formatCompactMoney(summary?.totalSpent ?? model.periodSpent)}
+                  caption={summary?.hasBudget ? `de ${formatCompactMoney(summary.totalBudget)}` : "gastados"}
+                />
               </div>
-            ) : null}
+              <div className="flex flex-wrap gap-2">
+                <HeroChip
+                  value={String(nidoBudgets.length)}
+                  label={nidoBudgets.length === 1 ? "presupuesto" : "presupuestos"}
+                />
+                {personalBudgets.length > 0 ? (
+                  <HeroChip
+                    value={String(personalBudgets.length)}
+                    label={personalBudgets.length === 1 ? "personal" : "personales"}
+                  />
+                ) : null}
+              </div>
+              {summary?.hasBudget ? (
+                <div className="mt-4">
+                  <div
+                    className="h-1.5 rounded-full overflow-hidden"
+                    style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.min(100, summary.usagePercent ?? 0)}%`,
+                        background: summary.over ? "#F0C4B4" : "rgba(255,255,255,0.85)",
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-1.5 text-[10px]">
+                    <span style={{ color: "rgba(255,255,255,0.4)" }}>
+                      {summary.over ? "Sobre el plan" : "Disponible"}
+                    </span>
+                    <span
+                      className="font-semibold"
+                      style={{ color: summary.over ? "#F0C4B4" : "rgba(255,255,255,0.7)" }}
+                    >
+                      {summary.over
+                        ? `${formatCompactMoney(Math.abs(summary.remaining))} de más`
+                        : formatCompactMoney(summary.remaining)}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+            </EmeraldHero>
 
-            {nidoBudgets.length > 0 || personalBudgets.length > 0 ? (
+            {empty ? (
+              <EmptyState
+                title="Sin presupuestos este mes"
+                description="Crea un límite por categoría. El gasto se calcula de tus gastos reales."
+                actionLabel="Crear un presupuesto"
+                onAction={onCreateBudget}
+                secondaryActionLabel={onCopyPreviousMonthBudgets ? "Copiar del mes pasado" : undefined}
+                onSecondaryAction={onCopyPreviousMonthBudgets}
+              />
+            ) : nidoBudgets.length > 0 || personalBudgets.length > 0 ? (
               <>
                 <BudgetSection
                   title="Presupuestos del Nido"
@@ -201,11 +208,13 @@ export function BudgetScreen({
               </>
             ) : null}
 
-            <Button variant="secondary" onClick={onCreateBudget}>
-              Crear otro presupuesto
-            </Button>
+            {empty ? null : (
+              <Button variant="secondary" onClick={onCreateBudget}>
+                Crear otro presupuesto
+              </Button>
+            )}
           </div>
-        )}
+        ) : null}
       </PullToRefresh>
     </div>
   );
@@ -264,26 +273,35 @@ function BudgetCard({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full rounded-2xl p-4 shadow-sm text-left active:scale-[0.99] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="w-full rounded-[1.5rem] p-4 shadow-sm text-left active:scale-[0.99] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       style={{ backgroundColor: P.card }}
     >
       <div className="flex items-center gap-3">
         <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0"
-          style={{ backgroundColor: P.sub }}
+          className="w-11 h-11 rounded-2xl flex items-center justify-center text-lg flex-shrink-0"
+          style={{ backgroundColor: personal ? "#FDEEF1" : "#E8F4EF" }}
         >
           {item.icon}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-semibold truncate" style={{ color: P.text }}>
-              {personal
-                ? `${item.name} — ${formatCompactMoney(item.amount)}${who ? ` — ${who}` : ""}`
-                : item.name}
-            </span>
+          <div className="flex items-center justify-between mb-1.5 gap-2">
+            <div className="min-w-0">
+              <span className="text-sm font-semibold truncate block" style={{ color: P.text }}>
+                {item.name}
+              </span>
+              <span
+                className="inline-block mt-1 text-[9px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5"
+                style={{
+                  backgroundColor: personal ? "#FDEEF1" : "#E8F4EF",
+                  color: personal ? P.brnDp : P.sageDk,
+                }}
+              >
+                {personal ? who ?? "Personal" : "Nido"}
+              </span>
+            </div>
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <span
-                className="text-xs font-bold font-sans"
+                className="text-sm font-bold font-sans"
                 style={{ color: item.over ? P.danger : P.text }}
               >
                 {formatCompactMoney(item.spent)}

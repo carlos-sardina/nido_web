@@ -21,7 +21,7 @@ import { HouseholdSplitCard } from "@/components/household/HouseholdSplitCard";
 import { PersonalVisibilityCard } from "@/components/household/PersonalVisibilityCard";
 import { InviteQrModal } from "@/components/flows/InviteQrModal";
 import { Button } from "@/components/nido/Button";
-import { SeeMoreHint } from "@/components/nido/ClickHint";
+import { SagePlaceCard } from "@/components/nido/DecoratedCard";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { BackLink } from "@/components/nido/Screen";
@@ -224,14 +224,22 @@ export function HouseholdScreen({
           return (
             <div key={member.userId} className="rounded-[1.5rem] p-4 shadow-sm space-y-3" style={{ backgroundColor: P.card }}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold overflow-hidden" style={{ backgroundColor: P.sage }}>
+                <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-white text-xs font-bold overflow-hidden" style={{ backgroundColor: P.sage }}>
                   {member.avatarUrl
                     ? <img src={member.avatarUrl} alt="" className="w-full h-full object-cover" />
                     : initialsFromName(member.displayName)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate" style={{ color: P.text }}>{member.displayName}</p>
-                  <p className="text-[10px]" style={{ color: P.muted }}>{member.role === "owner" ? "Propietario" : "Miembro"}</p>
+                  <span
+                    className="inline-block mt-1 text-[9px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5"
+                    style={{
+                      backgroundColor: member.role === "owner" ? "#E8F4EF" : P.sub,
+                      color: member.role === "owner" ? P.sageDk : P.muted,
+                    }}
+                  >
+                    {member.role === "owner" ? "Propietario" : "Miembro"}
+                  </span>
                 </div>
               </div>
               {canRemove && confirmingRemove ? (
@@ -291,23 +299,13 @@ export function HouseholdScreen({
       <HouseholdCategoriesCard householdId={household.id} refreshKey={categoryRefreshKey} />
       {isOwner && (
         <div className="px-6 mb-5">
-          <button
-            type="button"
-            onClick={inviteBusy ? undefined : handleInvite}
-            className="w-full flex items-center gap-3 p-4 rounded-[1.5rem] shadow-sm text-left"
-            style={{ backgroundColor: P.card, opacity: inviteBusy ? 0.7 : 1 }}
-          >
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: P.sagePl }}>
-              <Link size={16} style={{ color: P.sageDk }} />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs font-semibold" style={{ color: P.text }}>
-                {inviteBusy ? "Generando enlace…" : inviteCopied ? "Enlace copiado" : "Invitar por enlace"}
-              </p>
-              <p className="text-[10px]" style={{ color: P.muted }}>Comparte este enlace con la persona que quieres invitar.</p>
-            </div>
-            <SeeMoreHint>{inviteCopied ? "Copiado" : "Invitar"}</SeeMoreHint>
-          </button>
+          <SagePlaceCard
+            eyebrow={inviteCopied ? "Listo" : "Crece el Nido"}
+            title={inviteBusy ? "Generando enlace…" : inviteCopied ? "Enlace copiado" : "Invitar por enlace"}
+            icon={<Link size={18} strokeWidth={1.75} color="#E8F4EF" aria-hidden="true" />}
+            onClick={handleInvite}
+            disabled={inviteBusy}
+          />
           {inviteError && (
             <p className="text-[11px] mt-2" style={{ color: P.danger }}>{inviteError}</p>
           )}
@@ -332,7 +330,7 @@ export function HouseholdScreen({
             const expiryLabel = formatInvitationDay(invitation.expiresAt);
             const createdLabel = formatInvitationDay(invitation.createdAt);
             return (
-              <div key={invitation.id} className="rounded-2xl p-3 space-y-2 shadow-sm" style={{ backgroundColor: P.card }}>
+              <div key={invitation.id} className="rounded-[1.5rem] p-4 space-y-2 shadow-sm" style={{ backgroundColor: P.card }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold" style={{ color: P.text }}>

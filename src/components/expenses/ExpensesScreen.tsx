@@ -3,6 +3,12 @@
 import { Repeat } from "lucide-react";
 import { Button } from "@/components/nido/Button";
 import { NavChevron } from "@/components/nido/ClickHint";
+import {
+  EmeraldHero,
+  HeroAmount,
+  HeroChip,
+  HeroKicker,
+} from "@/components/nido/DecoratedCard";
 import { EmptyState } from "@/components/nido/EmptyState";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { TextLink } from "@/components/nido/TextLink";
@@ -81,89 +87,48 @@ function ExpensesHero({
   ].filter((chip): chip is { label: string; value: string } => chip != null);
 
   return (
-    <div
-      className="mx-6 mb-3 rounded-[1.5rem] overflow-hidden"
-      style={{ background: "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)" }}
-    >
-      <div className="relative p-5">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full"
-          style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-12 right-8 h-24 w-24 rounded-full"
-          style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
-        />
-        <div className="relative">
-          <div className="flex items-start justify-between mb-2">
-            <p
-              className="text-[10px] font-semibold uppercase tracking-widest"
-              style={{ color: "rgba(255,255,255,0.45)" }}
-            >
-              Este mes en el Nido
-            </p>
-            <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.3)" }}>
-              {rangeLabel}
-            </span>
-          </div>
-          <div className="flex items-baseline gap-2 mb-3">
-            <span className="text-[28px] font-bold font-sans text-white leading-none">
-              {formatCompactMoney(spent)}
-            </span>
-            <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.5)" }}>
-              gastados
-            </span>
-          </div>
-          {chips.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {chips.map((chip) => (
-                <div
-                  key={chip.label}
-                  className="rounded-xl px-3 py-2"
-                  style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
-                >
-                  <p className="text-xs font-bold font-sans text-white">{chip.value}</p>
-                  <p className="text-[9px] mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-                    {chip.label}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : null}
-          {budget?.hasBudget ? (
-            <div className="mt-4">
-              <div
-                className="h-1.5 rounded-full overflow-hidden"
-                style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
-              >
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${Math.min(100, budget.usagePercent ?? 0)}%`,
-                    background: budget.over ? "#F0C4B4" : "rgba(255,255,255,0.85)",
-                  }}
-                />
-              </div>
-              <div className="flex justify-between mt-1.5 text-[10px]">
-                <span style={{ color: "rgba(255,255,255,0.4)" }}>
-                  de {formatCompactMoney(budget.totalBudget)} presupuestado
-                </span>
-                <span
-                  className="font-semibold"
-                  style={{ color: budget.over ? "#F0C4B4" : "rgba(255,255,255,0.7)" }}
-                >
-                  {budget.over
-                    ? `${formatCompactMoney(Math.abs(budget.remaining))} sobre el plan`
-                    : `${formatCompactMoney(budget.remaining)} disponible`}
-                </span>
-              </div>
-            </div>
-          ) : null}
-        </div>
+    <EmeraldHero className="mx-6 mb-3">
+      <HeroKicker trailing={rangeLabel}>Este mes en el Nido</HeroKicker>
+      <div className="mb-3">
+        <HeroAmount value={formatCompactMoney(spent)} caption="gastados" />
       </div>
-    </div>
+      {chips.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {chips.map((chip) => (
+            <HeroChip key={chip.label} value={chip.value} label={chip.label} />
+          ))}
+        </div>
+      ) : null}
+      {budget?.hasBudget ? (
+        <div className="mt-4">
+          <div
+            className="h-1.5 rounded-full overflow-hidden"
+            style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
+          >
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.min(100, budget.usagePercent ?? 0)}%`,
+                background: budget.over ? "#F0C4B4" : "rgba(255,255,255,0.85)",
+              }}
+            />
+          </div>
+          <div className="flex justify-between mt-1.5 text-[10px]">
+            <span style={{ color: "rgba(255,255,255,0.4)" }}>
+              de {formatCompactMoney(budget.totalBudget)} presupuestado
+            </span>
+            <span
+              className="font-semibold"
+              style={{ color: budget.over ? "#F0C4B4" : "rgba(255,255,255,0.7)" }}
+            >
+              {budget.over
+                ? `${formatCompactMoney(Math.abs(budget.remaining))} sobre el plan`
+                : `${formatCompactMoney(budget.remaining)} disponible`}
+            </span>
+          </div>
+        </div>
+      ) : null}
+    </EmeraldHero>
   );
 }
 

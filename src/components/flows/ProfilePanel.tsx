@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { ChevronLeft } from "lucide-react";
+import { EmeraldHero, HeroKicker } from "@/components/nido/DecoratedCard";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { TextLink } from "@/components/nido/TextLink";
 import type { AuthIdentity } from "@/lib/auth/identity";
@@ -111,21 +112,42 @@ export function ProfilePanel({
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-[var(--app-screen-bottom)]"
       >
         <h2
-          className="px-6 pt-2 pb-2 text-center text-sm font-bold"
+          className="px-6 pt-2 pb-3 text-sm font-bold"
           style={{ fontFamily: "Fraunces, serif", color: P.text }}
         >
           Mi perfil
         </h2>
 
-        {/* User identity */}
-        <div className="flex flex-col items-center py-6 px-6">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-bold mb-3 shadow-md overflow-hidden" style={{ backgroundColor: P.sage }}>
-            {identity?.avatarUrl
-              ? <img src={identity.avatarUrl} alt="" className="w-full h-full object-cover" />
-              : (identity?.initials ?? "?")}
-          </div>
+        <div className="px-6 mb-5">
+          <EmeraldHero>
+            <HeroKicker>Tu lugar en el Nido</HeroKicker>
+            <div className="flex items-center gap-3">
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-lg font-bold overflow-hidden flex-shrink-0"
+                style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
+              >
+                {identity?.avatarUrl
+                  ? <img src={identity.avatarUrl} alt="" className="w-full h-full object-cover" />
+                  : (identity?.initials ?? "?")}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[22px] font-bold leading-tight break-words" style={{ fontFamily: "Fraunces, serif", color: "#FFFCFA" }}>
+                  {displayedName}
+                </p>
+                <p className="text-[11px] mt-1 truncate" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  {identity?.email ?? ""}
+                </p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest mt-1.5" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  {role === "owner" ? "Propietario" : "Miembro"} · {householdName}
+                </p>
+              </div>
+            </div>
+          </EmeraldHero>
+        </div>
+
+        <div className="px-6 mb-5">
           {editing ? (
-            <div className="w-full max-w-sm">
+            <div>
               <label htmlFor="profile-display-name" className="sr-only">Nombre</label>
               <input
                 id="profile-display-name"
@@ -150,7 +172,7 @@ export function ProfilePanel({
                 }}
               />
               {nameError && (
-                <p id="profile-display-name-error" className="text-[11px] mt-2 text-center" role="alert" style={{ color: P.danger }}>
+                <p id="profile-display-name-error" className="text-[11px] mt-2" role="alert" style={{ color: P.danger }}>
                   {nameError}
                 </p>
               )}
@@ -176,25 +198,20 @@ export function ProfilePanel({
               </div>
             </div>
           ) : (
-            <>
-              <p className="text-base font-bold mb-0.5" style={{ fontFamily: "Fraunces, serif", color: P.text }}>{displayedName}</p>
+            <div>
               <TextLink
-                className="mt-1 mb-1 min-h-0 h-auto text-[11px]"
+                className="px-0 min-h-9"
                 onClick={startEdit}
               >
                 Editar nombre
               </TextLink>
               {nameStatus === "success" && (
-                <p className="text-[11px] mb-1" role="status" style={{ color: P.sage }}>
+                <p className="text-[11px] mt-1" role="status" style={{ color: P.sage }}>
                   Nombre actualizado
                 </p>
               )}
-            </>
+            </div>
           )}
-          <p className="text-xs" style={{ color: P.muted }}>{identity?.email ?? ""}</p>
-          <div className="mt-2 px-3 py-1 rounded-full text-[10px] font-semibold" style={{ backgroundColor: P.sagePl, color: P.brnDp }}>
-            Nido: {householdName} · {role === "owner" ? "Propietario" : "Miembro"}
-          </div>
         </div>
 
         {/* Leave + logout */}

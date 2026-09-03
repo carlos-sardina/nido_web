@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/nido/Button";
+import { EmeraldHero, HeroAmount, HeroChip, HeroKicker } from "@/components/nido/DecoratedCard";
 import { EmptyState } from "@/components/nido/EmptyState";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { BackLink } from "@/components/nido/Screen";
@@ -13,10 +14,13 @@ import {
   canSubmitBalancePayment,
 } from "@/lib/nido/monthly-balance";
 import {
+  compactBalanceCopy,
+  formatCompactMoney,
   formatExactMoney,
   formatSignedMoney,
   getCurrentMonthRange,
   shortMemberName,
+  sumMoney,
   type MonthRange,
   type MonthlyBalance,
 } from "@/lib/nido/financial";
@@ -49,13 +53,25 @@ function MemberCard({
   balance: number;
 }) {
   const tone = balance > 0 ? P.sageDk : balance < 0 ? P.danger : P.text;
+  const initial = name.trim().charAt(0).toUpperCase() || "?";
   return (
     <div className="rounded-[1.5rem] p-4 shadow-sm" style={{ backgroundColor: P.card }}>
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-semibold" style={{ color: P.text }}>
-          {name}
-        </p>
-        <p className="text-sm font-bold font-sans" style={{ color: tone }}>
+      <div className="flex items-center justify-between mb-3 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div
+            className="w-10 h-10 rounded-2xl flex items-center justify-center text-sm font-bold flex-shrink-0"
+            style={{
+              backgroundColor: balance < 0 ? "#FDEEF1" : "#E8F4EF",
+              color: tone,
+            }}
+          >
+            {initial}
+          </div>
+          <p className="text-sm font-semibold truncate" style={{ color: P.text }}>
+            {name}
+          </p>
+        </div>
+        <p className="text-sm font-bold font-sans flex-shrink-0" style={{ color: tone }}>
           {formatSignedMoney(balance)}
         </p>
       </div>
@@ -101,9 +117,9 @@ function Settlements({ balance }: { balance: MonthlyBalance }) {
         <div
           key={`${row.fromMemberId}-${row.toMemberId}`}
           className="rounded-[1.5rem] p-4 shadow-sm"
-          style={{ backgroundColor: P.card }}
+          style={{ background: "linear-gradient(135deg, #E8F4EF 0%, #F4EFE6 58%, #FAF4EC 100%)" }}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: P.muted }}>
+          <p className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: P.sage }}>
             {row.fromName} le debe a {row.toName}
           </p>
           <p className="text-[22px] font-bold font-sans" style={{ color: P.text }}>
@@ -158,7 +174,7 @@ function PaymentPanel({
     <div className="rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
       <p
         className="text-[10px] font-semibold uppercase tracking-widest mb-2"
-        style={{ color: P.muted }}
+        style={{ color: P.sage }}
       >
         Saldar el mes
       </p>
@@ -255,7 +271,7 @@ export function BalanceScreen({
         refreshing={refreshing}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden pb-[var(--app-screen-bottom)]"
       >
-        <div className="px-6 pb-1">
+        <div className="px-6 pb-2">
           <Heading as="h2" size="h2">
             Balance
           </Heading>
@@ -284,10 +300,12 @@ export function BalanceScreen({
         </div>
 
         {isLoading && !balance ? (
-          <div className="px-6 pt-4" aria-busy="true" aria-live="polite">
+          <div className="px-6 pt-1 space-y-3" aria-busy="true" aria-live="polite">
             <Text size="caption" tone="muted">
               Cargando el balance…
             </Text>
+            <div className="h-36 rounded-[1.5rem] animate-pulse" style={{ backgroundColor: P.sub }} />
+            <div className="h-20 rounded-[1.5rem] animate-pulse" style={{ backgroundColor: P.sub }} />
           </div>
         ) : error && !balance ? (
           <div className="px-6 pt-4">
@@ -318,10 +336,36 @@ export function BalanceScreen({
               </div>
             ) : null}
 
+            <EmeraldHero>
+              <HeroKicker trailing={range.label}>Entre el Nido</HeroKicker>
+              {balance.status === "unsettled" ? (
+                <div className="mb-2">
+                  <HeroAmount
+                    value={formatCompactMoney(sumMoney(balance.settlements.map((row) => row.amount)))}
+                    caption="por saldar"
+                  />
+                </div>
+              ) : (
+                <p
+                  className="text-[28px] font-bold leading-none mb-2"
+                  style={{ fontFamily: "Fraunces, serif", color: "#FFFCFA" }}
+                >
+                  {balance.status === "empty" ? "En calma" : balance.status === "paid" ? "Pagado" : "Al día"}
+                </p>
+              )}
+              <p className="text-[11px] mb-3 leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
+                {compactBalanceCopy(balance, currentUserId).headline}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <HeroChip value={formatCompactMoney(balance.incomeTotal)} label="Ingresos" />
+                <HeroChip value={formatCompactMoney(balance.sharedNet)} label="Gastos netos" />
+              </div>
+            </EmeraldHero>
+
             <div className="rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
               <p
                 className="text-[10px] font-semibold uppercase tracking-widest mb-3"
-                style={{ color: P.muted }}
+                style={{ color: P.sage }}
               >
                 Resumen de {range.label}
               </p>
