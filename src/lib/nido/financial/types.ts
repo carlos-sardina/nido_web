@@ -143,7 +143,32 @@ export type GoalRow = {
   contributions: GoalContributionRow[];
 };
 
-export type ActivityType = "expense" | "income" | "goal_contribution" | "refund";
+export type ActivityType = "expense" | "income" | "goal_contribution" | "refund" | "mutation";
+
+export type ActivityMutationAction = "edited" | "deleted" | "archived" | "adjusted";
+export type ActivityMutationEntity =
+  | "expense"
+  | "budget"
+  | "goal"
+  | "goal_contribution"
+  | "category"
+  | "household"
+  | "savings";
+
+export type HouseholdMutationEvent = {
+  id: string;
+  householdId: string;
+  actorId: string;
+  action: ActivityMutationAction;
+  entityType: ActivityMutationEntity;
+  entityId: string;
+  scope: ExpenseScope;
+  label: string;
+  amount: number | null;
+  icon: string | null;
+  detail: string | null;
+  occurredAt: string;
+};
 
 export type ActivityItem = {
   id: string;
@@ -163,13 +188,19 @@ export type ActivityItem = {
     goalId?: string | null;
     goalName?: string | null;
     expenseId?: string | null;
+    action?: ActivityMutationAction;
+    entityType?: ActivityMutationEntity;
+    budgetId?: string | null;
+    detail?: string | null;
   };
 };
 
 export type ActivitySource =
   | { type: "expense"; expense: ExpenseRow }
   | { type: "income"; income: IncomeRow }
-  | { type: "goal_contribution"; goal: GoalRow; contributionId: string };
+  | { type: "goal_contribution"; goal: GoalRow; contributionId: string }
+  | { type: "budget"; budgetId: string }
+  | { type: "household" };
 
 export type GoalProgress = {
   id: string;
@@ -347,6 +378,7 @@ export type DashboardSnapshot = {
   contributions: GoalContributionRow[];
   balanceConfirmations: MonthlyBalanceConfirmation[];
   sharedHistoryExpenses: ExpenseRow[];
+  mutationEvents: HouseholdMutationEvent[];
 };
 
 export type DashboardViewModel = {

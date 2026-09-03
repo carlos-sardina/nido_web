@@ -212,7 +212,9 @@ export function ExpenseDetail({
           }
           description={
             confirming
-              ? "Esta acción quitará el gasto de tus totales y actividad."
+              ? personal
+                ? "Esta acción quitará el gasto de tus totales y actividad."
+                : "Esta acción quitará el gasto de tus totales. El Nido verá en Actividad que lo eliminaste."
               : refunding
                 ? `Disponible para devolver: ${formatCompactMoney(remaining)}`
                 : undefined

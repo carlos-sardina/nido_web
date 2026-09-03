@@ -254,6 +254,8 @@ export function MainApp({
               onOpenExpense={setSelectedExpense}
               onOpenIncome={setSelectedIncome}
               onOpenGoal={setSelectedGoal}
+              onOpenBudget={setSelectedBudget}
+              onOpenHousehold={() => setShowSettings(true)}
               onRegisterExpense={openExpenseCreate}
               onRegisterIncome={openIncomeCreate}
               onRegisterContribution={() => openFlow("contrib")}

@@ -9,6 +9,7 @@ import {
   mapExpenseRow,
   mapGoalRow,
   mapIncomeRow,
+  mapMutationEventRow,
 } from "../queries/map.ts";
 
 describe("query row mapping", () => {
@@ -173,6 +174,28 @@ describe("query row mapping", () => {
     assert.equal(category.householdId, "h1");
     assert.equal(category.isDefault, true);
     assert.equal(category.name, "Vivienda");
+  });
+
+  it("maps a shared mutation event without inventing an amount", () => {
+    const event = mapMutationEventRow({
+      id: "m1",
+      household_id: "h1",
+      actor_id: "carlos",
+      action: "adjusted",
+      entity_type: "household",
+      entity_id: "h1",
+      scope: "shared",
+      label: "Casa",
+      amount: null,
+      icon: "🏠",
+      detail: "name",
+      occurred_at: "2026-09-03T18:00:00.000Z",
+    });
+    assert.equal(event.householdId, "h1");
+    assert.equal(event.action, "adjusted");
+    assert.equal(event.entityType, "household");
+    assert.equal(event.amount, null);
+    assert.equal(event.detail, "name");
   });
 });
 

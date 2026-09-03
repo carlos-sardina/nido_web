@@ -22,7 +22,9 @@ import {
   mapExpenseRow,
   mapGoalRow,
   mapIncomeRow,
+  mapMutationEventRow,
   mapRecurringIncomeRow,
+  type MutationEventQueryRow,
   type RecurringIncomeQueryRow,
 } from "./map.ts";
 
@@ -107,6 +109,7 @@ export async function fetchDashboardSnapshot(
     contributionsRes,
     confirmationsRes,
     sharedHistoryRes,
+    mutationEventsRes,
   ] = await Promise.all([
     client
       .from("expenses")
@@ -182,6 +185,14 @@ export async function fetchDashboardSnapshot(
           .order("occurred_at", { ascending: false })
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: [] as ExpenseQueryRow[], error: null }),
+    client
+      .from("household_mutation_events")
+      .select(
+        "id, household_id, actor_id, action, entity_type, entity_id, scope, label, amount, icon, detail, occurred_at",
+      )
+      .eq("household_id", householdId)
+      .order("occurred_at", { ascending: false })
+      .limit(historyLimit),
   ]);
 
   const firstError =
@@ -194,7 +205,8 @@ export async function fetchDashboardSnapshot(
     goalsRes.error ??
     contributionsRes.error ??
     confirmationsRes.error ??
-    sharedHistoryRes.error;
+    sharedHistoryRes.error ??
+    mutationEventsRes.error;
 
   if (firstError) {
     return nidoFail(
@@ -230,5 +242,8 @@ export async function fetchDashboardSnapshot(
       mapConfirmationRow,
     ),
     sharedHistoryExpenses: ((sharedHistoryRes.data ?? []) as ExpenseQueryRow[]).map(mapExpenseRow),
+    mutationEvents: ((mutationEventsRes.data ?? []) as MutationEventQueryRow[]).map(
+      mapMutationEventRow,
+    ),
   });
 }

@@ -105,7 +105,7 @@ There is no product rule that rejects future expense dates. The form defaults to
 | Budget spent | `calculateBudgetConsumption()` / `budgetSpent()`: `SUM(netExpense)` of live expenses in the same household, `category_id`, and month. Nido: all visible rows (personal + shared). Personal: `scope = personal` and `created_by = budgets.member_id`. `netExpense = amount − SUM(refunds of that expense)` |
 | Budget remaining | `budgets.amount − spent` (view model only; may be negative) |
 | Budget usage | `spent / budgets.amount * 100` (view model only; unbounded, may exceed 100; null if amount ≤ 0) |
-| Activity | union of expenses, incomes, goal contributions, and refunds, newest first |
+| Activity | union of live expenses, incomes, goal contributions, and refunds, plus shared mutation events, newest first |
 
 There is no `balances` table and no `settlements` table. Unanimous month payment confirmations live in `monthly_balance_confirmations`; they do not replace derived settlements and do not rewrite expenses. There is no `current_amount` on goals and no `current_spent` on budgets.
 
@@ -135,7 +135,7 @@ Household dashboard spent uses `expenses.amount` (the Nido’s outflow). A membe
 
 Nido-level budgets (`member_id IS NULL`) overlapping the current month feed “Presupuesto del mes” on Home. `budgets.amount` is a planning target, not a spending cap. Personal budgets (`member_id = auth.uid()`) appear under **Presupuestos personales** and do not mix into the Nido monthly total. Recurring budgets will not be implemented ([future.md](./future.md)).
 
-`profiles.personal_visibility` (`nido` \| `private`, default `nido`) is one global setting. It applies to personal expenses, personal budgets, and personal savings. Shared / Nido rows ignore it. RLS is the authority: a peer cannot SELECT another member’s personal rows when that member is `private`. Dashboard, health, and derived Activity only see rows the viewer is allowed to read. Activity stays derived (no activity table).
+`profiles.personal_visibility` (`nido` \| `private`, default `nido`) is one global setting. It applies to personal expenses, personal budgets, and personal savings. Shared / Nido rows ignore it. RLS is the authority: a peer cannot SELECT another member’s personal rows when that member is `private`. Dashboard, health, and derived Activity only see rows the viewer is allowed to read. Create events stay derived. Shared edit / delete / adjust events come from `household_mutation_events`.
 
 The canonical helpers are `calculateBudgetConsumption()` and `budgetSpent()` in `src/lib/nido/financial/budgets.ts`. They run on the RLS-filtered dashboard snapshot (period expenses already loaded). There is no consumption RPC and no persisted spent column. `netExpense()` / `refundableRemaining()` live in `refunds.ts`.
 
@@ -208,7 +208,7 @@ Messages are Spanish `NidoError` copy. Duplicate live category+month maps to `co
 
 ### Double submit
 
-The save button is disabled with **Guardando…** (`aria-busy`) while the request is in flight. After success, Home / Presupuestos / salud refresh from `fetchDashboardSnapshot()` via `dashboard.refresh()`. Activity is unchanged: budget mutations are not activity events.
+The save button is disabled with **Guardando…** (`aria-busy`) while the request is in flight. After success, Home / Presupuestos / salud refresh from `fetchDashboardSnapshot()` via `dashboard.refresh()`. A Nido budget edit or delete writes a shared mutation event. Personal budget mutations do not.
 
 ---
 
@@ -494,7 +494,7 @@ Pull-to-refresh (9.4.7) lives on each real `overflow-y-auto` scroll root, not on
 
 The Actividad tab reads `model.activity` from the same `useDashboard()` / `fetchDashboardSnapshot()` snapshot as Home. There is no second financial query and no `FEED` mock.
 
-Events, and only these:
+Creates stay derived from live rows. Edits, deletes, archives, and household adjustments of **shared** data are persisted in `household_mutation_events` so every member can see them after the live row changes or disappears.
 
 | Type | Source | Copy |
 | --- | --- | --- |
@@ -502,19 +502,21 @@ Events, and only these:
 | Ingreso | live `incomes` | quién lo registró, descripción o categoría, monto, fecha |
 | Aportación | live `goal_contributions` | quién aportó, meta, monto, fecha |
 | Devolución | live `expense_refunds` of a live expense | quién la registró, gasto original, monto, fecha. Abre el detalle del gasto |
+| Mutación | `household_mutation_events` | quién editó, eliminó, archivó o ajustó un gasto/presupuesto/meta/aportación compartidos, una categoría, el nombre del Nido, el método de división o el ahorro compartido |
 
-Budgets and recurrence templates are not activity events. A template appears only after `materialize_recurring_*` writes a real `expenses` / `incomes` row.
+Personal edits and deletes are not recorded. Recurrence templates are not activity. A template appears only after `materialize_recurring_*` writes a real `expenses` / `incomes` row.
 
 Rules:
 
-- Soft-deleted rows (`deleted_at IS NOT NULL`) are excluded in the query and again in `buildActivityItems()`
-- Order: `occurred_at` / `contributed_at` descending, then `created_at` descending
+- Soft-deleted rows (`deleted_at IS NOT NULL`) are excluded from derived create events. The matching shared mutation remains in `household_mutation_events`.
+- Order: event date descending (`occurred_at` / `contributed_at` / mutation timestamp in `America/Mexico_City`), then `created_at` descending
 - Calendar dates stay in `America/Mexico_City`; no UTC day shift
 - Scoped to the active Nido from `useMyNido()`; other-household rows are dropped even if an embed leaks them
 - Names come from `profiles` / `household_members`, not from IDs typed in the UI
 - After create / edit / soft-delete, `dashboard.refresh()` rebuilds the feed. Building the same snapshot twice does not duplicate rows
+- A deleted or archived mutation is visible and not tappable. An edit opens the live detail when it still exists. Household and category adjustments open Hogar.
 
-The screen reuses `ExpenseDetail`, `IncomeDetail`, and `GoalDetail`. Empty Nido: **Todo tranquilo por aquí.** plus the existing **Registrar un gasto** / **Registrar un ingreso** / **Registrar una aportación** flows. Loading and retry use the same `NidoError` copy as Home.
+The screen reuses `ExpenseDetail`, `IncomeDetail`, `GoalDetail`, `BudgetDetail`, and Hogar. Empty Nido: **Todo tranquilo por aquí.** plus the existing **Registrar un gasto** / **Registrar un ingreso** / **Registrar una aportación** flows. Loading and retry use the same `NidoError` copy as Home.
 
 ---
 

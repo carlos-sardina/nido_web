@@ -112,7 +112,9 @@ export function BudgetDetail({
           title={confirming ? "¿Eliminar este presupuesto?" : budget.name}
           description={
             confirming
-              ? "El límite dejará de contar en Home y en Presupuestos. Tus gastos no se eliminan."
+              ? budget.memberId == null
+                ? "El límite dejará de contar en Home y en Presupuestos. El Nido verá en Actividad que lo eliminaste."
+                : "El límite dejará de contar en Home y en Presupuestos. Tus gastos no se eliminan."
               : undefined
           }
         />

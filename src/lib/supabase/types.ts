@@ -527,6 +527,69 @@ export type Database = {
           },
         ]
       }
+      household_mutation_events: {
+        Row: {
+          action: Database["public"]["Enums"]["household_mutation_action"]
+          actor_id: string
+          amount: number | null
+          created_at: string
+          detail: string | null
+          entity_id: string
+          entity_type: Database["public"]["Enums"]["household_mutation_entity"]
+          household_id: string
+          icon: string | null
+          id: string
+          label: string
+          occurred_at: string
+          scope: Database["public"]["Enums"]["expense_scope"]
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["household_mutation_action"]
+          actor_id: string
+          amount?: number | null
+          created_at?: string
+          detail?: string | null
+          entity_id: string
+          entity_type: Database["public"]["Enums"]["household_mutation_entity"]
+          household_id: string
+          icon?: string | null
+          id?: string
+          label: string
+          occurred_at?: string
+          scope?: Database["public"]["Enums"]["expense_scope"]
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["household_mutation_action"]
+          actor_id?: string
+          amount?: number | null
+          created_at?: string
+          detail?: string | null
+          entity_id?: string
+          entity_type?: Database["public"]["Enums"]["household_mutation_entity"]
+          household_id?: string
+          icon?: string | null
+          id?: string
+          label?: string
+          occurred_at?: string
+          scope?: Database["public"]["Enums"]["expense_scope"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "household_mutation_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "household_mutation_events_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       household_members: {
         Row: {
           created_at: string
@@ -1495,6 +1558,15 @@ export type Database = {
       expense_scope: "personal" | "shared"
       goal_status: "active" | "completed" | "archived"
       goal_type: "saving" | "purchase"
+      household_mutation_action: "edited" | "deleted" | "archived" | "adjusted"
+      household_mutation_entity:
+        | "expense"
+        | "budget"
+        | "goal"
+        | "goal_contribution"
+        | "category"
+        | "household"
+        | "savings"
       household_role: "owner" | "member"
       household_split_method: "equal" | "proportional"
       personal_visibility: "nido" | "private"
@@ -1632,6 +1704,16 @@ export const Constants = {
       expense_scope: ["personal", "shared"],
       goal_status: ["active", "completed", "archived"],
       goal_type: ["saving", "purchase"],
+      household_mutation_action: ["edited", "deleted", "archived", "adjusted"],
+      household_mutation_entity: [
+        "expense",
+        "budget",
+        "goal",
+        "goal_contribution",
+        "category",
+        "household",
+        "savings",
+      ],
       household_role: ["owner", "member"],
       household_split_method: ["equal", "proportional"],
       personal_visibility: ["nido", "private"],

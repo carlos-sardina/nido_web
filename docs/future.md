@@ -17,7 +17,7 @@ These may be considered in a later phase. They have no schema, RPC, UI, or docum
 | **Notificaciones** | No in-app notification center, no email notifications, no notification table. |
 | **Supabase Realtime** | No channel subscriptions. Live data is read on navigation, after mutations, and (in 9.4) via manual refresh. |
 | **Insights / análisis financieros** | No dedicated insights product. Existing derived “Salud financiera” on Home stays as it is; do not expand it into an analysis suite. |
-| **Activity persistente** | No `activity` / feed table. The derived Actividad tab (expenses, incomes, goal contributions, and refunds) remains the product. |
+| **Activity persistente (creates)** | Create events stay derived. Shared **edits / deletes / adjustments** now persist in `household_mutation_events` and appear in Actividad. Do not add a general notification center or a full before/after audit payload. |
 | **Multi-moneda** | One implicit household currency. No `currency` column, no FX. |
 | **Receipts / comprobantes** | No attachments, Storage, or receipt UI. |
 

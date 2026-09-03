@@ -110,6 +110,7 @@ export function buildDashboardViewModel(input: {
     goals: snapshot.goals,
     members,
     householdId: snapshot.householdId,
+    mutationEvents: snapshot.mutationEvents ?? [],
   });
 
   const memberIds = members.map((member) => member.userId).filter(Boolean);

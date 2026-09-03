@@ -186,9 +186,13 @@ export function GoalDetail({
           }
           description={
             pendingDelete
-              ? "Esta acción quitará la aportación del progreso y de la actividad."
+              ? goal.scope === "shared"
+                ? "Esta acción quitará la aportación del progreso. El Nido verá en Actividad que la eliminaste."
+                : "Esta acción quitará la aportación del progreso y de la actividad."
               : confirmingArchive
-                ? "Dejará de aparecer en Metas y en el inicio. Las aportaciones se conservan."
+                ? goal.scope === "shared"
+                  ? "Dejará de aparecer en Metas y en el inicio. El Nido verá en Actividad que la archivaste."
+                  : "Dejará de aparecer en Metas y en el inicio. Las aportaciones se conservan."
                 : undefined
           }
         />

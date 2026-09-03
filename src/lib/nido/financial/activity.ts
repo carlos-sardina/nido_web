@@ -1,15 +1,19 @@
 import type { HouseholdMemberView } from "../types";
+import { todayIso } from "./dates.ts";
 import { isActiveExpense, isPaidByAllMembers } from "./expenses.ts";
 import { isActiveContribution } from "./goals.ts";
 import { isActiveIncome } from "./incomes.ts";
 import type {
   ActivityItem,
+  ActivityMutationAction,
+  ActivityMutationEntity,
   ActivitySource,
   ExpenseRefundRow,
   ExpenseRow,
   ExpenseScope,
   GoalContributionRow,
   GoalRow,
+  HouseholdMutationEvent,
   IncomeRow,
 } from "./types";
 
@@ -165,6 +169,167 @@ export function refundToActivity(
   };
 }
 
+function calendarDateFromTimestamp(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return todayIso();
+  return todayIso(date);
+}
+
+function mutationFallback(entityType: ActivityMutationEntity): string {
+  switch (entityType) {
+    case "expense":
+      return "un gasto";
+    case "budget":
+      return "un presupuesto";
+    case "goal":
+      return "una meta";
+    case "goal_contribution":
+      return "una meta";
+    case "category":
+      return "una categoría";
+    case "household":
+      return "el Nido";
+    case "savings":
+      return "el ahorro compartido";
+  }
+}
+
+function mutationIcon(
+  event: HouseholdMutationEvent,
+): string {
+  if (event.icon?.trim()) return event.icon.trim();
+  switch (event.entityType) {
+    case "expense":
+      return "💸";
+    case "budget":
+      return "📊";
+    case "goal":
+    case "goal_contribution":
+      return "🎯";
+    case "category":
+      return "🏷️";
+    case "household":
+      return "🏠";
+    case "savings":
+      return "🏦";
+  }
+}
+
+function mutationTitle(
+  event: HouseholdMutationEvent,
+  who: string | null,
+): string {
+  const concept = event.label.trim() || mutationFallback(event.entityType);
+  switch (event.entityType) {
+    case "expense":
+      if (event.action === "deleted") {
+        return who ? `${who} eliminó ${concept}` : `Se eliminó ${concept}`;
+      }
+      return who ? `${who} editó ${concept}` : `Se editó ${concept}`;
+    case "budget":
+      if (event.action === "deleted") {
+        return who
+          ? `${who} eliminó el presupuesto de ${concept}`
+          : `Se eliminó el presupuesto de ${concept}`;
+      }
+      return who
+        ? `${who} ajustó el presupuesto de ${concept}`
+        : `Se ajustó el presupuesto de ${concept}`;
+    case "goal":
+      if (event.action === "archived") {
+        return who ? `${who} archivó ${concept}` : `Se archivó ${concept}`;
+      }
+      return who ? `${who} editó ${concept}` : `Se editó ${concept}`;
+    case "goal_contribution":
+      if (event.action === "deleted") {
+        return who
+          ? `${who} eliminó su aportación a ${concept}`
+          : `Se eliminó una aportación a ${concept}`;
+      }
+      return who
+        ? `${who} editó su aportación a ${concept}`
+        : `Se editó una aportación a ${concept}`;
+    case "category":
+      if (event.action === "archived") {
+        return who
+          ? `${who} archivó la categoría ${concept}`
+          : `Se archivó la categoría ${concept}`;
+      }
+      return who
+        ? `${who} ajustó la categoría ${concept}`
+        : `Se ajustó la categoría ${concept}`;
+    case "household":
+      if (event.detail === "split_method") {
+        return who ? `${who} cambió el método de división` : "Se cambió el método de división";
+      }
+      return who ? `${who} cambió el nombre del Nido` : "Se cambió el nombre del Nido";
+    case "savings":
+      return who ? `${who} ajustó el ahorro compartido` : "Se ajustó el ahorro compartido";
+  }
+}
+
+export function mutationToActivity(
+  event: HouseholdMutationEvent,
+  members: HouseholdMemberView[],
+): ActivityItem {
+  const name = memberName(event.actorId, members, null);
+  const who = firstName(name);
+  const date = calendarDateFromTimestamp(event.occurredAt);
+
+  return {
+    id: `mutation:${event.id}`,
+    type: "mutation",
+    sourceId: event.entityId,
+    title: mutationTitle(event, who),
+    amount: event.amount ?? 0,
+    date,
+    createdAt: event.occurredAt,
+    memberId: event.actorId,
+    memberName: name,
+    icon: mutationIcon(event),
+    metadata: {
+      scope: event.scope,
+      action: event.action,
+      entityType: event.entityType,
+      detail: event.detail,
+      categoryName: event.entityType === "category" || event.entityType === "budget" || event.entityType === "expense"
+        ? event.label
+        : null,
+      goalId:
+        event.entityType === "goal"
+          ? event.entityId
+          : event.entityType === "goal_contribution"
+            ? event.detail
+            : null,
+      goalName: event.entityType === "goal" || event.entityType === "goal_contribution"
+        ? event.label
+        : null,
+      expenseId: event.entityType === "expense" ? event.entityId : null,
+      budgetId: event.entityType === "budget" ? event.entityId : null,
+    },
+  };
+}
+
+export function activityShowsAmount(item: ActivityItem): boolean {
+  if (item.type !== "mutation") return true;
+  const entity = item.metadata.entityType;
+  return (
+    entity === "expense" ||
+    entity === "budget" ||
+    entity === "goal" ||
+    entity === "goal_contribution" ||
+    entity === "savings"
+  );
+}
+
+export function mutationActionLabel(action: ActivityMutationAction | undefined): string | null {
+  if (action === "edited") return "Editado";
+  if (action === "deleted") return "Eliminado";
+  if (action === "archived") return "Archivado";
+  if (action === "adjusted") return "Ajuste";
+  return null;
+}
+
 export function contributionToActivity(
   contribution: GoalContributionRow,
   goals: GoalRow[],
@@ -222,6 +387,7 @@ export function buildActivityItems(input: {
   members: HouseholdMemberView[];
   householdId?: string;
   limit?: number;
+  mutationEvents?: HouseholdMutationEvent[];
 }): ActivityItem[] {
   const householdId = input.householdId;
   const goals = input.goals.filter((goal) => belongsToHousehold(householdId, goal.householdId));
@@ -246,6 +412,9 @@ export function buildActivityItems(input: {
       .flatMap((row) =>
         (row.refunds ?? []).map((refund) => refundToActivity(refund, row, input.members)),
       ),
+    ...(input.mutationEvents ?? [])
+      .filter((event) => belongsToHousehold(householdId, event.householdId))
+      .map((event) => mutationToActivity(event, input.members)),
   ];
 
   items.sort(compareActivity);
@@ -260,8 +429,33 @@ export function findActivitySource(
     expenses: ExpenseRow[];
     incomes: IncomeRow[];
     goals: GoalRow[];
+    budgetIds?: Iterable<string>;
   },
 ): ActivitySource | null {
+  if (item.type === "mutation") {
+    if (item.metadata.action === "deleted" || item.metadata.action === "archived") {
+      return null;
+    }
+    if (item.metadata.entityType === "expense") {
+      const expense = input.expenses.find((row) => row.id === item.sourceId);
+      return expense ? { type: "expense", expense } : null;
+    }
+    if (item.metadata.entityType === "goal" || item.metadata.entityType === "goal_contribution") {
+      const goalId = item.metadata.entityType === "goal" ? item.sourceId : item.metadata.goalId;
+      const goal = goalId ? input.goals.find((row) => row.id === goalId) : null;
+      return goal
+        ? { type: "goal_contribution", goal, contributionId: item.sourceId }
+        : null;
+    }
+    if (item.metadata.entityType === "budget") {
+      const budgetIds = new Set(input.budgetIds ?? []);
+      return budgetIds.has(item.sourceId) ? { type: "budget", budgetId: item.sourceId } : null;
+    }
+    if (item.metadata.entityType === "household" || item.metadata.entityType === "category") {
+      return { type: "household" };
+    }
+    return null;
+  }
   if (item.type === "expense" || item.type === "refund") {
     const expenseId = item.type === "refund" ? item.metadata.expenseId : item.sourceId;
     const expense = input.expenses.find((row) => row.id === expenseId);

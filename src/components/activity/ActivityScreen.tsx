@@ -10,12 +10,15 @@ import { TextLink } from "@/components/nido/TextLink";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
   ACTIVITY_PAGE_SIZE,
+  activityShowsAmount,
   computeActivityScopeHealth,
   filterActivityByScope,
   findActivitySource,
   formatCompactMoney,
   formatRelativeActivityDate,
+  mutationActionLabel,
   type ActivityScopeFilter,
+  type BudgetItemView,
   type ExpenseRow,
   type GoalRow,
   type IncomeRow,
@@ -70,17 +73,27 @@ function activityCaption(item: {
   type: string;
   date: string;
   createdAt: string | null;
-  metadata: { scope?: string; categoryName?: string | null; goalName?: string | null };
+  metadata: {
+    scope?: string;
+    categoryName?: string | null;
+    goalName?: string | null;
+    action?: "edited" | "deleted" | "archived" | "adjusted";
+  };
 }): string {
   const parts = [formatRelativeActivityDate(item.date, item.createdAt)];
+  const action = mutationActionLabel(item.metadata.action);
+  if (action) parts.push(action);
   if (item.type === "refund") parts.push("Devolución");
   if ((item.type === "expense" || item.type === "refund") && item.metadata.scope === "personal") {
     parts.push("Personal");
   }
-  if ((item.type === "expense" || item.type === "refund") && item.metadata.scope === "shared") {
+  if (
+    (item.type === "expense" || item.type === "refund" || item.type === "mutation") &&
+    item.metadata.scope === "shared"
+  ) {
     parts.push("Compartido");
   }
-  if (item.metadata.categoryName) parts.push(item.metadata.categoryName);
+  if (item.metadata.categoryName && item.type !== "mutation") parts.push(item.metadata.categoryName);
   return parts.join(" · ");
 }
 
@@ -90,6 +103,8 @@ export function ActivityScreen({
   onOpenExpense,
   onOpenIncome,
   onOpenGoal,
+  onOpenBudget,
+  onOpenHousehold,
   onRegisterExpense,
   onRegisterIncome,
   onRegisterContribution,
@@ -99,6 +114,8 @@ export function ActivityScreen({
   onOpenExpense: (expense: ExpenseRow) => void;
   onOpenIncome: (income: IncomeRow) => void;
   onOpenGoal: (goal: GoalRow) => void;
+  onOpenBudget: (budget: BudgetItemView) => void;
+  onOpenHousehold: () => void;
   onRegisterExpense: () => void;
   onRegisterIncome: () => void;
   onRegisterContribution: () => void;
@@ -158,10 +175,16 @@ export function ActivityScreen({
       expenses: [...model.recentExpenses, ...model.periodExpenses],
       incomes: [...model.recentIncomes, ...model.periodIncomes],
       goals: model.goals,
+      budgetIds: model.periodBudgets.map((budget) => budget.id),
     });
     if (source?.type === "expense") onOpenExpense(source.expense);
     if (source?.type === "income") onOpenIncome(source.income);
     if (source?.type === "goal_contribution") onOpenGoal(source.goal);
+    if (source?.type === "budget") {
+      const budget = model.periodBudgets.find((row) => row.id === source.budgetId);
+      if (budget) onOpenBudget(budget);
+    }
+    if (source?.type === "household") onOpenHousehold();
   };
 
   const onLoadMore = () => {
@@ -358,20 +381,23 @@ export function ActivityScreen({
                     style={{ left: "2.125rem", backgroundColor: P.sub }}
                   />
                   <div className="space-y-3">
-                    {visibleActivity.map((item) => (
-                      <div key={item.id} className="flex gap-3 items-start">
-                        <div
-                          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 z-10 text-sm shadow-sm"
-                          style={{ backgroundColor: P.card }}
-                        >
-                          {item.icon}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => openItem(item)}
-                          className="flex-1 rounded-2xl p-3 shadow-sm text-left transition-transform active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          style={{ backgroundColor: P.card, border: `1px solid ${P.border}` }}
-                        >
+                    {visibleActivity.map((item) => {
+                      const source = model
+                        ? findActivitySource(item, {
+                            expenses: [...model.recentExpenses, ...model.periodExpenses],
+                            incomes: [...model.recentIncomes, ...model.periodIncomes],
+                            goals: model.goals,
+                            budgetIds: model.periodBudgets.map((budget) => budget.id),
+                          })
+                        : null;
+                      const openable = source != null;
+                      const amount = activityShowsAmount(item) ? (
+                        <span className="text-[10px] font-bold font-sans" style={{ color: P.text }}>
+                          {formatCompactMoney(item.amount)}
+                        </span>
+                      ) : null;
+                      const body = (
+                        <>
                           <p className="text-xs font-medium leading-snug" style={{ color: P.text }}>
                             {item.title}
                           </p>
@@ -380,15 +406,40 @@ export function ActivityScreen({
                               {activityCaption(item)}
                             </span>
                             <span className="inline-flex items-center gap-1 flex-shrink-0">
-                              <span className="text-[10px] font-bold font-sans" style={{ color: P.text }}>
-                                {formatCompactMoney(item.amount)}
-                              </span>
-                              <NavChevron size={14} />
+                              {amount}
+                              {openable ? <NavChevron size={14} /> : null}
                             </span>
                           </div>
-                        </button>
+                        </>
+                      );
+                      return (
+                      <div key={item.id} className="flex gap-3 items-start">
+                        <div
+                          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 z-10 text-sm shadow-sm"
+                          style={{ backgroundColor: P.card }}
+                        >
+                          {item.icon}
+                        </div>
+                        {openable ? (
+                          <button
+                            type="button"
+                            onClick={() => openItem(item)}
+                            className="flex-1 rounded-2xl p-3 shadow-sm text-left transition-transform active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            style={{ backgroundColor: P.card, border: `1px solid ${P.border}` }}
+                          >
+                            {body}
+                          </button>
+                        ) : (
+                          <div
+                            className="flex-1 rounded-2xl p-3 shadow-sm text-left"
+                            style={{ backgroundColor: P.card, border: `1px solid ${P.border}` }}
+                          >
+                            {body}
+                          </div>
+                        )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
                 {loadMoreButton}

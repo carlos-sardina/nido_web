@@ -1,6 +1,8 @@
 import type { HouseholdCategory } from "../financial/categories.ts";
 import { moneyOrZero, parseMoney } from "../financial/money.ts";
 import type {
+  ActivityMutationAction,
+  ActivityMutationEntity,
   BudgetRow,
   CategoryRef,
   ExpenseRefundRow,
@@ -9,6 +11,7 @@ import type {
   ExpenseSplitRow,
   GoalContributionRow,
   GoalRow,
+  HouseholdMutationEvent,
   IncomeRow,
   MemberRef,
   RecurringIncomeRow,
@@ -315,6 +318,38 @@ export type CategoryQueryRow = {
   is_default: boolean | null;
   archived_at: string | null;
 };
+
+export type MutationEventQueryRow = {
+  id: string;
+  household_id: string;
+  actor_id: string;
+  action: ActivityMutationAction;
+  entity_type: ActivityMutationEntity;
+  entity_id: string;
+  scope: "personal" | "shared";
+  label: string;
+  amount: unknown;
+  icon: string | null;
+  detail: string | null;
+  occurred_at: string;
+};
+
+export function mapMutationEventRow(row: MutationEventQueryRow): HouseholdMutationEvent {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    actorId: row.actor_id,
+    action: row.action,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    scope: row.scope === "personal" ? "personal" : "shared",
+    label: row.label,
+    amount: row.amount == null ? null : moneyOrZero(row.amount),
+    icon: row.icon,
+    detail: row.detail,
+    occurredAt: row.occurred_at,
+  };
+}
 
 export function mapCategoryRow(row: CategoryQueryRow): HouseholdCategory {
   return {

@@ -1,6 +1,7 @@
 export {
   ACTIVITY_PAGE_SIZE,
   activityItemScope,
+  activityShowsAmount,
   buildActivityItems,
   contributionToActivity,
   expenseToActivity,
@@ -8,6 +9,8 @@ export {
   findActivitySource,
   incomeToActivity,
   isOwnPersonalActivity,
+  mutationActionLabel,
+  mutationToActivity,
   refundToActivity,
   type ActivityScopeFilter,
 } from "./activity.ts";
@@ -271,7 +274,10 @@ export type { BudgetCopyDraft } from "./copy-budgets.ts";
 export type { SalaryCopyCandidate } from "./copy-salaries.ts";
 export type {
   ActivityItem,
+  ActivityMutationAction,
+  ActivityMutationEntity,
   ActivitySource,
+  HouseholdMutationEvent,
   BudgetCategoryView,
   BudgetConsumption,
   BudgetItemView,

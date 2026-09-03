@@ -268,7 +268,7 @@ Live on Home, empty when the Nido has no financial rows:
 - confirmed incomes and expenses (ingresos and gastos registered from `+` are live)
 - goals and contribution progress
 - Nido and personal budgets for the current month (create / edit / soft-delete from Home and `+`; lists are separate). Each row shows budgeted / consumed / % / remaining from live expenses **net of refunds** (`America/Mexico_City` month, `deleted_at IS NULL`). A refund reduces the original expense’s month, not the month it was recorded. Nido consumption includes visible personal expenses; personal consumption is only the owner’s personal expenses. Percentage may exceed 100%; remaining may be negative.
-- activity derived from expenses, incomes, goal contributions, and refunds (not budget mutations). Activity stays derived. Private personal rows of other members never enter the snapshot. A refund is a derived event linked to the original expense.
+- activity derived from expenses, incomes, goal contributions, and refunds, plus persisted shared mutation events (`household_mutation_events`) for edits, deletes, archives, and household adjustments. Private personal rows of other members never enter the snapshot. A refund is a derived event linked to the original expense.
 
 Not in this product and not pending 9.4 ([future.md](./future.md)):
 

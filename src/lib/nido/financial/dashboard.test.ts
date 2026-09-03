@@ -30,6 +30,7 @@ function emptySnapshot(overrides: Partial<DashboardSnapshot> = {}): DashboardSna
     contributions: [],
     balanceConfirmations: [],
     sharedHistoryExpenses: [],
+    mutationEvents: [],
     ...overrides,
   };
 }
@@ -62,6 +63,37 @@ describe("dashboard view model", () => {
     assert.deepEqual(model.monthlyBalance.settlements, []);
     assert.equal("recurringExpenses" in emptySnapshot(), false);
     assert.deepEqual(model.outstandingBalanceMonths, []);
+  });
+
+  it("surfaces shared mutation events in the activity feed", () => {
+    const model = buildDashboardViewModel({
+      snapshot: emptySnapshot({
+        mutationEvents: [
+          {
+            id: "m1",
+            householdId: "h1",
+            actorId: "diana",
+            action: "edited",
+            entityType: "expense",
+            entityId: "e-shared",
+            scope: "shared",
+            label: "Renta",
+            amount: 8000,
+            icon: "🏠",
+            detail: null,
+            occurredAt: "2026-08-21T18:00:00.000Z",
+          },
+        ],
+      }),
+      members,
+      range,
+      now: new Date("2026-08-21T19:00:00.000Z"),
+    });
+    assert.equal(model.activity.length, 1);
+    assert.equal(model.activity[0].type, "mutation");
+    assert.match(model.activity[0].title, /Diana/);
+    assert.match(model.activity[0].title, /editó/);
+    assert.equal(model.empty.activity, false);
   });
 
   it("uses confirmed period totals and derived goal progress", () => {

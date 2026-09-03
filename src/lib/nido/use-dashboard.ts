@@ -31,13 +31,15 @@ function snapshotLooksTruncated(
     expenses: unknown[];
     incomes: unknown[];
     contributions: unknown[];
+    mutationEvents?: unknown[];
   },
   recentLimit: number,
 ): boolean {
   return (
     snapshot.expenses.length >= recentLimit ||
     snapshot.incomes.length >= recentLimit ||
-    snapshot.contributions.length >= recentLimit
+    snapshot.contributions.length >= recentLimit ||
+    (snapshot.mutationEvents?.length ?? 0) >= recentLimit
   );
 }
 

@@ -6817,6 +6817,182 @@ END;
 $$;
 
 -- -----------------------------------------------------------------------------
+-- Shared mutation events — ME01–ME08
+-- -----------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_carlos uuid;
+  v_diana uuid;
+  v_luis uuid;
+  v_nido_a uuid;
+  v_nido_b uuid;
+  v_cat_expense_a uuid;
+  v_shared uuid := 'e5555555-5555-5555-5555-555555555555';
+  v_personal uuid := 'e6666666-6666-6666-6666-666666666666';
+  v_budget uuid := 'e7777777-7777-7777-7777-777777777777';
+  v_event_count integer;
+  v_visible integer;
+BEGIN
+  SELECT id INTO v_carlos FROM rls_ids WHERE key = 'carlos';
+  SELECT id INTO v_diana FROM rls_ids WHERE key = 'diana';
+  SELECT id INTO v_luis FROM rls_ids WHERE key = 'luis';
+  SELECT id INTO v_nido_a FROM rls_ids WHERE key = 'nido_a';
+  SELECT id INTO v_nido_b FROM rls_ids WHERE key = 'nido_b';
+  SELECT id INTO v_cat_expense_a FROM rls_ids WHERE key = 'cat_expense_a';
+
+  INSERT INTO public.expenses (
+    id, household_id, category_id, amount, description, occurred_at, payer_id,
+    scope, distribution_method, created_by
+  ) VALUES (
+    v_shared, v_nido_a, v_cat_expense_a, 120, 'Luz', DATE '2026-01-21', v_carlos,
+    'shared', 'equal', v_carlos
+  );
+
+  INSERT INTO public.expense_splits (expense_id, member_id, amount, percentage) VALUES
+    (v_shared, v_carlos, 60, 50),
+    (v_shared, v_diana, 60, 50);
+
+  INSERT INTO public.expenses (
+    id, household_id, category_id, amount, description, occurred_at, payer_id,
+    scope, distribution_method, created_by
+  ) VALUES (
+    v_personal, v_nido_a, v_cat_expense_a, 40, 'Café', DATE '2026-01-21', v_carlos,
+    'personal', 'fixed', v_carlos
+  );
+
+  INSERT INTO public.expense_splits (expense_id, member_id, amount, percentage) VALUES
+    (v_personal, v_carlos, 40, 100);
+
+  INSERT INTO public.budgets (
+    id, household_id, member_id, category_id, amount, period,
+    start_date, end_date, created_by
+  ) VALUES (
+    v_budget, v_nido_a, NULL, v_cat_expense_a, 500, 'monthly',
+    DATE '2026-12-01', DATE '2026-12-31', v_carlos
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  UPDATE public.expenses
+  SET description = 'Luz de enero'
+  WHERE id = v_shared;
+
+  SELECT count(*) INTO v_event_count
+  FROM public.household_mutation_events
+  WHERE household_id = v_nido_a
+    AND entity_id = v_shared
+    AND action = 'edited';
+
+  PERFORM pg_temp.record_result(
+    'ME01', 'Carlos', 'A', 'active', 'shared expense edit records event',
+    'recorded',
+    CASE WHEN v_event_count = 1 THEN 'recorded' ELSE 'missing' END
+  );
+
+  PERFORM pg_temp.set_auth(v_diana);
+  SELECT count(*) INTO v_visible
+  FROM public.household_mutation_events
+  WHERE household_id = v_nido_a
+    AND entity_id = v_shared;
+
+  PERFORM pg_temp.record_result(
+    'ME02', 'Diana', 'A', 'active', 'peer can read shared mutation',
+    'allow',
+    CASE WHEN v_visible = 1 THEN 'allow' ELSE 'deny' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  UPDATE public.expenses
+  SET description = 'Café personal'
+  WHERE id = v_personal;
+
+  SELECT count(*) INTO v_event_count
+  FROM public.household_mutation_events
+  WHERE entity_id = v_personal;
+
+  PERFORM pg_temp.record_result(
+    'ME03', 'Carlos', 'A', 'active', 'personal expense edit is not recorded',
+    'none',
+    CASE WHEN v_event_count = 0 THEN 'none' ELSE 'recorded' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  UPDATE public.budgets
+  SET amount = 600
+  WHERE id = v_budget;
+
+  SELECT count(*) INTO v_event_count
+  FROM public.household_mutation_events
+  WHERE entity_id = v_budget
+    AND action = 'edited';
+
+  PERFORM pg_temp.record_result(
+    'ME04', 'Carlos', 'A', 'active', 'nido budget edit records event',
+    'recorded',
+    CASE WHEN v_event_count = 1 THEN 'recorded' ELSE 'missing' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM public.update_household_name('Nido A mutaciones');
+
+  SELECT count(*) INTO v_event_count
+  FROM public.household_mutation_events
+  WHERE household_id = v_nido_a
+    AND entity_type = 'household'
+    AND detail = 'name';
+
+  PERFORM pg_temp.record_result(
+    'ME05', 'Carlos', 'A', 'active', 'household rename records event',
+    'recorded',
+    CASE WHEN v_event_count = 1 THEN 'recorded' ELSE 'missing' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  UPDATE public.expenses
+  SET deleted_at = now()
+  WHERE id = v_shared;
+
+  SELECT count(*) INTO v_event_count
+  FROM public.household_mutation_events
+  WHERE entity_id = v_shared
+    AND action = 'deleted';
+
+  PERFORM pg_temp.record_result(
+    'ME06', 'Carlos', 'A', 'active', 'shared expense delete records event',
+    'recorded',
+    CASE WHEN v_event_count = 1 THEN 'recorded' ELSE 'missing' END
+  );
+
+  PERFORM pg_temp.set_auth(v_luis);
+  SELECT count(*) INTO v_visible
+  FROM public.household_mutation_events
+  WHERE household_id = v_nido_a;
+
+  PERFORM pg_temp.record_result(
+    'ME07', 'Luis', 'B', 'other household', 'cannot read another Nido mutations',
+    'deny',
+    CASE WHEN v_visible = 0 THEN 'deny' ELSE 'allow' END
+  );
+
+  PERFORM pg_temp.set_auth(v_carlos);
+  PERFORM pg_temp.record_result(
+    'ME08', 'Carlos', 'A', 'active', 'direct insert of mutation event',
+    'deny',
+    pg_temp.expect_allow(format(
+      $sql$
+      INSERT INTO public.household_mutation_events (
+        household_id, actor_id, action, entity_type, entity_id, label
+      ) VALUES (%L, %L, 'edited', 'expense', %L, 'forged')
+      $sql$,
+      v_nido_a, v_carlos, v_shared
+    ))
+  );
+
+  PERFORM pg_temp.clear_auth();
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
 -- Report
 -- -----------------------------------------------------------------------------
 

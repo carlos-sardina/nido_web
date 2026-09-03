@@ -544,10 +544,168 @@ describe("activity scope filter", () => {
       ["i1"],
     );
   });
+});
 
+describe("shared mutation activity", () => {
+  const mutationBase = {
+    householdId: "h1",
+    actorId: "carlos",
+    scope: "shared" as const,
+    amount: 700,
+    icon: "📡",
+    detail: null,
+    occurredAt: "2026-08-22T18:00:00.000Z",
+  };
+
+  it("shows a shared expense edit to every member", () => {
+    const items = build({
+      expenses: [expense],
+      incomes: [],
+      contributions: [],
+      goals: [],
+      mutationEvents: [
+        {
+          ...mutationBase,
+          id: "m-edit",
+          action: "edited",
+          entityType: "expense",
+          entityId: "e1",
+          label: "Internet",
+        },
+      ],
+    });
+    const mutation = items.find((item) => item.type === "mutation");
+    assert.ok(mutation);
+    assert.equal(mutation.id, "mutation:m-edit");
+    assert.match(mutation.title, /Carlos/);
+    assert.match(mutation.title, /editó/);
+    assert.match(mutation.title, /Internet/);
+    assert.equal(mutation.metadata.scope, "shared");
+    assert.equal(mutation.metadata.action, "edited");
+    assert.equal(filterActivityByScope(items, "shared").includes(mutation), true);
+  });
+
+  it("keeps a shared delete visible after the live row is gone", () => {
+    const items = build({
+      expenses: [],
+      incomes: [],
+      contributions: [],
+      goals: [],
+      mutationEvents: [
+        {
+          ...mutationBase,
+          id: "m-del",
+          action: "deleted",
+          entityType: "expense",
+          entityId: "e-gone",
+          label: "Internet",
+        },
+      ],
+    });
+    assert.equal(items.length, 1);
+    assert.equal(items[0].type, "mutation");
+    assert.match(items[0].title, /eliminó/);
+    const source = findActivitySource(items[0], {
+      expenses: [],
+      incomes: [],
+      goals: [],
+    });
+    assert.equal(source, null);
+  });
+
+  it("does not invent a tap target for an archived shared goal", () => {
+    const items = build({
+      expenses: [],
+      incomes: [],
+      contributions: [],
+      goals: [],
+      mutationEvents: [
+        {
+          ...mutationBase,
+          id: "m-arch",
+          action: "archived",
+          entityType: "goal",
+          entityId: "g1",
+          label: "Viaje a Japón",
+          amount: 80000,
+          icon: "🎯",
+        },
+      ],
+    });
+    assert.match(items[0].title, /archivó/);
+    assert.equal(
+      findActivitySource(items[0], { expenses: [], incomes: [], goals: [goal] }),
+      null,
+    );
+  });
+
+  it("opens Hogar for a household adjustment", () => {
+    const items = build({
+      expenses: [],
+      incomes: [],
+      contributions: [],
+      goals: [],
+      mutationEvents: [
+        {
+          ...mutationBase,
+          id: "m-name",
+          action: "adjusted",
+          entityType: "household",
+          entityId: "h1",
+          label: "Casa nueva",
+          amount: null,
+          icon: "🏠",
+          detail: "name",
+        },
+      ],
+    });
+    assert.match(items[0].title, /nombre del Nido/);
+    assert.equal(items[0].amount, 0);
+    const source = findActivitySource(items[0], {
+      expenses: [],
+      incomes: [],
+      goals: [],
+    });
+    assert.equal(source?.type, "household");
+  });
+
+  it("opens the live expense after a shared edit", () => {
+    const items = build({
+      expenses: [expense],
+      incomes: [],
+      contributions: [],
+      goals: [],
+      mutationEvents: [
+        {
+          ...mutationBase,
+          id: "m-open",
+          action: "edited",
+          entityType: "expense",
+          entityId: "e1",
+          label: "Internet",
+        },
+      ],
+    });
+    const mutation = items.find((item) => item.type === "mutation");
+    assert.ok(mutation);
+    const source = findActivitySource(mutation, {
+      expenses: [expense],
+      incomes: [],
+      goals: [],
+    });
+    assert.equal(source?.type, "expense");
+    if (source?.type === "expense") assert.equal(source.expense.id, "e1");
+  });
+});
+
+describe("activity refund scope", () => {
   it("follows the original expense when filtering a refund", () => {
     const withRefund: ExpenseRow = {
-      ...personalExpense,
+      ...expense,
+      id: "e-personal",
+      description: "Café",
+      scope: "personal",
+      occurredAt: "2026-08-19",
       refunds: [
         {
           id: "rf-personal",

@@ -987,7 +987,7 @@ Still deferred (not 9.4 unless [phase-9.4.md](./phase-9.4.md) says otherwise):
 2. **Advanced recurrence** — extra frequencies, skip, timezones beyond `America/Mexico_City`. Notifications around recurrence are [future](./future.md), not 9.4.
 3. **Split-sum table triggers** — `create_expense` enforces the sum in one transaction. A row-level trigger that would block incremental inserts is still deferred.
 4. **Owner-count trigger** — last-owner leave is enforced in `leave_household`, not by a table trigger.
-5. **Audit log** of edits.
+5. **Full audit log** of before/after payloads. Shared edit / delete / adjust events for Actividad live in `household_mutation_events` (`20260903000000`).
 6. **Hard-delete prevention triggers** — physical `DELETE` is revoked on movement tables; application uses `deleted_at` / `is_active` / `archived_at` / goal `status`.
 7. **Using archived categories on new transactions** — allowed at the database CHECK level; mutation RPCs reject them.
 8. **Goal-to-category linkage.**
