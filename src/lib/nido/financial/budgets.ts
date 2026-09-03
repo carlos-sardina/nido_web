@@ -54,7 +54,8 @@ export function nidoBudgetsForMonth(budgets: BudgetRow[], range: MonthRange): Bu
  * Shared for every budget:
  * - same household, same category_id, date in the budget month
  * - deleted_at IS NULL
- * - only materialized expenses (recurring templates never appear here)
+ * - only confirmed `expenses` rows (leftover `recurring_expenses` templates
+ *   are not an input and must never be added)
  *
  * Nido (`member_id` NULL): every visible expense in that set. Personal
  * expenses count when the viewer was allowed to SELECT them (D5 / RLS).
@@ -91,8 +92,8 @@ export function expenseConsumesBudget(
 
 /**
  * Single source of truth for spent against a budget.
- * Sums confirmed expenses net of their refunds. Does not add
- * recurring_expenses templates. Does not persist.
+ * Sums confirmed expenses net of their refunds. Leftover
+ * `recurring_expenses` templates are not an input. Does not persist.
  * See `expenseConsumesBudget` for Nido vs personal rules.
  */
 export function budgetSpent(

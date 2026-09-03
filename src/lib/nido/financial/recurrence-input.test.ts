@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  buildCreateRecurringExpensePayload,
   buildCreateRecurringIncomePayload,
   recurrenceEndDateMessage,
-  recurrenceExpenseDescriptionMessage,
   recurrenceFrequencyMessage,
   recurrenceIncomeDescriptionMessage,
 } from "./recurrence-input.ts";
@@ -17,19 +15,6 @@ const incomeInput = {
   startDate: "2026-08-01",
   frequency: "monthly" as const,
   activeMemberIds: ["u1"],
-  allowedCategoryIds: ["c1"],
-};
-
-const expenseInput = {
-  householdId: "h1",
-  categoryId: "c1",
-  amount: 800,
-  description: "Renta",
-  startDate: "2026-08-01",
-  frequency: "monthly" as const,
-  scope: "personal" as const,
-  participantIds: ["u1"],
-  activeMemberIds: ["u1", "u2"],
   allowedCategoryIds: ["c1"],
 };
 
@@ -83,52 +68,6 @@ describe("buildCreateRecurringIncomePayload", () => {
   });
 });
 
-describe("buildCreateRecurringExpensePayload", () => {
-  it("builds a personal template with a 100% payer split", () => {
-    const result = buildCreateRecurringExpensePayload(expenseInput, "u1");
-    assert.equal(result.ok, true);
-    if (result.ok) {
-      assert.equal(result.data.scope, "personal");
-      assert.equal(result.data.splits.length, 1);
-      assert.equal(result.data.splits[0].memberId, "u1");
-      assert.equal(result.data.splits[0].amount, 800);
-    }
-  });
-
-  it("builds shared equal splits that sum to the amount", () => {
-    const result = buildCreateRecurringExpensePayload(
-      { ...expenseInput, scope: "shared", participantIds: ["u1", "u2"] },
-      "u1",
-    );
-    assert.equal(result.ok, true);
-    if (result.ok) {
-      assert.equal(result.data.splits.length, 2);
-      assert.equal(
-        result.data.splits.reduce((sum, split) => sum + split.amount, 0),
-        800,
-      );
-    }
-  });
-
-  it("rejects an empty description", () => {
-    const result = buildCreateRecurringExpensePayload(
-      { ...expenseInput, description: "" },
-      "u1",
-    );
-    assert.equal(result.ok, false);
-    if (result.ok === false) assert.equal(result.error, "invalid_description");
-  });
-
-  it("rejects a shared template with one participant", () => {
-    const result = buildCreateRecurringExpensePayload(
-      { ...expenseInput, scope: "shared", participantIds: ["u1"] },
-      "u1",
-    );
-    assert.equal(result.ok, false);
-    if (result.ok === false) assert.equal(result.error, "invalid_split");
-  });
-});
-
 describe("recurrence field messages", () => {
   it("requires a schema frequency and a valid end date", () => {
     assert.equal(recurrenceFrequencyMessage("monthly"), null);
@@ -137,10 +76,8 @@ describe("recurrence field messages", () => {
     assert.match(recurrenceEndDateMessage("2026-07-01", "2026-08-01") ?? "", /fin/i);
   });
 
-  it("still requires a description on recurring templates", () => {
-    assert.match(recurrenceExpenseDescriptionMessage("   ") ?? "", /descripción/i);
+  it("still requires a description on recurring income templates", () => {
     assert.match(recurrenceIncomeDescriptionMessage("") ?? "", /descripción/i);
-    assert.equal(recurrenceExpenseDescriptionMessage("Renta"), null);
     assert.equal(recurrenceIncomeDescriptionMessage("Sueldo"), null);
   });
 });

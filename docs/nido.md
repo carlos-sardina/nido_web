@@ -396,7 +396,7 @@ Unauthenticated visitors on `/join/<token>` see the Nido name (when valid) and s
 
 Phase 9.4 work is specified in [phase-9.4.md](./phase-9.4.md). **9.4.1–9.4.9** are implemented. 9.4.10 applied migrations 15–18 to `nido_dev` and executed the live RLS matrix. The phase is **IMPLEMENTADA — VALIDACIÓN OPERATIVA PARCIAL (SMOKE UI PENDIENTE)**. 9.4.8 is leftover cleanup, not a new product surface.
 
-Do **not** treat these as pending 9.4: Google OAuth, image avatars, notifications, Realtime, insights, persistent Activity, multi-currency, receipts, email invitations, recurring budgets, push. See [future.md](./future.md).
+Do **not** treat these as pending 9.4: Google OAuth, image avatars, notifications, Realtime, insights, persistent Activity, multi-currency, receipts, email invitations, recurring budgets, recurring expense templates, push. See [future.md](./future.md).
 
 ---
 

@@ -210,12 +210,10 @@ export {
 } from "./recurrence.ts";
 export {
   amountToRecurrenceInput,
-  buildCreateRecurringExpensePayload,
   buildCreateRecurringIncomePayload,
   parseRecurrenceAmountInput,
   recurrenceAmountMessage,
   recurrenceEndDateMessage,
-  recurrenceExpenseDescriptionMessage,
   recurrenceFrequencyMessage,
   recurrenceIncomeDescriptionMessage,
   recurrenceStartDateMessage,
@@ -291,6 +289,5 @@ export type {
   MonthlyBalanceConfirmation,
   MonthlyBalancePayment,
   RecurrenceFrequency,
-  RecurringExpenseTemplate,
   RecurringIncomeTemplate,
 } from "./types.ts";

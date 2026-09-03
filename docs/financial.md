@@ -14,15 +14,15 @@ Phase 9.1.1 was **read-only**. Phase 9.1.2A added category catalog + **Registrar
 - personal budgets sum only that owner’s `scope = personal` expenses. Shared expenses do not consume a personal budget
 - there is no `current_spent`, remaining, or percentage column. Those are view-model fields
 - consumption is **net**: live expenses minus live refunds of those same expenses. A refund inherits category and period from the parent expense (expense month, not refund date). Soft-deleted expenses and their refunds do not count. Net is never negative.
-- `recurring_expenses` templates are never added to spent
+- leftover `recurring_expenses` templates are never added to spent (the product no longer creates them; **Copiar del mes pasado** is the replacement)
 - any active member may create a Nido-level budget (`member_id` NULL) or their own personal budget (`member_id = auth.uid()` via `p_personal`; never another member’s id)
 - personal SELECT follows `profiles.personal_visibility`; Nido / shared rows stay visible to the household
 - only the creator may update or soft-delete a live budget
 - period is monthly calendar dates in `America/Mexico_City` (`start_date` first day, `end_date` last day)
 
-Phase 9.1.5 connects **Recurrencias**. Owner transfer was already delivered in 9.2. Phase 9.2.1 connects the **Actividad** tab to the same live snapshot. Phase 9.2.2 persists the onboarding monthly income as a real `incomes` row when the Nido is created.
+Phase 9.1.5 connected **Recurrencias**. Expense templates were later **removed** from the product ([future.md](./future.md)); income templates remain. Owner transfer was already delivered in 9.2. Phase 9.2.1 connects the **Actividad** tab to the same live snapshot. Phase 9.2.2 persists the onboarding monthly income as a real `incomes` row when the Nido is created.
 
-**Las recurrencias son plantillas; los movimientos reales son los únicos que participan en cálculos financieros.** `recurring_incomes` y `recurring_expenses` nunca se suman a ingresos del mes, gastos del mes, presupuestos, salud, actividad ni progreso de metas. Solo las filas de `incomes` / `expenses` materializadas (`recurring_id` apuntando a la plantilla) entran en esos totales.
+**Solo los movimientos confirmados participan en cálculos financieros.** `recurring_incomes` never add to period income, health, activity, or balance. Leftover `recurring_expenses` rows (if any still exist in the database) must never be fetched into the dashboard snapshot and must never add to period spent, budgets, health, activity, balance, or `hasAnyFinancialData`. Only confirmed `incomes` / `expenses` rows count. An expense that already has `recurring_id` is a real movement and still counts.
 
 ---
 
@@ -36,7 +36,7 @@ Auth user
 
 households
   → incomes / recurring_incomes
-  → expenses / recurring_expenses
+  → expenses
   → expense_splits (via expenses)
   → expense_refunds → expense_refund_splits
   → budgets
@@ -69,7 +69,7 @@ Income categories are a **fixed catalog**. Members cannot create, rename, or arc
 
 `create_household` inserts expense **and** income rows in the same transaction as the household and owner membership. Existing households are backfilled by `20260821000000_nido_categories_and_create_expense.sql` (expenses) and `20260821220000_nido_income_mutations.sql` (incomes). `20260831120000_nido_income_sueldo_extra.sql` archives Freelance / Otros / custom income rows and keeps Sueldo + Extra. Reopening a form does not insert again. Expense names are unique per household and type, including archived rows.
 
-The expense, recurring-expense, and budget forms list **active expense** categories of the active Nido and can create custom expense categories (name + emoji). The income form only lists **Sueldo** and **Extra**. Recurring income only lists **Sueldo**. Income categories are a fixed catalog: members cannot create, rename, or archive them from those forms. If no expense categories exist, those forms show the create fields instead of blocking. If no income categories exist, the form shows **No hay categorías disponibles.** and does not create rows.
+The expense and budget forms list **active expense** categories of the active Nido and can create custom expense categories (name + emoji). The income form only lists **Sueldo** and **Extra**. Recurring income only lists **Sueldo**. Income categories are a fixed catalog: members cannot create, rename, or archive them from those forms. If no expense categories exist, those forms show the create fields instead of blocking. If no income categories exist, the form shows **No hay categorías disponibles.** and does not create rows.
 
 ---
 
@@ -95,7 +95,7 @@ There is no product rule that rejects future expense dates. The form defaults to
 | Value | Formula |
 | --- | --- |
 | Period income | `SUM(incomes.amount)` where `deleted_at IS NULL` and `occurred_at` in range |
-| Period spent | `SUM(netExpense)` for the same filter |
+| Period spent | `SUM(netExpense)` for the same filter. Confirmed `expenses` only — leftover `recurring_expenses` templates are not an input |
 | Member owed | `SUM(expense_splits.amount)` for that member on non-deleted **shared** expenses, minus that member’s `expense_refund_splits` |
 | Member paid | `SUM(netExpense)` of live **shared** expenses where `payer_id` is the member |
 | Member balance | paid − owed. Personal expenses do not participate |
@@ -131,7 +131,7 @@ The gesture is attached to each real `overflow-y-auto` scroll root (tabs and the
 
 ### Expenses: splits
 
-Household dashboard spent uses `expenses.amount` (the Nido’s outflow). A member’s share uses `expense_splits`. Personal vs shared is `expenses.scope`. Recurring vs one-off is `recurring_id`. `recurring_expenses` templates are never added to period spent.
+Household dashboard spent uses `expenses.amount` (the Nido’s outflow). A member’s share uses `expense_splits`. Personal vs shared is `expenses.scope`. An optional `recurring_id` on a confirmed expense is historical origin only. Leftover `recurring_expenses` templates are never added to period spent.
 
 Nido-level budgets (`member_id IS NULL`) overlapping the current month feed “Presupuesto del mes” on Home. `budgets.amount` is a planning target, not a spending cap. Personal budgets (`member_id = auth.uid()`) appear under **Presupuestos personales** and do not mix into the Nido monthly total. Recurring budgets will not be implemented ([future.md](./future.md)).
 
@@ -149,17 +149,19 @@ A refund is a positive row on `expense_refunds` linked to one live expense. The 
 
 ## Recurrencias
 
-Gastos → **Recurrencias**, or Ingresos → **Recurrencias**. No new tab. ActionSheet is unchanged.
+**Ingresos → Recurrencias** only. Gastos no longer has a Recurrencias screen. Repeating monthly spend is **Copiar del mes pasado** on Home / Presupuestos, then confirmed expenses. Do not reintroduce expense templates into metrics ([future.md](./future.md)).
 
 ### Model
 
-A recurrence is a template. `next_occurrence` is the only scheduling cursor. Frequencies are the existing enum: `weekly`, `biweekly`, `monthly`, `yearly`. Pause is `is_active = false`. Soft-delete of the template is that same flag; do not hard-delete.
+A **income** recurrence is a template. `next_occurrence` is the only scheduling cursor. Frequencies are the existing enum: `weekly`, `biweekly`, `monthly`, `yearly`. Pause is `is_active = false`. Soft-delete of the template is that same flag; do not hard-delete.
 
 Creating the template sets `next_occurrence = start_date` and does **not** insert a movement. The first materialization is the user tapping **Registrar este periodo** when that date is due (`<= today` in `America/Mexico_City`). Future dates stay visible and are not created automatically. Historical periods before `start_date` are not generated.
 
-Materialize copies amount, category, description, and (for expenses) scope/splits into `expenses` / `incomes` with `recurring_id` set, then advances `next_occurrence`. Idempotency is a unique live index on `(recurring_id, occurred_at)` plus `FOR UPDATE` in the RPC.
+Materialize copies amount, category, and description into `incomes` with `recurring_id` set, then advances `next_occurrence`. Idempotency is a unique live index on `(recurring_id, occurred_at)` plus `FOR UPDATE` in the RPC.
 
-If the payer, a participant, or `income_based` is unsafe, materialize fails closed (`nido.recurrence_requires_review`) and does not write a partial movement.
+If the member is unsafe, materialize fails closed (`nido.recurrence_requires_review`) and does not write a partial movement.
+
+Leftover `recurring_expenses` / `recurring_expense_splits` rows and RPCs may still exist in the database. They are not queried by `fetchDashboardSnapshot` and must not participate in any financial total.
 
 ### Authorization
 

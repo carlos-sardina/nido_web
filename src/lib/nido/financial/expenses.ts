@@ -55,8 +55,9 @@ export function visiblePeriodExpenses(
 
 /**
  * Household outflow for a period: confirmed expenses net of their refunds.
- * Recurring templates are not included. Soft-deleted rows are excluded,
- * so their refunds are not subtracted either.
+ * Soft-deleted rows are excluded, so their refunds are not subtracted either.
+ * Leftover `recurring_expenses` templates are not an input and must never be
+ * added here. A confirmed expense with `recurringId` still counts.
  */
 export function householdSpent(expenses: ExpenseRow[]): number {
   return sumMoney(

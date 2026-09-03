@@ -68,6 +68,7 @@ function belongsToHousehold(
   return householdId == null || rowHouseholdId === householdId;
 }
 
+/** Confirmed expense only. Leftover `recurring_expenses` templates are not activity. */
 export function expenseToActivity(
   expense: ExpenseRow,
   members: HouseholdMemberView[],

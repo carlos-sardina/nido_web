@@ -377,10 +377,10 @@ Manual runs actually executed for this checklist: none in this phase.
 
 Requires migration `20260822120000_nido_recurrence_mutations.sql` on the linked project. SQL cases `RE01`–`RE16` in `supabase/tests/rls_security_matrix.sql` were **executed** against linked `nido_dev` in this phase (all passed; transaction rolled back). Prefix **RE** is used because **R01** already exists as the membership-helper smoke test. Mapping to the requested R01–R16 list is 1:1 (RE01=create, …, RE16=departed creator). Unit tests with mocks are **not** real RLS or idempotency proofs.
 
-**Las recurrencias son plantillas; los movimientos reales son los únicos que participan en cálculos financieros.**
+**Las recurrencias de ingreso son plantillas; los movimientos reales son los únicos que participan en cálculos financieros.** Las plantillas de **gasto** recurrente se quitaron. No hay pantalla en Gastos. Filas leftover de `recurring_expenses` no deben aparecer en gastado, salud, presupuestos, actividad ni balance.
 
-A. **Crear plantilla** — Gastos / Ingresos → Recurrencias → Nueva. No se insertan `expenses` / `incomes`.
-B. **Listado** — plantillas con próximo movimiento y estado. Copy deja claro que no están contabilizadas.
+A. **Crear plantilla** — Ingresos → Recurrencias → Nueva. No se insertan `incomes`.
+B. **Listado** — plantillas de ingreso con próximo movimiento y estado. Copy deja claro que no están contabilizadas.
 C. **Editar como creador** — monto, categoría, frecuencia, splits. `household_id` / `created_by` no autorizan.
 D. **Pausar / reactivar** — `is_active`. Los movimientos ya creados permanecen.
 E. **Materializar** — **Registrar este periodo** solo si `next_occurrence <= hoy`. Crea el movimiento, avanza el cursor, `dashboard.refresh()`.

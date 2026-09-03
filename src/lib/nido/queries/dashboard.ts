@@ -22,9 +22,7 @@ import {
   mapExpenseRow,
   mapGoalRow,
   mapIncomeRow,
-  mapRecurringExpenseRow,
   mapRecurringIncomeRow,
-  type RecurringExpenseQueryRow,
   type RecurringIncomeQueryRow,
 } from "./map.ts";
 
@@ -66,6 +64,9 @@ function mapConfirmationRow(row: ConfirmationQueryRow): MonthlyBalanceConfirmati
  * `householdId` must be the active membership household from useMyNido /
  * getMyNidoState. RLS still filters rows; this argument only scopes the
  * query to the current Nido so historical memberships are not mixed in.
+ *
+ * Do not query `recurring_expenses`. Leftover templates are not a metric
+ * source. Confirmed `expenses` already carry optional `recurring_id`.
  */
 export async function fetchDashboardSnapshot(
   householdId: string,
@@ -101,7 +102,6 @@ export async function fetchDashboardSnapshot(
     periodIncomesRes,
     recentIncomesRes,
     recurringIncomesRes,
-    recurringExpensesRes,
     budgetsRes,
     goalsRes,
     contributionsRes,
@@ -148,11 +148,6 @@ export async function fetchDashboardSnapshot(
       .eq("household_id", householdId)
       .eq("is_active", true),
     client
-      .from("recurring_expenses")
-      .select("id, household_id, amount, description, scope, is_active, frequency")
-      .eq("household_id", householdId)
-      .eq("is_active", true),
-    client
       .from("budgets")
       .select("id, household_id, member_id, category_id, amount, period, start_date, end_date, created_by, created_at, deleted_at, categories(id, name, icon)")
       .eq("household_id", householdId)
@@ -195,7 +190,6 @@ export async function fetchDashboardSnapshot(
     periodIncomesRes.error ??
     recentIncomesRes.error ??
     recurringIncomesRes.error ??
-    recurringExpensesRes.error ??
     budgetsRes.error ??
     goalsRes.error ??
     contributionsRes.error ??
@@ -228,9 +222,6 @@ export async function fetchDashboardSnapshot(
     periodIncomes,
     recurringIncomes: ((recurringIncomesRes.data ?? []) as RecurringIncomeQueryRow[]).map(
       mapRecurringIncomeRow,
-    ),
-    recurringExpenses: ((recurringExpensesRes.data ?? []) as RecurringExpenseQueryRow[]).map(
-      mapRecurringExpenseRow,
     ),
     budgets: ((budgetsRes.data ?? []) as BudgetQueryRow[]).map(mapBudgetRow),
     goals,

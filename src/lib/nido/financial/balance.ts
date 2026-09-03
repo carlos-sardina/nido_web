@@ -159,6 +159,7 @@ function collectNameFallbacks(
   return names;
 }
 
+/** Confirmed shared expenses and incomes only. Leftover expense templates are not an input. */
 export function calculateMonthlyBalance(input: {
   expenses: readonly ExpenseRow[];
   incomes: readonly IncomeRow[];

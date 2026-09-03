@@ -25,7 +25,6 @@ function emptySnapshot(overrides: Partial<DashboardSnapshot> = {}): DashboardSna
     incomes: [],
     periodIncomes: [],
     recurringIncomes: [],
-    recurringExpenses: [],
     budgets: [],
     goals: [],
     contributions: [],
@@ -61,6 +60,7 @@ describe("dashboard view model", () => {
     assert.equal(model.greeting, "Buenos días");
     assert.equal(model.monthlyBalance.status, "empty");
     assert.deepEqual(model.monthlyBalance.settlements, []);
+    assert.equal("recurringExpenses" in emptySnapshot(), false);
     assert.deepEqual(model.outstandingBalanceMonths, []);
   });
 
@@ -406,28 +406,21 @@ describe("dashboard view model", () => {
     assert.equal(model.activity[0]?.id, "expense:e-july");
   });
 
-  it("does not treat recurring_expenses templates as confirmed spending", () => {
+  it("does not expose leftover recurring_expenses templates as a metric input", () => {
+    const snapshot = emptySnapshot();
+    assert.equal(Object.hasOwn(snapshot, "recurringExpenses"), false);
     const model = buildDashboardViewModel({
-      snapshot: emptySnapshot({
-        recurringExpenses: [
-          {
-            id: "re1",
-            householdId: "h1",
-            amount: 8000,
-            description: "Renta",
-            scope: "shared",
-            isActive: true,
-            frequency: "monthly",
-          },
-        ],
-      }),
+      snapshot,
       members,
       range,
     });
-
     assert.equal(model.periodSpent, 0);
+    assert.equal(model.periodIncome, 0);
     assert.equal(model.hasAnyFinancialData, false);
+    assert.equal(model.health.available, false);
+    assert.equal(model.budget.totalSpent, 0);
     assert.deepEqual(model.activity, []);
+    assert.equal(model.monthlyBalance.sharedNet, 0);
   });
 
   it("includes a materialized recurring expense in spent, budget, health, and activity", () => {
@@ -454,17 +447,6 @@ describe("dashboard view model", () => {
       snapshot: emptySnapshot({
         expenses: [materialized],
         periodExpenses: [materialized],
-        recurringExpenses: [
-          {
-            id: "re1",
-            householdId: "h1",
-            amount: 8000,
-            description: "Renta",
-            scope: "personal",
-            isActive: true,
-            frequency: "monthly",
-          },
-        ],
       }),
       members,
       range,
@@ -886,17 +868,6 @@ describe("dashboard view model", () => {
       snapshot: emptySnapshot({
         expenses: [liveExpense],
         periodExpenses: [liveExpense, deletedExpense, otherHousehold],
-        recurringExpenses: [
-          {
-            id: "re1",
-            householdId: "h1",
-            amount: 999,
-            description: "Luz plantilla",
-            scope: "shared",
-            isActive: true,
-            frequency: "monthly",
-          },
-        ],
         budgets: [
           {
             id: "b-live",

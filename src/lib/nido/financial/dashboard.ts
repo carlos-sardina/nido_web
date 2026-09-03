@@ -51,6 +51,8 @@ export function buildDashboardViewModel(input: {
   const sharedTarget = sharedFundTarget(snapshot.goals);
   const featured = featuredSharedFund(snapshot.goals);
 
+  // Confirmed rows only. Leftover recurring_expenses templates must never
+  // flip this flag or any derived metric (spent, health, activity, balance).
   const hasAnyFinancialData =
     periodIncomes.length > 0 ||
     periodExpenses.length > 0 ||

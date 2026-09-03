@@ -11,11 +11,8 @@ import type {
   GoalRow,
   IncomeRow,
   MemberRef,
-  RecurringExpenseRow,
-  RecurringExpenseTemplate,
   RecurringIncomeRow,
   RecurringIncomeTemplate,
-  RecurringSplitRow,
 } from "../financial/types.ts";
 import { unwrapMany, unwrapOne } from "./embed.ts";
 
@@ -191,28 +188,6 @@ export function mapRecurringIncomeRow(row: RecurringIncomeQueryRow): RecurringIn
   };
 }
 
-export type RecurringExpenseQueryRow = {
-  id: string;
-  household_id: string;
-  amount: unknown;
-  description: string | null;
-  scope: RecurringExpenseRow["scope"];
-  is_active: boolean;
-  frequency: RecurringExpenseRow["frequency"];
-};
-
-export function mapRecurringExpenseRow(row: RecurringExpenseQueryRow): RecurringExpenseRow {
-  return {
-    id: row.id,
-    householdId: row.household_id,
-    amount: moneyOrZero(row.amount),
-    description: row.description,
-    scope: row.scope,
-    isActive: row.is_active,
-    frequency: row.frequency,
-  };
-}
-
 export type RecurringIncomeTemplateQueryRow = RecurringIncomeQueryRow & {
   category_id: string;
   start_date: string;
@@ -233,49 +208,6 @@ export function mapRecurringIncomeTemplate(
     createdBy: row.created_by,
     dayOfMonth: row.day_of_month,
     category: categoryRef(row.categories),
-  };
-}
-
-export type RecurringExpenseTemplateQueryRow = RecurringExpenseQueryRow & {
-  category_id: string;
-  payer_id: string;
-  distribution_method: RecurringExpenseTemplate["distributionMethod"];
-  start_date: string;
-  end_date: string | null;
-  next_occurrence: string;
-  created_by: string;
-  categories?: CategoryEmbed | CategoryEmbed[];
-  payer?: ProfileEmbed | ProfileEmbed[];
-  recurring_expense_splits?: Array<{
-    id: string;
-    member_id: string;
-    amount: unknown;
-    percentage: unknown;
-  }> | null;
-};
-
-export function mapRecurringExpenseTemplate(
-  row: RecurringExpenseTemplateQueryRow,
-): RecurringExpenseTemplate {
-  const splits: RecurringSplitRow[] = (row.recurring_expense_splits ?? []).map((split) => ({
-    id: split.id,
-    memberId: split.member_id,
-    amount: moneyOrZero(split.amount),
-    percentage: parseMoney(split.percentage),
-  }));
-
-  return {
-    ...mapRecurringExpenseRow(row),
-    categoryId: row.category_id,
-    payerId: row.payer_id,
-    distributionMethod: row.distribution_method,
-    startDate: row.start_date,
-    endDate: row.end_date,
-    nextOccurrence: row.next_occurrence,
-    createdBy: row.created_by,
-    category: categoryRef(row.categories),
-    payer: memberRef(row.payer),
-    splits,
   };
 }
 

@@ -92,23 +92,6 @@ export type RecurringIncomeRow = {
   endDate: string | null;
 };
 
-export type RecurringExpenseRow = {
-  id: string;
-  householdId: string;
-  amount: number;
-  description: string | null;
-  scope: ExpenseScope;
-  isActive: boolean;
-  frequency: RecurrenceFrequency;
-};
-
-export type RecurringSplitRow = {
-  id: string;
-  memberId: string;
-  amount: number;
-  percentage: number | null;
-};
-
 export type RecurringIncomeTemplate = RecurringIncomeRow & {
   categoryId: string;
   startDate: string;
@@ -116,19 +99,6 @@ export type RecurringIncomeTemplate = RecurringIncomeRow & {
   createdBy: string;
   dayOfMonth: number | null;
   category: CategoryRef | null;
-};
-
-export type RecurringExpenseTemplate = RecurringExpenseRow & {
-  categoryId: string;
-  payerId: string;
-  distributionMethod: DistributionMethod;
-  startDate: string;
-  endDate: string | null;
-  nextOccurrence: string;
-  createdBy: string;
-  category: CategoryRef | null;
-  payer: MemberRef | null;
-  splits: RecurringSplitRow[];
 };
 
 export type BudgetRow = {
@@ -351,6 +321,15 @@ export type MonthlyBalance = {
   payment?: MonthlyBalancePayment;
 };
 
+/**
+ * Live facts for Home / Gastos / Ingresos / presupuestos / salud / actividad / balance.
+ *
+ * Do **not** add `recurring_expenses` here. Expense templates were removed from
+ * the product. Leftover DB rows must never enter spent, health, budgets,
+ * activity, or balance. Confirmed `expenses` (even with `recurringId` set)
+ * still count. `recurringIncomes` stay for income templates and income-based
+ * split basis only — they are not period income.
+ */
 export type DashboardSnapshot = {
   householdId: string;
   range: MonthRange;
@@ -359,7 +338,6 @@ export type DashboardSnapshot = {
   incomes: IncomeRow[];
   periodIncomes: IncomeRow[];
   recurringIncomes: RecurringIncomeRow[];
-  recurringExpenses: RecurringExpenseRow[];
   budgets: BudgetRow[];
   goals: GoalRow[];
   contributions: GoalContributionRow[];
