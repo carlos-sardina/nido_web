@@ -243,7 +243,12 @@ export function OnboardingFlow({
     }
 
     setCreatedHouseholdId(result.data.id);
-    trackEvent("Household created");
+    trackEvent("Household created", {
+      household: plan.plan.householdName,
+      amount: plan.plan.income.amount ?? 0,
+      split: plan.plan.splitMethod,
+      estimates: plan.plan.estimates.length,
+    });
     if (draftAfterHouseholdCreateAttempt(true) === "clear") {
       clearOnboardingDraft();
     }
@@ -258,7 +263,10 @@ export function OnboardingFlow({
     try {
       const householdId = await ensureHouseholdCreated();
       if (householdId) {
-        trackEvent("Onboarding completed");
+        trackEvent("Onboarding completed", {
+          household: data.nestName,
+          amount: parseMoneyInput(data.salary) ?? 0,
+        });
         onComplete();
       }
     } finally {
@@ -282,7 +290,7 @@ export function OnboardingFlow({
         return null;
       }
       setInviteUrl(result.data.url);
-      trackEvent("Invitation created", { source: "onboarding" });
+      trackEvent("Invitation created", { source: "onboarding", household: data.nestName });
       try {
         await navigator.clipboard.writeText(result.data.url);
         setInviteCopied(true);

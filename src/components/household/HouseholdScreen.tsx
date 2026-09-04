@@ -146,7 +146,7 @@ export function HouseholdScreen({
       return;
     }
     setInviteCopied(await copyInvitationUrl(result.data.url));
-    trackEvent("Invitation created", { source: "settings" });
+    trackEvent("Invitation created", { source: "settings", household: household.name });
     await loadInvitations();
   };
 

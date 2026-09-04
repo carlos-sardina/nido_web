@@ -12,7 +12,7 @@ import {
   TextInput,
 } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
-import { trackEvent } from "@/lib/analytics";
+import { analyticsLabel, trackEvent } from "@/lib/analytics";
 import { canSubmitExpense, createExpense, updateExpense } from "@/lib/nido/expenses";
 import {
   ALL_MEMBERS_PAYER,
@@ -239,7 +239,16 @@ export function ExpenseFlow({
     }
 
     if (!expense) {
-      trackEvent("Expense created", { scope });
+      trackEvent("Expense created", {
+        amount: parsedAmount,
+        category: analyticsLabel(categories, categoryId),
+        scope,
+        description: description.trim() || null,
+        payer:
+          resolvedPayerId === ALL_MEMBERS_PAYER
+            ? "all"
+            : members.find((member) => member.userId === resolvedPayerId)?.displayName ?? null,
+      });
     }
     onDone();
   };

@@ -257,8 +257,15 @@ export function BalanceScreen({
       setPaying(false);
       return;
     }
+    const settlementTotal = balance?.settlements.reduce((sum, row) => sum + row.amount, 0) ?? 0;
     await refresh();
-    trackEvent("Monthly balance confirmed", { year: range.year, month: range.month });
+    trackEvent("Monthly balance confirmed", {
+      year: range.year,
+      month: range.month,
+      amount: settlementTotal,
+      shared: balance?.sharedNet ?? null,
+      settlements: balance?.settlements.length ?? 0,
+    });
     onConfirmed?.();
     setPaying(false);
   }

@@ -128,7 +128,12 @@ export function GoalFlow({
     }
 
     if (!goal) {
-      trackEvent("Goal created", { type: goalType, scope });
+      trackEvent("Goal created", {
+        amount: parsedAmount,
+        name: name.trim(),
+        type: goalType,
+        scope,
+      });
     }
     onDone();
   };

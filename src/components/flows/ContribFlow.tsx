@@ -170,7 +170,12 @@ export function ContribFlow({
     }
 
     if (!contribution) {
-      trackEvent("Contribution created");
+      trackEvent("Contribution created", {
+        amount: parsed,
+        goal: selectedGoal?.name ?? null,
+        type: selectedGoal?.goalType ?? null,
+        scope: selectedGoal?.scope ?? null,
+      });
     }
     onDone();
   };

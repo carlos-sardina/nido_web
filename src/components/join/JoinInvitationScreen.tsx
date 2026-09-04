@@ -191,7 +191,10 @@ export function JoinInvitationScreen({ token }: { token: string }) {
 
     clearPendingInvitationToken();
     if (needsName) rememberAnalyticsActor({ username: enteredName });
-    trackEvent("Invitation accepted");
+    trackEvent("Invitation accepted", {
+      household: preview?.householdName ?? null,
+      amount: incomeAmount,
+    });
     router.replace("/");
   };
 

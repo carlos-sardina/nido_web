@@ -25,6 +25,14 @@ export function clearAnalyticsActor(): void {
   rememberedUsername = null;
 }
 
+export function analyticsLabel(
+  items: readonly { id: string; name: string }[],
+  id: string | null | undefined,
+): string | null {
+  if (!id) return null;
+  return clipAnalyticsValue(items.find((item) => item.id === id)?.name);
+}
+
 async function sessionActor(): Promise<{ email: string | null; username: string | null }> {
   try {
     const supabase = createClient();
