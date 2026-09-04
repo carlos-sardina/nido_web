@@ -38,13 +38,19 @@ async function sessionActor(): Promise<{ email: string | null; username: string 
     const supabase = createClient();
     const { data } = await supabase.auth.getSession();
     const identity = identityFromUser(data.session?.user);
-    return {
+    const actor = {
       email: clipAnalyticsValue(identity?.email),
       username: clipAnalyticsValue(identity?.displayName),
     };
+    rememberAnalyticsActor(actor);
+    return actor;
   } catch {
     return { email: null, username: null };
   }
+}
+
+export function prefetchAnalyticsActor(): void {
+  void sessionActor();
 }
 
 /**
@@ -55,6 +61,15 @@ export function trackEvent(name: string, props?: AnalyticsProps): void {
   void emitEvent(name, props);
 }
 
+/** Use on pagehide / unmount so the log is not lost waiting on session lookup. */
+export function trackEventImmediate(name: string, props?: AnalyticsProps): void {
+  const payload: AnalyticsProps = { ...props };
+  if (rememberedEmail) payload.email = rememberedEmail;
+  if (rememberedUsername) payload.username = rememberedUsername;
+  track(name, payload);
+  postAnalyticsLog(name, payload);
+}
+
 async function emitEvent(name: string, props?: AnalyticsProps): Promise<void> {
   const session = await sessionActor();
   const email = stringProp(props?.email) ?? rememberedEmail ?? session.email;
@@ -62,6 +77,7 @@ async function emitEvent(name: string, props?: AnalyticsProps): Promise<void> {
   const payload: AnalyticsProps = { ...props };
   if (email) payload.email = email;
   if (username) payload.username = username;
+  rememberAnalyticsActor({ email, username });
   track(name, payload);
   postAnalyticsLog(name, payload);
 }
