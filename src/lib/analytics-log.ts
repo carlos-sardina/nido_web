@@ -12,7 +12,8 @@ export function clipAnalyticsValue(value: string | null | undefined): string | n
 }
 
 function sanitizePropValue(value: unknown): string | number | boolean | null | undefined {
-  if (value === null || typeof value === "boolean") return value;
+  if (value === null) return null;
+  if (typeof value === "boolean") return value;
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") return clipAnalyticsValue(value);
   return undefined;
