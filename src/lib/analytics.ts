@@ -1,30 +1,21 @@
 import { track } from "@vercel/analytics";
+import { clipAnalyticsValue, type AnalyticsProps } from "@/lib/analytics-log";
 import { identityFromUser } from "@/lib/auth/identity";
 import { createClient } from "@/lib/supabase/client";
-
-type AnalyticsProps = Record<string, string | number | boolean | null>;
-
-const MAX_PROP = 255;
 
 let rememberedEmail: string | null = null;
 let rememberedUsername: string | null = null;
 
-function clip(value: string | null | undefined): string | null {
-  const trimmed = value?.trim() ?? "";
-  if (!trimmed) return null;
-  return trimmed.length > MAX_PROP ? trimmed.slice(0, MAX_PROP) : trimmed;
-}
-
 function stringProp(value: unknown): string | null {
-  return typeof value === "string" ? clip(value) : null;
+  return typeof value === "string" ? clipAnalyticsValue(value) : null;
 }
 
 export function rememberAnalyticsActor(actor: {
   email?: string | null;
   username?: string | null;
 }): void {
-  const email = clip(actor.email);
-  const username = clip(actor.username);
+  const email = clipAnalyticsValue(actor.email);
+  const username = clipAnalyticsValue(actor.username);
   if (email) rememberedEmail = email;
   if (username) rememberedUsername = username;
 }
@@ -40,8 +31,8 @@ async function sessionActor(): Promise<{ email: string | null; username: string 
     const { data } = await supabase.auth.getSession();
     const identity = identityFromUser(data.session?.user);
     return {
-      email: clip(identity?.email),
-      username: clip(identity?.displayName),
+      email: clipAnalyticsValue(identity?.email),
+      username: clipAnalyticsValue(identity?.displayName),
     };
   } catch {
     return { email: null, username: null };
@@ -64,4 +55,19 @@ async function emitEvent(name: string, props?: AnalyticsProps): Promise<void> {
   if (email) payload.email = email;
   if (username) payload.username = username;
   track(name, payload);
+  postAnalyticsLog(name, payload);
+}
+
+function postAnalyticsLog(name: string, props: AnalyticsProps): void {
+  if (typeof window === "undefined") return;
+  try {
+    void fetch("/api/analytics", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, props }),
+      keepalive: true,
+    });
+  } catch {
+    // Logging must never break the app.
+  }
 }

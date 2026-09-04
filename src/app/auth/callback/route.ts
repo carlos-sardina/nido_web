@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { track } from "@vercel/analytics/server";
+import { logAnalyticsEvent } from "@/lib/analytics-log";
 import { completeAuthCallback } from "@/lib/auth/callback";
 import { identityFromUser } from "@/lib/auth/identity";
 import { isPasswordRecoveryPath, recoveryMarkerCookiesForNext } from "@/lib/auth/recovery";
@@ -79,15 +80,13 @@ export async function GET(request: Request) {
       });
       const { data } = await supabase.auth.getUser();
       const identity = identityFromUser(data.user);
-      await track(
-        "Auth callback completed",
-        {
-          kind: isPasswordRecoveryPath(safeNextPath(next)) ? "recovery" : "confirm",
-          email: identity?.email ?? null,
-          username: identity?.displayName ?? null,
-        },
-        { headers: request.headers },
-      );
+      const props = {
+        kind: isPasswordRecoveryPath(safeNextPath(next)) ? "recovery" : "confirm",
+        email: identity?.email ?? null,
+        username: identity?.displayName ?? null,
+      };
+      logAnalyticsEvent("Auth callback completed", props);
+      await track("Auth callback completed", props, { headers: request.headers });
     } catch {
       // Analytics must never block auth.
     }
