@@ -15,6 +15,7 @@ import {
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
 import { Text } from "@/components/nido/Typography";
 import { goalVisual } from "@/components/goals/visual";
+import { trackEvent } from "@/lib/analytics";
 import { canSubmitContribution, createContribution, updateContribution } from "@/lib/nido/contributions";
 import {
   amountToContributionInput,
@@ -168,6 +169,9 @@ export function ContribFlow({
       return;
     }
 
+    if (!contribution) {
+      trackEvent("Contribution created");
+    }
     onDone();
   };
 

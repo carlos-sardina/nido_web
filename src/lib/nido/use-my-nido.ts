@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { rememberAnalyticsActor } from "@/lib/analytics";
 import { NidoError } from "./errors";
 import { getMyNidoState } from "./membership";
 import { withTransientRetry } from "./transient-retry";
@@ -60,6 +61,7 @@ export function useMyNido(user: User | null, authLoading: boolean): MyNidoView {
 
       setError(null);
       setState(result.data);
+      rememberAnalyticsActor({ username: result.data.profile?.display_name });
       setIsLoading(false);
     } while (pendingRef.current);
     inFlightRef.current = false;

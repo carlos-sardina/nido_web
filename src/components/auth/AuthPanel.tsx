@@ -38,6 +38,7 @@ import { Button } from "@/components/nido/Button";
 import { Field, FieldError, FieldLabel, HelperText, PasswordInput, TextInput } from "@/components/nido/Field";
 import { TextLink } from "@/components/nido/TextLink";
 import { Text } from "@/components/nido/Typography";
+import { trackEvent } from "@/lib/analytics";
 
 export type AuthView = "signup" | "login" | "forgot" | "confirm-email";
 
@@ -105,6 +106,7 @@ export function AuthPanel({
     setCooldownTick((tick) => tick + 1);
   };
 
+  const authSource = nextPath?.startsWith("/join/") ? "invite" : "onboarding";
   const confirmationRemaining = getRemainingCooldown("confirmation", email);
   const recoveryRemaining = getRemainingCooldown("recovery", email);
   const showSignupExistsAction = view === "signup" && failureCode === "already_registered";
@@ -142,6 +144,7 @@ export function AuthPanel({
       }
       if (outcome.kind === "authenticated") {
         clearPasswords();
+        trackEvent("Signup completed", { source: authSource, email: normalizeEmail(email) });
         onAuthenticated();
         return;
       }
@@ -149,6 +152,7 @@ export function AuthPanel({
       setEmail(normalized);
       clearPasswords();
       beginEmailCooldown("confirmation", normalized);
+      trackEvent("Signup email pending", { source: authSource, email: normalized });
       onEmailConfirmationPending?.();
       showView("confirm-email");
     } catch (error) {
@@ -180,6 +184,7 @@ export function AuthPanel({
         return;
       }
       clearPasswords();
+      trackEvent("Login completed", { source: authSource, email: normalizeEmail(email) });
       onAuthenticated();
     } catch (error) {
       const classified = classifyAuthError(error, "login");
@@ -213,6 +218,7 @@ export function AuthPanel({
         }
       }
       beginEmailCooldown("recovery", email);
+      trackEvent("Password reset requested", { email: normalizeEmail(email) });
       setInfo(RECOVERY_SENT_MESSAGE);
     } catch (error) {
       const classified = classifyAuthError(error, "recovery");

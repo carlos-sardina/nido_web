@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { AuthPanel, type AuthView } from "@/components/auth/AuthPanel";
+import { rememberAnalyticsActor, trackEvent } from "@/lib/analytics";
 import { CONFIRM_EMAIL_HEADING } from "@/lib/auth/credentials";
 import { resolveNidoChoice } from "@/lib/auth/destination";
 import { identityFromUser, isFallbackDisplayName, suggestedOnboardingDisplayName } from "@/lib/auth/identity";
@@ -203,7 +204,9 @@ export function OnboardingFlow({
     if (!displayName) {
       return { ok: false as const, error: { message: "Ingresa el nombre que verán los demás miembros." } };
     }
-    return updateMyDisplayName(displayName);
+    const result = await updateMyDisplayName(displayName);
+    if (result.ok) rememberAnalyticsActor({ username: displayName });
+    return result;
   };
 
   const ensureHouseholdCreated = async (): Promise<string | null> => {
@@ -240,6 +243,7 @@ export function OnboardingFlow({
     }
 
     setCreatedHouseholdId(result.data.id);
+    trackEvent("Household created");
     if (draftAfterHouseholdCreateAttempt(true) === "clear") {
       clearOnboardingDraft();
     }
@@ -253,7 +257,10 @@ export function OnboardingFlow({
     setSubmitting(true);
     try {
       const householdId = await ensureHouseholdCreated();
-      if (householdId) onComplete();
+      if (householdId) {
+        trackEvent("Onboarding completed");
+        onComplete();
+      }
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -275,6 +282,7 @@ export function OnboardingFlow({
         return null;
       }
       setInviteUrl(result.data.url);
+      trackEvent("Invitation created", { source: "onboarding" });
       try {
         await navigator.clipboard.writeText(result.data.url);
         setInviteCopied(true);

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { ViewportLock } from "@/components/nido/ViewportLock";
 import "../styles/index.css";
 
@@ -49,6 +50,7 @@ export default function RootLayout({
       <body className="min-h-dvh m-0 font-sans">
         <ViewportLock />
         {children}
+        <Analytics />
       </body>
     </html>
   );

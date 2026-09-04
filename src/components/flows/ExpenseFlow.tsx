@@ -12,6 +12,7 @@ import {
   TextInput,
 } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
+import { trackEvent } from "@/lib/analytics";
 import { canSubmitExpense, createExpense, updateExpense } from "@/lib/nido/expenses";
 import {
   ALL_MEMBERS_PAYER,
@@ -237,6 +238,9 @@ export function ExpenseFlow({
       return;
     }
 
+    if (!expense) {
+      trackEvent("Expense created", { scope });
+    }
     onDone();
   };
 

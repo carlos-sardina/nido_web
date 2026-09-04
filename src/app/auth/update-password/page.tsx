@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
+import { trackEvent } from "@/lib/analytics";
 import { validateNewPassword } from "@/lib/auth/credentials";
 import { classifyAuthError, logAuthFailure } from "@/lib/auth/errors";
 import { RECOVERY_LINK_INVALID_MESSAGE } from "@/lib/auth/recovery";
@@ -42,6 +43,7 @@ export default function UpdatePasswordPage() {
       }
       setPassword("");
       setConfirmPassword("");
+      trackEvent("Password reset completed");
       router.replace("/");
     } catch (error) {
       const classified = classifyAuthError(error, "update-password");

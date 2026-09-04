@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "lucide-react";
+import { trackEvent } from "@/lib/analytics";
 import { initialsFromName } from "@/lib/auth/identity";
 import {
   canSubmitInvitationAction,
@@ -145,6 +146,7 @@ export function HouseholdScreen({
       return;
     }
     setInviteCopied(await copyInvitationUrl(result.data.url));
+    trackEvent("Invitation created", { source: "settings" });
     await loadInvitations();
   };
 

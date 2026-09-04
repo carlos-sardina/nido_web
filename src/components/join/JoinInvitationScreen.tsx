@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthPanel } from "@/components/auth/AuthPanel";
+import { rememberAnalyticsActor, trackEvent } from "@/lib/analytics";
 import { identityFromUser, isFallbackDisplayName } from "@/lib/auth/identity";
 import { clearPendingInvitationToken, savePendingInvitationToken } from "@/lib/auth/pending-flow";
 import { useAuth } from "@/lib/auth/use-auth";
@@ -189,6 +190,8 @@ export function JoinInvitationScreen({ token }: { token: string }) {
     }
 
     clearPendingInvitationToken();
+    if (needsName) rememberAnalyticsActor({ username: enteredName });
+    trackEvent("Invitation accepted");
     router.replace("/");
   };
 

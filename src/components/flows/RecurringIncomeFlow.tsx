@@ -15,6 +15,7 @@ import {
 } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
 import { Text } from "@/components/nido/Typography";
+import { trackEvent } from "@/lib/analytics";
 import {
   amountToRecurrenceInput,
   frequencyLabel,
@@ -169,6 +170,9 @@ export function RecurringIncomeFlow({
       return;
     }
 
+    if (!template) {
+      trackEvent("Recurring income created", { frequency });
+    }
     onDone();
   };
 

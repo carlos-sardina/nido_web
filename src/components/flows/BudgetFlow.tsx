@@ -10,6 +10,7 @@ import {
   MoneyField,
 } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
+import { trackEvent } from "@/lib/analytics";
 import { canSubmitBudget, createBudget, updateBudget } from "@/lib/nido/budgets";
 import {
   amountToBudgetInput,
@@ -155,6 +156,9 @@ export function BudgetFlow({
       return;
     }
 
+    if (!budget) {
+      trackEvent("Budget created", { personal });
+    }
     onDone();
   };
 

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { clearAnalyticsActor, rememberAnalyticsActor } from "@/lib/analytics";
+import { identityFromUser } from "@/lib/auth/identity";
 import {
   clearPasswordRecoveryMarker,
   hasPasswordRecoveryMarker,
@@ -60,6 +62,15 @@ export function useAuth(): AuthValue {
         clearPasswordRecoveryMarker();
       } else if (next.status === "authenticated" && previousStatus === "recovery") {
         clearPasswordRecoveryMarker();
+      }
+      if (user) {
+        const identity = identityFromUser(user);
+        rememberAnalyticsActor({
+          email: identity?.email,
+          username: identity?.displayName,
+        });
+      } else {
+        clearAnalyticsActor();
       }
       setSnapshot(next);
     };

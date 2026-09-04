@@ -11,6 +11,7 @@ import {
   TextInput,
 } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
+import { trackEvent } from "@/lib/analytics";
 import { canSubmitGoal, createGoal, updateGoal } from "@/lib/nido/goals";
 import {
   amountToGoalInput,
@@ -126,6 +127,9 @@ export function GoalFlow({
       return;
     }
 
+    if (!goal) {
+      trackEvent("Goal created", { type: goalType, scope });
+    }
     onDone();
   };
 

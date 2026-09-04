@@ -14,6 +14,7 @@ import {
 } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
 import { Text } from "@/components/nido/Typography";
+import { trackEvent } from "@/lib/analytics";
 import { canSubmitIncome, createIncome, updateIncome } from "@/lib/nido/incomes";
 import {
   amountToIncomeInput,
@@ -157,6 +158,9 @@ export function IncomeFlow({
       return;
     }
 
+    if (!income) {
+      trackEvent("Income created");
+    }
     onDone();
   };
 

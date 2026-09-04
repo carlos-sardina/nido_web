@@ -1,8 +1,10 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { track } from "@vercel/analytics/server";
 import { completeAuthCallback } from "@/lib/auth/callback";
-import { recoveryMarkerCookiesForNext } from "@/lib/auth/recovery";
+import { identityFromUser } from "@/lib/auth/identity";
+import { isPasswordRecoveryPath, recoveryMarkerCookiesForNext } from "@/lib/auth/recovery";
 import { resolveCallbackRedirectUrl, safeNextPath } from "@/lib/auth/redirect";
 import { getPublicSupabaseConfig } from "@/lib/supabase/env";
 import type { Database } from "@/lib/supabase/types";
@@ -44,11 +46,13 @@ export async function GET(request: Request) {
     forwardedHost,
     isLocalEnv,
   };
+  const successUrl = resolveCallbackRedirectUrl({ ...destination, kind: "success" });
+  const errorUrl = resolveCallbackRedirectUrl({ ...destination, kind: "error" });
 
-  return completeAuthCallback({
+  const response = await completeAuthCallback({
     code: searchParams.get("code"),
-    successUrl: resolveCallbackRedirectUrl({ ...destination, kind: "success" }),
-    errorUrl: resolveCallbackRedirectUrl({ ...destination, kind: "error" }),
+    successUrl,
+    errorUrl,
     createRedirect: redirectWithNoStore,
     readCookies: () => cookieStore.getAll(),
     writeRequestCookie: (name, value, options) => {
@@ -63,4 +67,31 @@ export async function GET(request: Request) {
       return supabase.auth.exchangeCodeForSession(code);
     },
   });
+
+  if (response.headers.get("location") === successUrl) {
+    try {
+      const { url, anonKey } = getPublicSupabaseConfig();
+      const supabase = createServerClient<Database>(url, anonKey, {
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: () => undefined,
+        },
+      });
+      const { data } = await supabase.auth.getUser();
+      const identity = identityFromUser(data.user);
+      await track(
+        "Auth callback completed",
+        {
+          kind: isPasswordRecoveryPath(safeNextPath(next)) ? "recovery" : "confirm",
+          email: identity?.email ?? null,
+          username: identity?.displayName ?? null,
+        },
+        { headers: request.headers },
+      );
+    } catch {
+      // Analytics must never block auth.
+    }
+  }
+
+  return response;
 }

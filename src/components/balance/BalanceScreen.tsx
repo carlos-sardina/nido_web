@@ -9,6 +9,7 @@ import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { BackLink } from "@/components/nido/Screen";
 import { TextLink } from "@/components/nido/TextLink";
 import { Heading, Text } from "@/components/nido/Typography";
+import { trackEvent } from "@/lib/analytics";
 import {
   confirmMonthlyBalance,
   canSubmitBalancePayment,
@@ -257,6 +258,7 @@ export function BalanceScreen({
       return;
     }
     await refresh();
+    trackEvent("Monthly balance confirmed", { year: range.year, month: range.month });
     onConfirmed?.();
     setPaying(false);
   }
