@@ -15,6 +15,7 @@ import {
   isoDate,
   monthRangeFromIsoDate,
   NIDO_TIMEZONE,
+  setActiveTimeZone,
   todayIso,
   zonedDateParts,
 } from "./dates.ts";
@@ -73,6 +74,19 @@ describe("getCurrentMonthRange", () => {
     assert.equal(september.month, 9);
     assert.equal(september.start, "2026-09-01");
     assert.equal(september.end, "2026-09-30");
+  });
+
+  it("uses the detected timezone at the Mexico City month boundary", () => {
+    setActiveTimeZone("Asia/Tokyo");
+    try {
+      // 2026-10-01 04:00 UTC = 2026-10-01 13:00 in Tokyo and 2026-09-30 22:00 in Mexico City.
+      const october = getCurrentMonthRange(new Date("2026-10-01T04:00:00.000Z"));
+      assert.equal(october.month, 10);
+      assert.equal(october.timeZone, "Asia/Tokyo");
+      assert.equal(todayIso(new Date("2026-10-01T04:00:00.000Z")), "2026-10-01");
+    } finally {
+      setActiveTimeZone(NIDO_TIMEZONE);
+    }
   });
 });
 

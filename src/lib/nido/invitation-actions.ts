@@ -1,5 +1,5 @@
 import { nidoErrorFromUnknown, nidoFail, nidoOk, type NidoResult } from "./errors.ts";
-import { NIDO_TIMEZONE } from "./financial/dates.ts";
+import { getActiveTimeZone } from "./financial/dates.ts";
 import { classifyInvitation } from "./rules.ts";
 import type { InvitationListStatus, InvitationStatus, ListedInvitation } from "./types.ts";
 
@@ -45,7 +45,7 @@ export function formatInvitationDay(iso: string): string {
   return new Intl.DateTimeFormat("es-MX", {
     day: "numeric",
     month: "long",
-    timeZone: NIDO_TIMEZONE,
+    timeZone: getActiveTimeZone(),
   }).format(date);
 }
 

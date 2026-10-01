@@ -1,13 +1,27 @@
+import { FALLBACK_TIME_ZONE, isValidIanaTimeZone } from "../time-zone.ts";
+
 /**
  * Financial period helpers.
  *
- * "Este mes" is the calendar month in America/Mexico_City, not UTC.
+ * "Este mes" is the calendar month in the active IANA timezone, not UTC.
+ * That timezone comes from the request IP, then the device clock. Until one
+ * is detected, it stays America/Mexico_City.
  * Transaction columns (`occurred_at`, `contributed_at`, budget dates) are
  * Postgres `date` values (YYYY-MM-DD) with no time component — compare them
  * as inclusive calendar dates, never as UTC midnights.
  */
 
-export const NIDO_TIMEZONE = "America/Mexico_City";
+export const NIDO_TIMEZONE = FALLBACK_TIME_ZONE;
+
+let activeTimeZone = NIDO_TIMEZONE;
+
+export function getActiveTimeZone(): string {
+  return activeTimeZone;
+}
+
+export function setActiveTimeZone(timeZone: string): void {
+  activeTimeZone = isValidIanaTimeZone(timeZone) ? timeZone : NIDO_TIMEZONE;
+}
 
 export type MonthRange = {
   /** Inclusive first day, YYYY-MM-DD */
@@ -39,7 +53,7 @@ function partNumber(
 
 export function zonedDateParts(
   date: Date,
-  timeZone: string = NIDO_TIMEZONE,
+  timeZone: string = getActiveTimeZone(),
 ): ZonedDateParts {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -79,7 +93,7 @@ export function formatMonthLabel(year: number, month: number): string {
 export function getMonthRange(
   year: number,
   month: number,
-  timeZone: string = NIDO_TIMEZONE,
+  timeZone: string = getActiveTimeZone(),
 ): MonthRange {
   return {
     start: isoDate(year, month, 1),
@@ -93,7 +107,7 @@ export function getMonthRange(
 
 export function getCurrentMonthRange(
   now: Date = new Date(),
-  timeZone: string = NIDO_TIMEZONE,
+  timeZone: string = getActiveTimeZone(),
 ): MonthRange {
   const { year, month } = zonedDateParts(now, timeZone);
   return getMonthRange(year, month, timeZone);
@@ -119,7 +133,7 @@ export function isDateInRange(iso: string, range: Pick<MonthRange, "start" | "en
 /** Calendar month that contains `iso`, or null if the date is invalid. */
 export function monthRangeFromIsoDate(
   iso: string,
-  timeZone: string = NIDO_TIMEZONE,
+  timeZone: string = getActiveTimeZone(),
 ): MonthRange | null {
   if (!isCalendarDate(iso)) return null;
   const [year, month] = iso.split("-").map(Number);
@@ -145,7 +159,7 @@ export function isCalendarDate(value: string): boolean {
 export function isCurrentMonthDate(
   iso: string,
   now: Date = new Date(),
-  timeZone: string = NIDO_TIMEZONE,
+  timeZone: string = getActiveTimeZone(),
 ): boolean {
   return isCalendarDate(iso) && isDateInRange(iso, getCurrentMonthRange(now, timeZone));
 }
@@ -153,7 +167,7 @@ export function isCurrentMonthDate(
 export function currentMonthDateMessage(
   raw: string,
   now: Date = new Date(),
-  timeZone: string = NIDO_TIMEZONE,
+  timeZone: string = getActiveTimeZone(),
 ): string | null {
   const trimmed = raw.trim();
   if (!trimmed || !isCalendarDate(trimmed)) return "La fecha no es válida.";
@@ -166,7 +180,7 @@ export function currentMonthDateMessage(
 /** Today's calendar date in the Nido timezone, not UTC. */
 export function todayIso(
   now: Date = new Date(),
-  timeZone: string = NIDO_TIMEZONE,
+  timeZone: string = getActiveTimeZone(),
 ): string {
   const parts = zonedDateParts(now, timeZone);
   return isoDate(parts.year, parts.month, parts.day);
@@ -176,7 +190,7 @@ export type DayGreeting = "Buenos días" | "Buenas tardes" | "Buenas noches";
 
 export function greetingForNow(
   now: Date = new Date(),
-  timeZone: string = NIDO_TIMEZONE,
+  timeZone: string = getActiveTimeZone(),
 ): DayGreeting {
   const { hour } = zonedDateParts(now, timeZone);
   if (hour < 12) return "Buenos días";
@@ -192,7 +206,7 @@ export function formatRelativeActivityDate(
   occurredOn: string,
   createdAt: string | null | undefined,
   now: Date = new Date(),
-  timeZone: string = NIDO_TIMEZONE,
+  timeZone: string = getActiveTimeZone(),
 ): string {
   const today = zonedDateParts(now, timeZone);
   const todayIso = isoDate(today.year, today.month, today.day);

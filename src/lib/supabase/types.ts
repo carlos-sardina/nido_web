@@ -810,6 +810,7 @@ export type Database = {
           display_name: string
           id: string
           personal_visibility: Database["public"]["Enums"]["personal_visibility"]
+          timezone: string
           updated_at: string
         }
         Insert: {
@@ -818,6 +819,7 @@ export type Database = {
           display_name: string
           id: string
           personal_visibility?: Database["public"]["Enums"]["personal_visibility"]
+          timezone?: string
           updated_at?: string
         }
         Update: {
@@ -826,6 +828,7 @@ export type Database = {
           display_name?: string
           id?: string
           personal_visibility?: Database["public"]["Enums"]["personal_visibility"]
+          timezone?: string
           updated_at?: string
         }
         Relationships: []
@@ -1507,6 +1510,7 @@ export type Database = {
           display_name: string
           id: string
           personal_visibility: Database["public"]["Enums"]["personal_visibility"]
+          timezone: string
           updated_at: string
         }
         SetofOptions: {

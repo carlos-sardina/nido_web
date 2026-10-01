@@ -13,6 +13,7 @@ import {
 import { signOut } from "@/lib/auth/session";
 import { useAuth } from "@/lib/auth/use-auth";
 import { isInvitationTokenFormat } from "@/lib/nido/rules";
+import { resetTimeZone, syncDetectedTimeZone } from "@/lib/nido/sync-time-zone";
 import { useMyNido } from "@/lib/nido/use-my-nido";
 import { clearOnboardingDraft } from "@/lib/onboarding/draft";
 import { Button } from "@/components/nido/Button";
@@ -70,6 +71,25 @@ export default function App() {
   const [signingOut, setSigningOut] = useState(false);
   const { user, status, isLoading: authLoading } = useAuth();
   const appUser = status === "authenticated" ? user : null;
+  const [timeZoneReady, setTimeZoneReady] = useState(false);
+  const userId = appUser?.id ?? null;
+
+  useEffect(() => {
+    if (!userId) {
+      resetTimeZone();
+      setTimeZoneReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    setTimeZoneReady(false);
+    void syncDetectedTimeZone().finally(() => {
+      if (!cancelled) setTimeZoneReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
   const nido = useMyNido(appUser, authLoading);
   const entry = resolveAppEntry({
     authStatus: status === "loading" ? "unauthenticated" : status,
@@ -112,7 +132,7 @@ export default function App() {
   const isBooting =
     signingOut
     || authLoading
-    || Boolean(appUser && nido.isLoading)
+    || Boolean(appUser && (nido.isLoading || !timeZoneReady))
     || entry.kind === "join_invite";
   const splash = useSplashExit(isBooting);
 
