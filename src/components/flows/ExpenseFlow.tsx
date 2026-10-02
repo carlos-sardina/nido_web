@@ -20,6 +20,8 @@ import {
   expenseAmountMessage,
   expenseDateMessage,
   expenseDescriptionMessage,
+  expenseScopeFromBudgets,
+  presupuestoKind,
   getCurrentMonthRange,
   isPaidByAllMembers,
   parseExpenseAmountInput,
@@ -29,11 +31,13 @@ import {
   showExpensePayerPicker,
   todayIso,
   withCurrentCategory,
+  type BudgetRow,
   type ExpenseRow,
   type ExpenseScope,
   type HouseholdCategory,
 } from "@/lib/nido/financial";
 import { fetchActiveExpenseCategories } from "@/lib/nido/queries/categories";
+import { fetchBudgetsForRange } from "@/lib/nido/queries/budgets";
 import type { HouseholdSplitMethod } from "@/lib/nido/split-method";
 import type { HouseholdMemberView } from "@/lib/nido/types";
 
@@ -99,13 +103,41 @@ export function ExpenseFlow({
       : members.map((member) => member.userId),
   );
   const [categories, setCategories] = useState<HouseholdCategory[]>([]);
+  const [budgets, setBudgets] = useState<BudgetRow[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
+  const [loadingBudgets, setLoadingBudgets] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
 
   const canShare = members.length >= 2;
-  const askPayer = showExpensePayerPicker(scope, members.length);
-  const askParticipants = showExpenseParticipantPicker(scope, members.length);
+  const impliedScope = expenseScopeFromBudgets(
+    budgets,
+    categoryId,
+    occurredAt,
+    currentUserId,
+    members.length,
+  );
+  const effectiveScope: ExpenseScope | null = impliedScope ?? scope;
+  const presupuestos = categories.filter((category) => {
+    if (expense?.categoryId === category.id) return true;
+    return (
+      expenseScopeFromBudgets(
+        budgets,
+        category.id,
+        occurredAt,
+        currentUserId,
+        members.length,
+      ) != null
+    );
+  });
+  const scopeById = Object.fromEntries(
+    presupuestos.flatMap((category) => {
+      const kind = presupuestoKind(budgets, category.id, occurredAt, currentUserId);
+      return kind ? [[category.id, kind] as const] : [];
+    }),
+  );
+  const askPayer = showExpensePayerPicker(effectiveScope, members.length);
+  const askParticipants = showExpenseParticipantPicker(effectiveScope, members.length);
   const payerOptions = currentUserId
     ? [
         ...members.filter((member) => member.userId === currentUserId),
@@ -128,8 +160,13 @@ export function ExpenseFlow({
     let cancelled = false;
 
     void (async () => {
-      const result = await fetchActiveExpenseCategories(householdId);
+      const [result, budgetResult] = await Promise.all([
+        fetchActiveExpenseCategories(householdId),
+        fetchBudgetsForRange(householdId, getCurrentMonthRange()),
+      ]);
       if (cancelled) return;
+      setBudgets(budgetResult.ok ? budgetResult.data : []);
+      setLoadingBudgets(false);
       if (result.ok === false) {
         setErrors({ form: result.error.message });
         setCategories([]);
@@ -177,26 +214,26 @@ export function ExpenseFlow({
     const descriptionMessage = expenseDescriptionMessage(description);
     if (descriptionMessage) nextErrors.description = descriptionMessage;
 
-    if (!categoryId) nextErrors.category = "Elige una categoría.";
+    if (!categoryId) nextErrors.category = "Elige un presupuesto.";
     const dateMessage = expenseDateMessage(occurredAt);
     if (dateMessage) nextErrors.date = dateMessage;
-    if (scope == null) nextErrors.scope = "Elige si el gasto es personal o compartido.";
+    if (effectiveScope == null) nextErrors.scope = "Elige si el gasto es personal o compartido.";
     const resolvedPayerId =
-      scope == null
+      effectiveScope == null
         ? payerId
-        : resolveExpensePayerId(scope, payerId, currentUserId ?? "", members.map((member) => member.userId));
-    if (scope === "shared" && askPayer && resolvedPayerId !== ALL_MEMBERS_PAYER && !members.some((member) => member.userId === resolvedPayerId)) {
+        : resolveExpensePayerId(effectiveScope, payerId, currentUserId ?? "", members.map((member) => member.userId));
+    if (effectiveScope === "shared" && askPayer && resolvedPayerId !== ALL_MEMBERS_PAYER && !members.some((member) => member.userId === resolvedPayerId)) {
       nextErrors.payer = "Elige quién pagó.";
     }
     const resolvedParticipants =
-      scope == null
+      effectiveScope == null
         ? participantIds
         : resolveExpenseParticipantIds(
-            scope,
+            effectiveScope,
             members.map((member) => member.userId),
             participantIds,
           );
-    if (scope === "shared" && askParticipants && resolvedParticipants.length < 2) {
+    if (effectiveScope === "shared" && askParticipants && resolvedParticipants.length < 2) {
       nextErrors.participants = "Para un gasto compartido elige al menos dos miembros.";
     }
 
@@ -206,7 +243,7 @@ export function ExpenseFlow({
     }
 
     const parsedAmount = parseExpenseAmountInput(amount);
-    if (parsedAmount == null || scope == null) {
+    if (parsedAmount == null || effectiveScope == null) {
       setErrors({ amount: "Ingresa un monto válido." });
       return;
     }
@@ -221,7 +258,7 @@ export function ExpenseFlow({
       amount: parsedAmount,
       description,
       occurredAt,
-      scope,
+      scope: effectiveScope,
       payerId: resolvedPayerId,
       participantIds: [...resolvedParticipants],
       activeMemberIds: members.map((member) => member.userId),
@@ -242,7 +279,7 @@ export function ExpenseFlow({
       trackEvent("Expense created", {
         amount: parsedAmount,
         category: analyticsLabel(categories, categoryId),
-        scope,
+        scope: effectiveScope,
         description: description.trim() || null,
         payer:
           resolvedPayerId === ALL_MEMBERS_PAYER
@@ -260,7 +297,7 @@ export function ExpenseFlow({
       : "Guardar gasto";
 
   return (
-    <div className="absolute inset-0 z-30 overflow-hidden">
+    <div className="absolute inset-0 z-[46] overflow-hidden">
       <FlowScreen
         lockViewport
         className="h-full min-h-0"
@@ -271,7 +308,7 @@ export function ExpenseFlow({
               type="submit"
               form={`${ids}-form`}
               loading={submitting}
-              disabled={loadingCategories || categories.length === 0}
+              disabled={loadingCategories || loadingBudgets || presupuestos.length === 0}
             >
               {saveLabel}
             </Button>
@@ -354,67 +391,90 @@ export function ExpenseFlow({
 
             <Field>
               <p id={categoryLabelId} className="mb-2 text-label font-semibold text-muted-foreground">
-                Categoría
+                Presupuesto
               </p>
               <CategoryPicker
                 householdId={householdId}
                 type="expense"
-                categories={categories}
+                categories={presupuestos}
                 selectedId={categoryId}
-                loading={loadingCategories}
+                loading={loadingCategories || loadingBudgets}
                 disabled={submitting}
                 labelledBy={categoryLabelId}
                 fallbackIcon="💸"
+                allowCreate={false}
+                emptyLabel="Crea un presupuesto para poder registrar el gasto."
+                scopeById={scopeById}
                 onSelect={(id) => {
                   setCategoryId(id);
-                  setErrors((current) => ({ ...current, category: undefined }));
+                  setErrors((current) => ({ ...current, category: undefined, scope: undefined }));
                 }}
                 onCategoriesChange={setCategories}
               />
               <FieldError id={`${ids}-category-error`}>{errors.category}</FieldError>
             </Field>
 
+            {categoryId ? (
             <Field>
               <p id={scopeLabelId} className="mb-2 text-label font-semibold text-muted-foreground">
-                ¿Este gasto es…?
+                {impliedScope ? "Este gasto es" : "¿Este gasto es…?"}
               </p>
-              <div className="space-y-2" role="group" aria-labelledby={scopeLabelId}>
-                <ChoiceCard
-                  icon="👤"
-                  title="Personal"
-                  description="Solo te corresponde a ti."
-                  selected={scope === "personal"}
-                  disabled={submitting}
-                  onClick={() => {
-                    setScope("personal");
-                    setErrors((current) => ({
-                      ...current,
-                      scope: undefined,
-                      payer: undefined,
-                      participants: undefined,
-                    }));
-                  }}
-                />
-                <ChoiceCard
-                  icon="🏠"
-                  title="Compartido"
-                  description={
-                    canShare
-                      ? members.length === 2
-                        ? "Se divide entre los dos."
-                        : "Se divide entre las personas que elijas."
-                      : "Invita a otra persona para registrar gastos compartidos."
-                  }
-                  selected={scope === "shared"}
-                  disabled={submitting || !canShare}
-                  onClick={() => {
-                    setScope("shared");
-                    setErrors((current) => ({ ...current, scope: undefined, payer: undefined }));
-                  }}
-                />
-              </div>
+              {loadingBudgets ? null : impliedScope ? (
+                <div role="group" aria-labelledby={scopeLabelId}>
+                  <ChoiceCard
+                    icon={impliedScope === "personal" ? "👤" : "🏠"}
+                    title={impliedScope === "personal" ? "Personal" : "Compartido"}
+                    description={
+                      impliedScope === "personal"
+                        ? "Este presupuesto es tuyo."
+                        : "Este presupuesto es del Nido."
+                    }
+                    selected
+                    disabled
+                    className="disabled:opacity-100"
+                    onClick={() => {}}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2" role="group" aria-labelledby={scopeLabelId}>
+                  <ChoiceCard
+                    icon="👤"
+                    title="Personal"
+                    description="Solo te corresponde a ti."
+                    selected={scope === "personal"}
+                    disabled={submitting}
+                    onClick={() => {
+                      setScope("personal");
+                      setErrors((current) => ({
+                        ...current,
+                        scope: undefined,
+                        payer: undefined,
+                        participants: undefined,
+                      }));
+                    }}
+                  />
+                  <ChoiceCard
+                    icon="🏠"
+                    title="Compartido"
+                    description={
+                      canShare
+                        ? members.length === 2
+                          ? "Se divide entre los dos."
+                          : "Se divide entre las personas que elijas."
+                        : "Invita a otra persona para registrar gastos compartidos."
+                    }
+                    selected={scope === "shared"}
+                    disabled={submitting || !canShare}
+                    onClick={() => {
+                      setScope("shared");
+                      setErrors((current) => ({ ...current, scope: undefined, payer: undefined }));
+                    }}
+                  />
+                </div>
+              )}
               <FieldError id={`${ids}-scope-error`}>{errors.scope}</FieldError>
             </Field>
+            ) : null}
 
             {askPayer ? (
               <Field>

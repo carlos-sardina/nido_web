@@ -6,6 +6,7 @@ import { Button } from "@/components/nido/Button";
 import { SelectHint } from "@/components/nido/ClickHint";
 import { CategoryCreateFields } from "@/components/nido/CategoryEmojiField";
 import { FieldError } from "@/components/nido/Field";
+import { ScopeTag } from "@/components/nido/ScopeTag";
 import { Text } from "@/components/nido/Typography";
 import { canSubmitCategory, createCategory } from "@/lib/nido/categories";
 import {
@@ -26,6 +27,9 @@ export function CategoryPicker({
   disabled,
   labelledBy,
   fallbackIcon,
+  allowCreate = true,
+  emptyLabel,
+  scopeById,
   onSelect,
   onCategoriesChange,
 }: {
@@ -37,6 +41,9 @@ export function CategoryPicker({
   disabled?: boolean;
   labelledBy?: string;
   fallbackIcon: string;
+  allowCreate?: boolean;
+  emptyLabel?: string;
+  scopeById?: Readonly<Record<string, "personal" | "nido">>;
   onSelect: (categoryId: string) => void;
   onCategoriesChange: (categories: HouseholdCategory[]) => void;
 }) {
@@ -48,7 +55,7 @@ export function CategoryPicker({
   const [newEmoji, setNewEmoji] = useState(DEFAULT_CATEGORY_EMOJI);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const createVisible = type === "expense" && (showCreate || categories.length === 0);
+  const createVisible = allowCreate && type === "expense" && (showCreate || categories.length === 0);
 
   const resetCreate = () => {
     setFocusName(false);
@@ -147,9 +154,16 @@ export function CategoryPicker({
                 <span className="text-body flex-shrink-0" aria-hidden="true">
                   {category.icon ?? fallbackIcon}
                 </span>
-                <Text as="span" size="label" className="min-w-0 truncate flex-1">
-                  {category.name}
-                </Text>
+                <span className="min-w-0 flex-1">
+                  <Text as="span" size="label" className="block truncate">
+                    {category.name}
+                  </Text>
+                  {scopeById?.[category.id] ? (
+                    <span className="mt-1 block">
+                      <ScopeTag kind={scopeById[category.id]} />
+                    </span>
+                  ) : null}
+                </span>
                 <SelectHint selected={selected} />
               </button>
             );
@@ -157,7 +171,7 @@ export function CategoryPicker({
         </div>
       ) : (
         <Text size="caption" tone="muted">
-          {type === "expense" ? "Crea una categoría para continuar." : "No hay categorías disponibles."}
+          {emptyLabel ?? (type === "expense" ? "Crea una categoría para continuar." : "No hay categorías disponibles.")}
         </Text>
       )}
 
@@ -214,7 +228,7 @@ export function CategoryPicker({
             </Button>
           </div>
         </div>
-      ) : type === "expense" ? (
+      ) : allowCreate && type === "expense" ? (
         <button
           type="button"
           disabled={disabled}

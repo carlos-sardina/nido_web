@@ -12,6 +12,11 @@ import {
   isActiveBudget,
   isBudgetNearLimit,
   isBudgetOver,
+  budgetNameConflictMessage,
+  expensesConsumingBudget,
+  expenseScopeFromBudgets,
+  personalBudgetLocksExpense,
+  presupuestoKind,
   visiblePeriodBudgets,
 } from "./budgets.ts";
 import { getMonthRange } from "./dates.ts";
@@ -650,5 +655,153 @@ describe("budget visibility and mutation", () => {
     assert.equal(listed[0].memberId, null);
     assert.equal(listed[1].memberId, "carlos");
     assert.equal(buildMonthBudgetView([nido, personal], [], range).totalBudget, 20000);
+  });
+});
+
+describe("personalBudgetLocksExpense", () => {
+  const personal = budget({
+    id: "b-me",
+    amount: 200,
+    categoryId: "spotify",
+    memberId: "carlos",
+  });
+
+  it("locks the expense when the member's personal budget covers the category and date", () => {
+    assert.equal(personalBudgetLocksExpense([personal], "spotify", "2026-08-10", "carlos"), true);
+  });
+
+  it("does not lock another member, a Nido budget, or a deleted row", () => {
+    assert.equal(personalBudgetLocksExpense([personal], "spotify", "2026-08-10", "diana"), false);
+    assert.equal(
+      personalBudgetLocksExpense(
+        [budget({ amount: 200, categoryId: "spotify" })],
+        "spotify",
+        "2026-08-10",
+        "carlos",
+      ),
+      false,
+    );
+    assert.equal(
+      personalBudgetLocksExpense(
+        [{ ...personal, deletedAt: "2026-08-02T00:00:00.000Z" }],
+        "spotify",
+        "2026-08-10",
+        "carlos",
+      ),
+      false,
+    );
+  });
+
+  it("does not lock a different category, another month, or a missing user", () => {
+    assert.equal(personalBudgetLocksExpense([personal], "rent", "2026-08-10", "carlos"), false);
+    assert.equal(personalBudgetLocksExpense([personal], "spotify", "2026-07-10", "carlos"), false);
+    assert.equal(personalBudgetLocksExpense([personal], "spotify", "2026-08-10", null), false);
+    assert.equal(personalBudgetLocksExpense([personal], "", "2026-08-10", "carlos"), false);
+  });
+});
+
+describe("expenseScopeFromBudgets", () => {
+  const personal = budget({
+    id: "b-me",
+    amount: 200,
+    categoryId: "spotify",
+    memberId: "carlos",
+  });
+  const nido = budget({ amount: 800, categoryId: "rent" });
+
+  it("uses the member's personal presupuesto", () => {
+    assert.equal(expenseScopeFromBudgets([personal], "spotify", "2026-08-10", "carlos", 2), "personal");
+  });
+
+  it("uses a Nido presupuesto as shared when the household can split", () => {
+    assert.equal(expenseScopeFromBudgets([nido], "rent", "2026-08-10", "carlos", 2), "shared");
+    assert.equal(expenseScopeFromBudgets([nido], "rent", "2026-08-10", "carlos", 1), "personal");
+  });
+
+  it("lets the member's personal row win when both exist", () => {
+    const both = [
+      nido,
+      budget({ id: "b-rent-me", amount: 100, categoryId: "rent", memberId: "carlos" }),
+    ];
+    assert.equal(expenseScopeFromBudgets(both, "rent", "2026-08-10", "carlos", 2), "personal");
+    assert.equal(expenseScopeFromBudgets([personal], "spotify", "2026-08-10", "diana", 2), null);
+  });
+});
+
+describe("presupuestoKind", () => {
+  it("labels the member's row as personal and a household row as nido", () => {
+    const personal = budget({ id: "b-me", amount: 200, categoryId: "spotify", memberId: "carlos" });
+    const nido = budget({ amount: 800, categoryId: "rent" });
+    assert.equal(presupuestoKind([personal], "spotify", "2026-08-10", "carlos"), "personal");
+    assert.equal(presupuestoKind([nido], "rent", "2026-08-10", "carlos"), "nido");
+    assert.equal(presupuestoKind([personal], "spotify", "2026-08-10", "diana"), null);
+    assert.equal(presupuestoKind([nido, personal], "spotify", "2026-08-10", "carlos"), "personal");
+  });
+});
+
+describe("budgetNameConflictMessage", () => {
+  const range = { categoryId: "rent", userId: "carlos", startDate: "2026-08-01", endDate: "2026-08-31" };
+  const nido = budget({ amount: 800, categoryId: "rent" });
+  const mine = budget({ id: "b-me", amount: 100, categoryId: "rent", memberId: "carlos" });
+
+  it("rejects a second tipo for the same name in the month", () => {
+    assert.match(
+      budgetNameConflictMessage([nido], { ...range, personal: true }) ?? "",
+      /Nido/,
+    );
+    assert.match(
+      budgetNameConflictMessage([mine], { ...range, personal: false }) ?? "",
+      /personal/,
+    );
+  });
+
+  it("rejects a duplicate of the same presupuesto", () => {
+    assert.match(
+      budgetNameConflictMessage([mine], { ...range, personal: true }) ?? "",
+      /Ya tienes/,
+    );
+    assert.match(
+      budgetNameConflictMessage([nido], { ...range, personal: false }) ?? "",
+      /Ya existe/,
+    );
+  });
+
+  it("allows the first presupuesto for a name", () => {
+    assert.equal(budgetNameConflictMessage([], { ...range, personal: true }), null);
+    assert.equal(budgetNameConflictMessage([nido], { ...range, categoryId: "gym", personal: true }), null);
+  });
+});
+
+describe("expensesConsumingBudget", () => {
+  it("lists this month's consuming expenses, newest first", () => {
+    const nido = budget({ amount: 800, categoryId: "rent" });
+    const rows = expensesConsumingBudget(nido, [
+      expense({ id: "early", amount: 10, categoryId: "rent", occurredAt: "2026-08-02" }),
+      expense({ id: "late", amount: 20, categoryId: "rent", occurredAt: "2026-08-20" }),
+      expense({ id: "other", amount: 30, categoryId: "food", occurredAt: "2026-08-21" }),
+      expense({ id: "old", amount: 40, categoryId: "rent", occurredAt: "2026-07-20" }),
+    ]);
+    assert.deepEqual(rows.map((row) => row.id), ["late", "early"]);
+  });
+
+  it("keeps only the owner's personal expenses on a personal budget", () => {
+    const mine = budget({
+      id: "b-me",
+      amount: 100,
+      categoryId: "spotify",
+      memberId: "carlos",
+    });
+    const rows = expensesConsumingBudget(mine, [
+      expense({
+        id: "me",
+        amount: 10,
+        categoryId: "spotify",
+        scope: "personal",
+        createdBy: "carlos",
+        payerId: "carlos",
+      }),
+      expense({ id: "shared", amount: 20, categoryId: "spotify", scope: "shared" }),
+    ]);
+    assert.deepEqual(rows.map((row) => row.id), ["me"]);
   });
 });

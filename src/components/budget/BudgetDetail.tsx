@@ -4,13 +4,19 @@ import { useId, useRef, useState } from "react";
 import { Button } from "@/components/nido/Button";
 import { FieldError } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
+import { ScopeTag } from "@/components/nido/ScopeTag";
 import { Text } from "@/components/nido/Typography";
 import { canSubmitBudget, deleteBudget } from "@/lib/nido/budgets";
 import {
   canMutateBudget,
+  expensesConsumingBudget,
   formatCompactMoney,
   formatMonthLabel,
+  formatRelativeActivityDate,
+  isPersonalExpense,
+  netExpense,
   type BudgetItemView,
+  type ExpenseRow,
 } from "@/lib/nido/financial";
 import { P } from "@/lib/palette";
 
@@ -22,16 +28,20 @@ function periodLabel(item: BudgetItemView): string {
 
 export function BudgetDetail({
   budget,
+  expenses,
   currentUserId,
   onClose,
   onEdit,
   onDeleted,
+  onOpenExpense,
 }: {
   budget: BudgetItemView;
+  expenses: readonly ExpenseRow[];
   currentUserId: string | null;
   onClose: () => void;
   onEdit: () => void;
   onDeleted: () => void;
+  onOpenExpense?: (expense: ExpenseRow) => void;
 }) {
   const ids = useId();
   const submittingRef = useRef(false);
@@ -39,6 +49,7 @@ export function BudgetDetail({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canMutate = canMutateBudget(budget, currentUserId);
+  const related = expensesConsumingBudget(budget, expenses);
 
   const handleDelete = async () => {
     if (!canSubmitBudget(submitting) || submittingRef.current) return;
@@ -193,6 +204,51 @@ export function BudgetDetail({
                   }
                 />
                 <DetailRow label="Periodo" value={periodLabel(budget)} />
+
+                <div className="pt-2">
+                  <Text size="label">Gastos de este mes</Text>
+                  {related.length === 0 ? (
+                    <Text size="caption" tone="muted" className="mt-2 leading-relaxed">
+                      Ningún gasto de este mes cuenta para este presupuesto.
+                    </Text>
+                  ) : (
+                    <div className="mt-3 space-y-2">
+                      {related.map((expense) => {
+                        const personal = isPersonalExpense(expense);
+                        const net = netExpense(expense.amount, expense.refunds);
+                        const title = expense.description?.trim() || "Gasto";
+                        return (
+                          <button
+                            key={expense.id}
+                            type="button"
+                            onClick={() => onOpenExpense?.(expense)}
+                            disabled={!onOpenExpense}
+                            className="w-full flex items-center gap-3 rounded-2xl p-3 text-left shadow-sm transition-transform active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:active:scale-100"
+                            style={{ backgroundColor: P.card }}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold truncate" style={{ color: P.text }}>
+                                {title}
+                              </p>
+                              <div className="mt-1 flex items-center gap-1.5">
+                                <ScopeTag
+                                  kind={personal ? "personal" : "nido"}
+                                  label={personal ? "Personal" : "Compartido"}
+                                />
+                                <span className="text-[10px]" style={{ color: P.muted }}>
+                                  {formatRelativeActivityDate(expense.occurredAt, expense.createdAt)}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="text-sm font-bold font-sans flex-shrink-0" style={{ color: P.text }}>
+                              {formatCompactMoney(net)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </>
             )}
         </div>

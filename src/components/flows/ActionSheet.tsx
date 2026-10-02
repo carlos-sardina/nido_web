@@ -16,7 +16,7 @@ export function ActionSheet({
   const actions: { flow: Exclude<Flow, null>; emoji: string; label: string; sub: string }[] = [
     { flow: "expense", emoji: "💸", label: "Registrar un gasto", sub: "Compartido o personal" },
     { flow: "income", emoji: "💰", label: "Registrar un ingreso", sub: "Sueldo u extra" },
-    { flow: "budget", emoji: "📊", label: "Crear un presupuesto", sub: "Límite por categoría este mes" },
+    { flow: "budget", emoji: "📊", label: "Crear un presupuesto", sub: "Nombre, tipo y límite de este mes" },
     { flow: "contrib", emoji: "🎯", label: "Registrar una aportación", sub: "Agrega a una meta o un fondo" },
   ];
 

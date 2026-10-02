@@ -17,6 +17,7 @@ import type { DashboardQuery } from "@/lib/nido/use-dashboard";
 import { P } from "@/lib/palette";
 import type { Tab } from "@/lib/types";
 import { Button } from "@/components/nido/Button";
+import { ScopeTag } from "@/components/nido/ScopeTag";
 import { NavChevron, SeeMoreHint, SeeMoreLink } from "@/components/nido/ClickHint";
 import { EmptyState } from "@/components/nido/EmptyState";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
@@ -453,7 +454,7 @@ function DashboardBody({
           <EmptyState
             plain
             title="Sin presupuesto este mes"
-            description="Crea un límite por categoría. El gasto se calcula de tus gastos reales."
+            description="Cada presupuesto tiene nombre y límite. El gasto se calcula de tus gastos reales."
             actionLabel="Crear un presupuesto"
             onAction={onCreateBudget}
             secondaryActionLabel={onCopyPreviousMonthBudgets ? "Copiar del mes pasado" : undefined}
@@ -533,7 +534,7 @@ function DashboardBody({
                       title={category.name}
                       aria-label={
                         item
-                          ? `Ver presupuesto de ${category.name}`
+                          ? `Ver presupuesto ${item.memberId ? "personal" : "del Nido"} de ${category.name}`
                           : `Crear presupuesto de ${category.name}`
                       }
                       className="flex-none w-[4.75rem] rounded-xl px-1.5 py-2 text-center overflow-hidden active:scale-[0.97] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -543,6 +544,11 @@ function DashboardBody({
                       <div className="text-[9px] mb-0.5 truncate" style={{ color: P.muted }}>
                         {category.name}
                       </div>
+                      {item ? (
+                        <div className="flex justify-center mb-0.5">
+                          <ScopeTag compact kind={item.memberId ? "personal" : "nido"} />
+                        </div>
+                      ) : null}
                       <div
                         className="text-[10px] font-bold font-sans truncate"
                         style={{

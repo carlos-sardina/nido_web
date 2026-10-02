@@ -2,6 +2,7 @@
 
 import type { BudgetCreateTarget } from "@/components/flows/BudgetFlow";
 import { Button } from "@/components/nido/Button";
+import { ScopeTag } from "@/components/nido/ScopeTag";
 import { NavChevron } from "@/components/nido/ClickHint";
 import { EmeraldHero, HeroAmount, HeroChip, HeroKicker } from "@/components/nido/DecoratedCard";
 import { EmptyState } from "@/components/nido/EmptyState";
@@ -192,7 +193,7 @@ export function BudgetScreen({
             {empty ? (
               <EmptyState
                 title="Sin presupuestos este mes"
-                description="Crea un límite por categoría. El gasto se calcula de tus gastos reales."
+                description="Cada presupuesto tiene nombre y límite. El gasto se calcula de tus gastos reales."
                 actionLabel="Crear un presupuesto"
                 onAction={onCreateBudget}
                 secondaryActionLabel={onCopyPreviousMonthBudgets ? "Copiar del mes pasado" : undefined}
@@ -307,14 +308,11 @@ function BudgetCard({
               <span className="text-sm font-semibold truncate block" style={{ color: P.text }}>
                 {item.name}
               </span>
-              <span
-                className="inline-block mt-1 text-[9px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5"
-                style={{
-                  backgroundColor: personal ? "#FDEEF1" : "#E8F4EF",
-                  color: personal ? P.brnDp : P.sageDk,
-                }}
-              >
-                {personal ? who ?? "Personal" : "Nido"}
+              <span className="inline-block mt-1">
+                <ScopeTag
+                  kind={personal ? "personal" : "nido"}
+                  label={personal ? who ?? "Personal" : "Nido"}
+                />
               </span>
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0">

@@ -6,6 +6,7 @@ import { Button } from "@/components/nido/Button";
 import { ChoiceCard } from "@/components/nido/ChoiceCard";
 import { Field, FieldError, MoneyField } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
+import { ScopeTag } from "@/components/nido/ScopeTag";
 import { TextLink } from "@/components/nido/TextLink";
 import { Text } from "@/components/nido/Typography";
 import {
@@ -335,6 +336,7 @@ export function CopyBudgetsFlow({
                   householdId={householdId}
                   type="expense"
                   categories={categories}
+                  allowCreate={false}
                   selectedId={addCategoryId}
                   loading={false}
                   disabled={submitting}
@@ -436,9 +438,13 @@ function DraftCard({
             <p className="text-xs font-semibold truncate" style={{ color: P.text }}>
               {draft.name}
             </p>
-            <span className="text-[10px] font-semibold flex-shrink-0" style={{ color: P.muted }}>
-              {draft.archived ? "Archivado" : draft.personal ? "Personal" : "Nido"}
-            </span>
+            {draft.archived ? (
+              <span className="text-[10px] font-semibold flex-shrink-0" style={{ color: P.muted }}>
+                Archivado
+              </span>
+            ) : (
+              <ScopeTag kind={draft.personal ? "personal" : "nido"} />
+            )}
           </div>
           {draft.archived ? (
             <p className="text-[11px] mt-1" style={{ color: P.muted }}>

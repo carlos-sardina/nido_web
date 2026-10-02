@@ -1,20 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cn } from "@/app/components/ui/utils";
-import { Button } from "@/components/nido/Button";
-import { CategoryCreateFields } from "@/components/nido/CategoryEmojiField";
 import { TextLink } from "@/components/nido/TextLink";
 import { Text } from "@/components/nido/Typography";
-import { archiveCategory, canSubmitCategory, createCategory, renameCategory } from "@/lib/nido/categories";
-import {
-  DEFAULT_CATEGORY_EMOJI,
-  resolveCategoryIcon,
-} from "@/lib/nido/financial/category-icon";
+import { archiveCategory, canSubmitCategory, renameCategory } from "@/lib/nido/categories";
 import {
   categoryNameMessage,
   categoryRenameConflictMessage,
-  findArchivedCategoryByNormalizedName,
   type HouseholdCategory,
 } from "@/lib/nido/financial/categories";
 import { fetchHouseholdCategories } from "@/lib/nido/queries/categories";
@@ -32,30 +24,16 @@ export function HouseholdCategoriesCard({
   const [categories, setCategories] = useState<HouseholdCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
-  const [newName, setNewName] = useState("");
-  const [newEmoji, setNewEmoji] = useState(DEFAULT_CATEGORY_EMOJI);
-  const [showCreate, setShowCreate] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
   const [rowMode, setRowMode] = useState<Record<string, RowMode>>({});
   const [rowDraft, setRowDraft] = useState<Record<string, string>>({});
   const [rowError, setRowError] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
-  const creatingRef = useRef(false);
   const busyRef = useRef(false);
   const categoriesRef = useRef(categories);
   categoriesRef.current = categories;
 
   const expenses = categories.filter((row) => row.type === "expense");
   const visible = expenses.filter((row) => row.archivedAt == null);
-  const createVisible = showCreate || (!loading && !listError && visible.length === 0);
-
-  const resetCreate = () => {
-    setNewName("");
-    setNewEmoji(DEFAULT_CATEGORY_EMOJI);
-    setCreateError(null);
-  };
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = Boolean(opts?.silent && categoriesRef.current.length > 0);
@@ -78,39 +56,6 @@ export function HouseholdCategoriesCard({
   useEffect(() => {
     void load({ silent: refreshKey > 0 });
   }, [load, refreshKey]);
-
-  const handleCreate = async () => {
-    if (!canSubmitCategory(creating) || creatingRef.current) return;
-    const message = categoryNameMessage(newName);
-    if (message) {
-      setCreateError(message);
-      setCreateSuccess(null);
-      return;
-    }
-
-    creatingRef.current = true;
-    setCreating(true);
-    setCreateError(null);
-    setCreateSuccess(null);
-    const result = await createCategory({
-      name: newName,
-      type: "expense",
-      icon: resolveCategoryIcon(newEmoji),
-      householdId,
-      existing: expenses,
-    });
-    creatingRef.current = false;
-    setCreating(false);
-    if (result.ok === false) {
-      setCreateError(result.error.message);
-      return;
-    }
-    const reactivated = findArchivedCategoryByNormalizedName(newName, expenses);
-    resetCreate();
-    setShowCreate(false);
-    setCreateSuccess(reactivated ? "Categoría reactivada." : "Categoría creada.");
-    await load();
-  };
 
   const handleRename = async (category: HouseholdCategory) => {
     if (!canSubmitCategory(busyId != null) || busyRef.current) return;
@@ -163,9 +108,9 @@ export function HouseholdCategoriesCard({
 
   return (
     <div className="px-6 mb-5 space-y-3">
-      <Text size="label">Categorías</Text>
+      <Text size="label">Presupuestos</Text>
       <Text size="caption" tone="muted" className="leading-relaxed">
-        Puedes crear, renombrar o archivar. Archivar no borra los movimientos que ya la usan.
+        Renombra o archiva un nombre. El límite del mes se crea con el presupuesto. Archivar no borra los movimientos que ya lo usan.
       </Text>
       {loading && categories.length === 0 && <Text size="caption" tone="muted">Cargando categorías…</Text>}
       {listError && <Text size="caption" tone="danger" role="alert">{listError}</Text>}
@@ -285,81 +230,6 @@ export function HouseholdCategoriesCard({
           </div>
         );
       })}
-      <div className="space-y-2 pt-1">
-        {createVisible ? (
-          <>
-            <label htmlFor="new-category-name" className="sr-only">Nueva categoría</label>
-            <CategoryCreateFields
-              emoji={newEmoji}
-              onEmojiChange={setNewEmoji}
-              nameId="new-category-name"
-              name={newName}
-              onNameChange={(value) => {
-                setNewName(value);
-                setCreateError(null);
-                setCreateSuccess(null);
-              }}
-              namePlaceholder="Nueva categoría"
-              disabled={creating}
-              nameInvalid={Boolean(createError)}
-              onNameKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  void handleCreate();
-                }
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  if (creating || visible.length === 0) return;
-                  setShowCreate(false);
-                  resetCreate();
-                }
-              }}
-            />
-            {createError && <Text size="caption" tone="danger" role="alert">{createError}</Text>}
-            <div className="flex gap-2">
-              {visible.length > 0 ? (
-                <Button
-                  variant="ghost"
-                  size="compact"
-                  disabled={creating}
-                  onClick={() => {
-                    setShowCreate(false);
-                    resetCreate();
-                  }}
-                >
-                  Cancelar
-                </Button>
-              ) : null}
-              <Button
-                size="compact"
-                loading={creating}
-                disabled={!canSubmitCategory(creating)}
-                onClick={() => { void handleCreate(); }}
-              >
-                {creating ? "Creando…" : "Crear categoría"}
-              </Button>
-            </div>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              setShowCreate(true);
-              setCreateError(null);
-              setCreateSuccess(null);
-            }}
-            className={cn(
-              "flex w-full items-center gap-2 h-12 px-4 rounded-2xl border-2 border-dashed text-left transition-all",
-              "text-muted-foreground border-border bg-transparent",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            )}
-          >
-            <span className="text-body flex-shrink-0" aria-hidden="true">➕</span>
-            <Text as="span" size="label">Nueva categoría</Text>
-          </button>
-        )}
-        {createSuccess && <Text size="caption" tone="brand" role="status">{createSuccess}</Text>}
-      </div>
     </div>
   );
 }

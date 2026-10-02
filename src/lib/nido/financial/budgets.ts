@@ -9,6 +9,7 @@ import type {
   BudgetItemView,
   BudgetRow,
   ExpenseRow,
+  ExpenseScope,
   MonthBudgetView,
 } from "./types.ts";
 
@@ -97,6 +98,20 @@ export function expenseConsumesBudget(
  * `recurring_expenses` templates are not an input. Does not persist.
  * See `expenseConsumesBudget` for Nido vs personal rules.
  */
+export function expensesConsumingBudget(
+  budget: Pick<BudgetRow, "householdId" | "categoryId" | "startDate" | "endDate" | "memberId">,
+  expenses: readonly ExpenseRow[],
+): ExpenseRow[] {
+  return expenses
+    .filter((expense) => expenseConsumesBudget(budget, expense))
+    .slice()
+    .sort((a, b) => {
+      const byDate = b.occurredAt.localeCompare(a.occurredAt);
+      if (byDate !== 0) return byDate;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+}
+
 export function budgetSpent(
   budget: Pick<BudgetRow, "householdId" | "categoryId" | "startDate" | "endDate" | "memberId">,
   expenses: ExpenseRow[],
@@ -308,4 +323,107 @@ export function buildMonthBudgetView(
 
 export function budgetCoversDate(budget: BudgetRow, isoDate: string): boolean {
   return isDateInRange(isoDate, { start: budget.startDate, end: budget.endDate });
+}
+
+/**
+ * A live personal budget for this member and category already says the
+ * expense is theirs. Shared expenses never consume that budget.
+ */
+type BudgetIdentity = Pick<BudgetRow, "categoryId" | "memberId" | "startDate" | "endDate" | "deletedAt">;
+
+function budgetsCoveringCategory(
+  budgets: readonly BudgetIdentity[],
+  categoryId: string,
+  occurredAt: string,
+): BudgetIdentity[] {
+  if (!categoryId) return [];
+  return budgets.filter(
+    (budget) =>
+      isActiveBudget(budget) &&
+      budget.categoryId === categoryId &&
+      isDateInRange(occurredAt, { start: budget.startDate, end: budget.endDate }),
+  );
+}
+
+/** Personal if this member owns the presupuesto; Nido if the household row covers it. */
+export function presupuestoKind(
+  budgets: readonly BudgetIdentity[],
+  categoryId: string,
+  occurredAt: string,
+  userId: string | null | undefined,
+): "personal" | "nido" | null {
+  if (!categoryId || !userId) return null;
+  const covering = budgetsCoveringCategory(budgets, categoryId, occurredAt);
+  if (covering.some((budget) => isPersonalBudget(budget) && budget.memberId === userId)) {
+    return "personal";
+  }
+  if (covering.some(isNidoBudget)) return "nido";
+  return null;
+}
+
+export function personalBudgetLocksExpense(
+  budgets: readonly BudgetIdentity[],
+  categoryId: string,
+  occurredAt: string,
+  userId: string | null | undefined,
+): boolean {
+  if (!userId) return false;
+  return budgetsCoveringCategory(budgets, categoryId, occurredAt).some(
+    (budget) => isPersonalBudget(budget) && budget.memberId === userId,
+  );
+}
+
+/**
+ * The presupuesto is the category. Its type decides the expense:
+ * the member's personal row is personal; a Nido row is shared when
+ * the household can split, and personal when there is only one member.
+ */
+export function expenseScopeFromBudgets(
+  budgets: readonly BudgetIdentity[],
+  categoryId: string,
+  occurredAt: string,
+  userId: string | null | undefined,
+  memberCount: number,
+): ExpenseScope | null {
+  if (!userId) return null;
+  const covering = budgetsCoveringCategory(budgets, categoryId, occurredAt);
+  if (covering.some((budget) => isPersonalBudget(budget) && budget.memberId === userId)) {
+    return "personal";
+  }
+  if (covering.some(isNidoBudget)) {
+    return memberCount >= 2 ? "shared" : "personal";
+  }
+  return null;
+}
+
+/** One name is one presupuesto this month: not both personal and Nido, and not a second copy. */
+export function budgetNameConflictMessage(
+  budgets: readonly BudgetIdentity[],
+  input: {
+    categoryId: string;
+    personal: boolean;
+    userId: string | null | undefined;
+    startDate: string;
+    endDate: string;
+  },
+): string | null {
+  const rows = budgets.filter(
+    (budget) =>
+      isActiveBudget(budget) &&
+      budget.categoryId === input.categoryId &&
+      budget.startDate <= input.endDate &&
+      budget.endDate >= input.startDate,
+  );
+  const hasNido = rows.some(isNidoBudget);
+  const hasPersonal = rows.some(isPersonalBudget);
+  const hasMine = Boolean(input.userId) && rows.some((budget) => budget.memberId === input.userId);
+  if (input.personal) {
+    if (hasNido) return "Este nombre ya es un presupuesto del Nido este mes.";
+    if (hasMine) return "Ya tienes este presupuesto este mes.";
+    if (hasPersonal) return "Este nombre ya es un presupuesto personal este mes.";
+    return null;
+  }
+  if (hasPersonal) return "Este nombre ya es un presupuesto personal este mes.";
+  if (hasNido) return "Ya existe este presupuesto del Nido este mes.";
+  return null;
 }

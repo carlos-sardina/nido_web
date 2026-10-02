@@ -3,6 +3,7 @@
 import { Repeat } from "lucide-react";
 import type { BudgetCreateTarget } from "@/components/flows/BudgetFlow";
 import { Button } from "@/components/nido/Button";
+import { ScopeTag } from "@/components/nido/ScopeTag";
 import { NavChevron, SeeMoreHint, SeeMoreLink } from "@/components/nido/ClickHint";
 import {
   EmeraldHero,
@@ -24,6 +25,7 @@ import {
   isRecurringExpense,
   isSharedExpense,
   netExpense,
+  presupuestoKind,
   type BudgetCategoryView,
   type BudgetItemView,
   type ExpenseRow,
@@ -180,7 +182,7 @@ function ExpenseCategoryChip({
       title={category.name}
       aria-label={
         budgetItem
-          ? `Ver presupuesto de ${category.name}`
+          ? `Ver presupuesto ${budgetItem.memberId ? "personal" : "del Nido"} de ${category.name}`
           : `Crear presupuesto de ${category.name}`
       }
       className="flex-none min-w-[6.25rem] max-w-[7.5rem] rounded-2xl px-2.5 py-2 text-center active:scale-[0.97] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -192,6 +194,11 @@ function ExpenseCategoryChip({
       <div className="text-[9px] mb-0.5 truncate" style={{ color: P.muted }}>
         {category.name}
       </div>
+      {budgetItem ? (
+        <div className="flex justify-center mb-0.5">
+          <ScopeTag compact kind={budgetItem.memberId ? "personal" : "nido"} />
+        </div>
+      ) : null}
       <div
         className="text-[10px] font-bold font-sans truncate"
         style={{ color: over ? P.danger : P.text }}
@@ -229,6 +236,7 @@ function ExpenseCategoryChip({
 export function ExpensesScreen({
   dashboard,
   members,
+  currentUserId,
   onOpenExpense,
   onRegisterExpense,
   onOpenBudgets,
@@ -237,6 +245,7 @@ export function ExpensesScreen({
 }: {
   dashboard: DashboardQuery;
   members: HouseholdMemberView[];
+  currentUserId: string | null;
   onOpenExpense: (expense: ExpenseRow) => void;
   onRegisterExpense: () => void;
   onOpenBudgets: () => void;
@@ -360,6 +369,12 @@ export function ExpensesScreen({
                 const participantNames = expense.splits
                   .map((split) => firstName(memberName(split.memberId, members)))
                   .filter(Boolean);
+                const categoryKind = presupuestoKind(
+                  periodBudgets,
+                  expense.categoryId,
+                  expense.occurredAt,
+                  currentUserId,
+                );
 
                 return (
                   <button
@@ -390,13 +405,16 @@ export function ExpensesScreen({
                           />
                         ) : null}
                       </div>
-                      <p className="text-[10px] mt-0.5 truncate" style={{ color: P.muted }}>
-                        {expense.category?.name ?? "Categoría"}
-                        {" · "}
-                        {firstName(payer)}
-                        {!personal && participantNames.length > 0
-                          ? ` · ${participantNames.join(", ")}`
-                          : null}
+                      <p className="text-[10px] mt-0.5 flex items-center gap-1 min-w-0" style={{ color: P.muted }}>
+                        <span className="truncate">{expense.category?.name ?? "Categoría"}</span>
+                        {categoryKind ? <ScopeTag kind={categoryKind} /> : null}
+                        <span className="truncate">
+                          {" · "}
+                          {firstName(payer)}
+                          {!personal && participantNames.length > 0
+                            ? ` · ${participantNames.join(", ")}`
+                            : null}
+                        </span>
                       </p>
                       <div className="flex items-center gap-1.5 mt-1.5">
                         <span

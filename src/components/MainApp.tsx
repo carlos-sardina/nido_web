@@ -233,6 +233,7 @@ export function MainApp({
             <ExpensesScreen
               dashboard={dashboard}
               members={members}
+              currentUserId={user?.id ?? null}
               onOpenExpense={setSelectedExpense}
               onRegisterExpense={openExpenseCreate}
               onOpenBudgets={() => setShowBudgets(true)}
@@ -313,6 +314,7 @@ export function MainApp({
             expense={liveSelectedExpense}
             members={members}
             currentUserId={user?.id ?? null}
+            budgets={dashboard.model?.periodBudgets ?? []}
             onClose={() => setSelectedExpense(null)}
             onEdit={() => {
               setEditingExpense(liveSelectedExpense);
@@ -419,7 +421,9 @@ export function MainApp({
         {liveSelectedBudget && activeFlow !== "budget" && (
           <BudgetDetail
             budget={liveSelectedBudget}
+            expenses={dashboard.model?.periodExpenses ?? []}
             currentUserId={user?.id ?? null}
+            onOpenExpense={setSelectedExpense}
             onClose={() => setSelectedBudget(null)}
             onEdit={() => {
               setEditingBudget(liveSelectedBudget);
@@ -474,6 +478,7 @@ export function MainApp({
           <BudgetFlow
             householdId={household.id}
             members={members}
+            currentUserId={user?.id ?? null}
             budget={editingBudget}
             initialCategory={creatingBudgetCategory}
             onClose={() => {
