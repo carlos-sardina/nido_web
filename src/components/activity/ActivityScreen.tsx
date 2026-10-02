@@ -77,6 +77,7 @@ function activityCaption(item: {
     scope?: string;
     categoryName?: string | null;
     goalName?: string | null;
+    entityType?: string;
     action?: "edited" | "deleted" | "archived" | "adjusted";
   };
 }): string {
@@ -88,10 +89,14 @@ function activityCaption(item: {
     parts.push("Personal");
   }
   if (
-    (item.type === "expense" || item.type === "refund" || item.type === "mutation") &&
-    item.metadata.scope === "shared"
+    item.metadata.scope === "shared" &&
+    (item.type === "expense" || item.type === "refund" || item.type === "mutation")
   ) {
-    parts.push("Compartido");
+    const householdExpense =
+      item.type === "expense" ||
+      item.type === "refund" ||
+      item.metadata.entityType === "expense";
+    parts.push(householdExpense ? "Nido" : "Compartido");
   }
   if (item.metadata.categoryName && item.type !== "mutation") parts.push(item.metadata.categoryName);
   return parts.join(" · ");

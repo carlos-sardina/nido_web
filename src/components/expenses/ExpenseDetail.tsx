@@ -4,7 +4,6 @@ import { useId, useRef, useState } from "react";
 import { Button } from "@/components/nido/Button";
 import { Field, FieldError, HelperText, MoneyField } from "@/components/nido/Field";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
-import { ScopeTag } from "@/components/nido/ScopeTag";
 import { Text } from "@/components/nido/Typography";
 import {
   canSubmitExpense,
@@ -21,12 +20,11 @@ import {
   formatRelativeActivityDate,
   isPersonalExpense,
   netExpense,
-  presupuestoKind,
+  personalBudgetOwnerLabel,
   parseExpenseAmountInput,
   refundableRemaining,
   refundAmountMessage,
   refundedTotal,
-  type BudgetItemView,
   type ExpenseRow,
 } from "@/lib/nido/financial";
 import type { HouseholdMemberView } from "@/lib/nido/types";
@@ -46,7 +44,6 @@ export function ExpenseDetail({
   expense,
   members,
   currentUserId,
-  budgets = [],
   onClose,
   onEdit,
   onDeleted,
@@ -55,7 +52,6 @@ export function ExpenseDetail({
   expense: ExpenseRow;
   members: HouseholdMemberView[];
   currentUserId: string | null;
-  budgets?: readonly BudgetItemView[];
   onClose: () => void;
   onEdit: () => void;
   onDeleted: () => void;
@@ -72,12 +68,6 @@ export function ExpenseDetail({
   const canEdit = canEditExpense(expense, currentUserId);
   const canRefund = canRefundExpense(expense, currentUserId);
   const personal = isPersonalExpense(expense);
-  const categoryKind = presupuestoKind(
-    budgets,
-    expense.categoryId,
-    expense.occurredAt,
-    currentUserId,
-  );
   const refunds = expense.refunds ?? [];
   const refunded = refundedTotal(refunds);
   const remaining = refundableRemaining(expense.amount, refunds);
@@ -278,24 +268,26 @@ export function ExpenseDetail({
                   ) : null}
                 </div>
 
-                <div className="flex items-start justify-between gap-4">
-                  <Text size="caption" tone="muted">
-                    Categoría
-                  </Text>
-                  <div className="flex items-center justify-end gap-1.5 min-w-0">
-                    <Text size="body-sm" className="text-right font-medium">
-                      {`${expense.category?.icon?.trim() || "💸"} ${expense.category?.name ?? "Categoría"}`}
-                    </Text>
-                    {categoryKind ? <ScopeTag kind={categoryKind} /> : null}
-                  </div>
-                </div>
+                <DetailRow
+                  label="Categoría"
+                  value={`${expense.category?.icon?.trim() || "💸"} ${expense.category?.name ?? "Categoría"}`}
+                />
                 <DetailRow
                   label="Fecha"
                   value={formatRelativeActivityDate(expense.occurredAt, expense.createdAt)}
                 />
                 <DetailRow
                   label="Tipo"
-                  value={personal ? "Personal" : "Compartido"}
+                  value={
+                    personal
+                      ? personalBudgetOwnerLabel(
+                          expense.createdBy,
+                          members.find((member) => member.userId === expense.createdBy)?.displayName
+                            ?? expense.payer?.displayName,
+                          currentUserId,
+                        )
+                      : "Nido"
+                  }
                 />
                 <DetailRow label="Lo registró" value={creatorName} />
                 <DetailRow label="Lo pagó" value={payerName} />

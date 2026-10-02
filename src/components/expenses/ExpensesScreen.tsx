@@ -21,11 +21,12 @@ import {
   formatCompactMoney,
   formatRelativeActivityDate,
   householdSpent,
+  isPaidByAllMembers,
   isPersonalExpense,
   isRecurringExpense,
   isSharedExpense,
   netExpense,
-  presupuestoKind,
+  personalBudgetOwnerLabel,
   type BudgetCategoryView,
   type BudgetItemView,
   type ExpenseRow,
@@ -84,7 +85,7 @@ function ExpensesHero({
       value: String(count),
     },
     sharedSpent > 0
-      ? { label: "Compartido", value: formatCompactMoney(sharedSpent) }
+      ? { label: "Nido", value: formatCompactMoney(sharedSpent) }
       : null,
     personalSpent > 0
       ? { label: "Personal", value: formatCompactMoney(personalSpent) }
@@ -149,11 +150,13 @@ function budgetForCategory(
 function ExpenseCategoryChip({
   category,
   budgetItem,
+  currentUserId,
   onOpenBudget,
   onCreateBudget,
 }: {
   category: BudgetCategoryView;
   budgetItem: BudgetItemView | undefined;
+  currentUserId: string | null;
   onOpenBudget: (budget: BudgetItemView) => void;
   onCreateBudget: (category?: BudgetCreateTarget) => void;
 }) {
@@ -182,7 +185,9 @@ function ExpenseCategoryChip({
       title={category.name}
       aria-label={
         budgetItem
-          ? `Ver presupuesto ${budgetItem.memberId ? "personal" : "del Nido"} de ${category.name}`
+          ? budgetItem.memberId
+            ? `Ver presupuesto personal de ${personalBudgetOwnerLabel(budgetItem.memberId, budgetItem.memberName, currentUserId)}: ${category.name}`
+            : `Ver presupuesto del Nido de ${category.name}`
           : `Crear presupuesto de ${category.name}`
       }
       className="flex-none min-w-[6.25rem] max-w-[7.5rem] rounded-2xl px-2.5 py-2 text-center active:scale-[0.97] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -196,7 +201,15 @@ function ExpenseCategoryChip({
       </div>
       {budgetItem ? (
         <div className="flex justify-center mb-0.5">
-          <ScopeTag compact kind={budgetItem.memberId ? "personal" : "nido"} />
+          <ScopeTag
+            compact
+            kind={budgetItem.memberId ? "personal" : "nido"}
+            label={
+              budgetItem.memberId
+                ? personalBudgetOwnerLabel(budgetItem.memberId, budgetItem.memberName, currentUserId)
+                : undefined
+            }
+          />
         </div>
       ) : null}
       <div
@@ -342,6 +355,7 @@ export function ExpensesScreen({
                     key={category.categoryId}
                     category={category}
                     budgetItem={budgetForCategory(category.categoryId, nidoItems, periodBudgets)}
+                    currentUserId={currentUserId}
                     onOpenBudget={onOpenBudget}
                     onCreateBudget={onCreateBudget}
                   />
@@ -367,12 +381,13 @@ export function ExpensesScreen({
                 const refunded = expenseHasRefunds(expense);
                 const net = netExpense(expense.amount, expense.refunds);
                 const participantNames = expense.splits
+                  .filter((split) => split.memberId !== expense.payerId)
                   .map((split) => firstName(memberName(split.memberId, members)))
                   .filter(Boolean);
-                const categoryKind = presupuestoKind(
-                  periodBudgets,
-                  expense.categoryId,
-                  expense.occurredAt,
+                const ownerLabel = personalBudgetOwnerLabel(
+                  expense.createdBy,
+                  members.find((member) => member.userId === expense.createdBy)?.displayName
+                    ?? expense.payer?.displayName,
                   currentUserId,
                 );
 
@@ -405,27 +420,23 @@ export function ExpensesScreen({
                           />
                         ) : null}
                       </div>
-                      <p className="text-[10px] mt-0.5 flex items-center gap-1 min-w-0" style={{ color: P.muted }}>
-                        <span className="truncate">{expense.category?.name ?? "Categoría"}</span>
-                        {categoryKind ? <ScopeTag kind={categoryKind} /> : null}
-                        <span className="truncate">
-                          {" · "}
-                          {firstName(payer)}
-                          {!personal && participantNames.length > 0
-                            ? ` · ${participantNames.join(", ")}`
-                            : null}
-                        </span>
+                      <p className="text-[10px] mt-0.5 truncate" style={{ color: P.muted }}>
+                        {expense.category?.name ?? "Categoría"}
+                        {personal ? null : isPaidByAllMembers(expense) ? (
+                          " · Todos"
+                        ) : (
+                          <>
+                            {" · "}
+                            {firstName(payer)}
+                            {participantNames.length > 0 ? ` · ${participantNames.join(", ")}` : null}
+                          </>
+                        )}
                       </p>
                       <div className="flex items-center gap-1.5 mt-1.5">
-                        <span
-                          className="text-[9px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5"
-                          style={{
-                            backgroundColor: personal ? "#FDEEF1" : "#E8F4EF",
-                            color: personal ? P.brnDp : P.sageDk,
-                          }}
-                        >
-                          {personal ? "Personal" : "Compartido"}
-                        </span>
+                        <ScopeTag
+                          kind={personal ? "personal" : "nido"}
+                          label={personal ? ownerLabel : "Nido"}
+                        />
                         <span className="text-[10px]" style={{ color: P.muted }}>
                           {formatRelativeActivityDate(expense.occurredAt, expense.createdAt)}
                         </span>

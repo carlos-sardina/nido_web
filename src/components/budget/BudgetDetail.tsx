@@ -15,9 +15,11 @@ import {
   formatRelativeActivityDate,
   isPersonalExpense,
   netExpense,
+  personalBudgetOwnerLabel,
   type BudgetItemView,
   type ExpenseRow,
 } from "@/lib/nido/financial";
+import type { HouseholdMemberView } from "@/lib/nido/types";
 import { P } from "@/lib/palette";
 
 function periodLabel(item: BudgetItemView): string {
@@ -29,6 +31,7 @@ function periodLabel(item: BudgetItemView): string {
 export function BudgetDetail({
   budget,
   expenses,
+  members = [],
   currentUserId,
   onClose,
   onEdit,
@@ -37,6 +40,7 @@ export function BudgetDetail({
 }: {
   budget: BudgetItemView;
   expenses: readonly ExpenseRow[];
+  members?: readonly HouseholdMemberView[];
   currentUserId: string | null;
   onClose: () => void;
   onEdit: () => void;
@@ -197,9 +201,11 @@ export function BudgetDetail({
                   label="Tipo"
                   value={
                     budget.memberId
-                      ? budget.memberId === currentUserId
-                        ? "Presupuesto personal"
-                        : `Presupuesto personal · ${budget.memberName?.split(/\s+/)[0] ?? "Miembro"}`
+                      ? `Presupuesto personal · ${
+                          budget.memberId === currentUserId
+                            ? "Mío"
+                            : budget.memberName?.split(/\s+/)[0] ?? "Miembro"
+                        }`
                       : "Presupuesto del Nido"
                   }
                 />
@@ -217,6 +223,9 @@ export function BudgetDetail({
                         const personal = isPersonalExpense(expense);
                         const net = netExpense(expense.amount, expense.refunds);
                         const title = expense.description?.trim() || "Gasto";
+                        const sameAsBudget =
+                          (budget.memberId == null && !personal)
+                          || (budget.memberId != null && personal && expense.createdBy === budget.memberId);
                         return (
                           <button
                             key={expense.id}
@@ -231,10 +240,21 @@ export function BudgetDetail({
                                 {title}
                               </p>
                               <div className="mt-1 flex items-center gap-1.5">
-                                <ScopeTag
-                                  kind={personal ? "personal" : "nido"}
-                                  label={personal ? "Personal" : "Compartido"}
-                                />
+                                {sameAsBudget ? null : (
+                                  <ScopeTag
+                                    kind={personal ? "personal" : "nido"}
+                                    label={
+                                      personal
+                                        ? personalBudgetOwnerLabel(
+                                            expense.createdBy,
+                                            members.find((member) => member.userId === expense.createdBy)?.displayName
+                                              ?? expense.payer?.displayName,
+                                            currentUserId,
+                                          )
+                                        : "Nido"
+                                    }
+                                  />
+                                )}
                                 <span className="text-[10px]" style={{ color: P.muted }}>
                                   {formatRelativeActivityDate(expense.occurredAt, expense.createdAt)}
                                 </span>

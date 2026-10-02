@@ -30,6 +30,7 @@ export function CategoryPicker({
   allowCreate = true,
   emptyLabel,
   scopeById,
+  scopeLabelById,
   onSelect,
   onCategoriesChange,
 }: {
@@ -44,6 +45,7 @@ export function CategoryPicker({
   allowCreate?: boolean;
   emptyLabel?: string;
   scopeById?: Readonly<Record<string, "personal" | "nido">>;
+  scopeLabelById?: Readonly<Record<string, string>>;
   onSelect: (categoryId: string) => void;
   onCategoriesChange: (categories: HouseholdCategory[]) => void;
 }) {
@@ -160,7 +162,14 @@ export function CategoryPicker({
                   </Text>
                   {scopeById?.[category.id] ? (
                     <span className="mt-1 block">
-                      <ScopeTag kind={scopeById[category.id]} />
+                      <ScopeTag
+                        kind={scopeById[category.id]}
+                        label={
+                          scopeById[category.id] === "personal"
+                            ? scopeLabelById?.[category.id] ?? "Mío"
+                            : undefined
+                        }
+                      />
                     </span>
                   ) : null}
                 </span>

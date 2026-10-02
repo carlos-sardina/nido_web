@@ -136,6 +136,11 @@ export function ExpenseFlow({
       return kind ? [[category.id, kind] as const] : [];
     }),
   );
+  const scopeLabelById = Object.fromEntries(
+    Object.entries(scopeById).flatMap(([id, kind]) =>
+      kind === "personal" ? [[id, "Mío"] as const] : [],
+    ),
+  );
   const askPayer = showExpensePayerPicker(effectiveScope, members.length);
   const askParticipants = showExpenseParticipantPicker(effectiveScope, members.length);
   const payerOptions = currentUserId
@@ -405,6 +410,7 @@ export function ExpenseFlow({
                 allowCreate={false}
                 emptyLabel="Crea un presupuesto para poder registrar el gasto."
                 scopeById={scopeById}
+                scopeLabelById={scopeLabelById}
                 onSelect={(id) => {
                   setCategoryId(id);
                   setErrors((current) => ({ ...current, category: undefined, scope: undefined }));
@@ -414,64 +420,46 @@ export function ExpenseFlow({
               <FieldError id={`${ids}-category-error`}>{errors.category}</FieldError>
             </Field>
 
-            {categoryId ? (
+            {categoryId && !loadingBudgets && !impliedScope ? (
             <Field>
               <p id={scopeLabelId} className="mb-2 text-label font-semibold text-muted-foreground">
-                {impliedScope ? "Este gasto es" : "¿Este gasto es…?"}
+                ¿Este gasto es…?
               </p>
-              {loadingBudgets ? null : impliedScope ? (
-                <div role="group" aria-labelledby={scopeLabelId}>
-                  <ChoiceCard
-                    icon={impliedScope === "personal" ? "👤" : "🏠"}
-                    title={impliedScope === "personal" ? "Personal" : "Compartido"}
-                    description={
-                      impliedScope === "personal"
-                        ? "Este presupuesto es tuyo."
-                        : "Este presupuesto es del Nido."
-                    }
-                    selected
-                    disabled
-                    className="disabled:opacity-100"
-                    onClick={() => {}}
-                  />
-                </div>
-              ) : (
-                <div className="space-y-2" role="group" aria-labelledby={scopeLabelId}>
-                  <ChoiceCard
-                    icon="👤"
-                    title="Personal"
-                    description="Solo te corresponde a ti."
-                    selected={scope === "personal"}
-                    disabled={submitting}
-                    onClick={() => {
-                      setScope("personal");
-                      setErrors((current) => ({
-                        ...current,
-                        scope: undefined,
-                        payer: undefined,
-                        participants: undefined,
-                      }));
-                    }}
-                  />
-                  <ChoiceCard
-                    icon="🏠"
-                    title="Compartido"
-                    description={
-                      canShare
-                        ? members.length === 2
-                          ? "Se divide entre los dos."
-                          : "Se divide entre las personas que elijas."
-                        : "Invita a otra persona para registrar gastos compartidos."
-                    }
-                    selected={scope === "shared"}
-                    disabled={submitting || !canShare}
-                    onClick={() => {
-                      setScope("shared");
-                      setErrors((current) => ({ ...current, scope: undefined, payer: undefined }));
-                    }}
-                  />
-                </div>
-              )}
+              <div className="space-y-2" role="group" aria-labelledby={scopeLabelId}>
+                <ChoiceCard
+                  icon="👤"
+                  title="Personal"
+                  description="Solo te corresponde a ti."
+                  selected={scope === "personal"}
+                  disabled={submitting}
+                  onClick={() => {
+                    setScope("personal");
+                    setErrors((current) => ({
+                      ...current,
+                      scope: undefined,
+                      payer: undefined,
+                      participants: undefined,
+                    }));
+                  }}
+                />
+                <ChoiceCard
+                  icon="🏠"
+                  title="Compartido"
+                  description={
+                    canShare
+                      ? members.length === 2
+                        ? "Se divide entre los dos."
+                        : "Se divide entre las personas que elijas."
+                      : "Invita a otra persona para registrar gastos compartidos."
+                  }
+                  selected={scope === "shared"}
+                  disabled={submitting || !canShare}
+                  onClick={() => {
+                    setScope("shared");
+                    setErrors((current) => ({ ...current, scope: undefined, payer: undefined }));
+                  }}
+                />
+              </div>
               <FieldError id={`${ids}-scope-error`}>{errors.scope}</FieldError>
             </Field>
             ) : null}

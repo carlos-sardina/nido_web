@@ -7,6 +7,7 @@ import {
   compactBalanceCopy,
   formatCompactMoney,
   formatHealthMonths,
+  personalBudgetOwnerLabel,
   formatRelativeActivityDate,
   type BudgetItemView,
   type HealthTone,
@@ -534,7 +535,9 @@ function DashboardBody({
                       title={category.name}
                       aria-label={
                         item
-                          ? `Ver presupuesto ${item.memberId ? "personal" : "del Nido"} de ${category.name}`
+                          ? item.memberId
+                            ? `Ver presupuesto personal de ${personalBudgetOwnerLabel(item.memberId, item.memberName, currentUserId)}: ${category.name}`
+                            : `Ver presupuesto del Nido de ${category.name}`
                           : `Crear presupuesto de ${category.name}`
                       }
                       className="flex-none w-[4.75rem] rounded-xl px-1.5 py-2 text-center overflow-hidden active:scale-[0.97] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -546,7 +549,15 @@ function DashboardBody({
                       </div>
                       {item ? (
                         <div className="flex justify-center mb-0.5">
-                          <ScopeTag compact kind={item.memberId ? "personal" : "nido"} />
+                          <ScopeTag
+                            compact
+                            kind={item.memberId ? "personal" : "nido"}
+                            label={
+                              item.memberId
+                                ? personalBudgetOwnerLabel(item.memberId, item.memberName, currentUserId)
+                                : undefined
+                            }
+                          />
                         </div>
                       ) : null}
                       <div

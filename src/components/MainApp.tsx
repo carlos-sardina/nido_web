@@ -314,7 +314,6 @@ export function MainApp({
             expense={liveSelectedExpense}
             members={members}
             currentUserId={user?.id ?? null}
-            budgets={dashboard.model?.periodBudgets ?? []}
             onClose={() => setSelectedExpense(null)}
             onEdit={() => {
               setEditingExpense(liveSelectedExpense);
@@ -422,6 +421,7 @@ export function MainApp({
           <BudgetDetail
             budget={liveSelectedBudget}
             expenses={dashboard.model?.periodExpenses ?? []}
+            members={members}
             currentUserId={user?.id ?? null}
             onOpenExpense={setSelectedExpense}
             onClose={() => setSelectedBudget(null)}

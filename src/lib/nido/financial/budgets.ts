@@ -345,6 +345,17 @@ function budgetsCoveringCategory(
   );
 }
 
+/** "Mío" for the viewer, otherwise the owner's first name. */
+export function personalBudgetOwnerLabel(
+  memberId: string | null | undefined,
+  memberName: string | null | undefined,
+  currentUserId: string | null | undefined,
+): string {
+  if (memberId && currentUserId && memberId === currentUserId) return "Mío";
+  const first = memberName?.trim().split(/\s+/).filter(Boolean)[0];
+  return first ?? "Personal";
+}
+
 /** Personal if this member owns the presupuesto; Nido if the household row covers it. */
 export function presupuestoKind(
   budgets: readonly BudgetIdentity[],

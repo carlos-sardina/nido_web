@@ -37,6 +37,7 @@ export {
   budgetNameConflictMessage,
   expenseScopeFromBudgets,
   personalBudgetLocksExpense,
+  personalBudgetOwnerLabel,
   presupuestoKind,
   nidoBudgetsForMonth,
   unbudgetedCategorySpend,

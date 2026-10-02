@@ -16,6 +16,7 @@ import {
   expensesConsumingBudget,
   expenseScopeFromBudgets,
   personalBudgetLocksExpense,
+  personalBudgetOwnerLabel,
   presupuestoKind,
   visiblePeriodBudgets,
 } from "./budgets.ts";
@@ -725,6 +726,15 @@ describe("expenseScopeFromBudgets", () => {
     ];
     assert.equal(expenseScopeFromBudgets(both, "rent", "2026-08-10", "carlos", 2), "personal");
     assert.equal(expenseScopeFromBudgets([personal], "spotify", "2026-08-10", "diana", 2), null);
+  });
+});
+
+describe("personalBudgetOwnerLabel", () => {
+  it("uses Mío for the viewer and the first name for someone else", () => {
+    assert.equal(personalBudgetOwnerLabel("carlos", "Carlos Pérez", "carlos"), "Mío");
+    assert.equal(personalBudgetOwnerLabel("diana", "Diana López", "carlos"), "Diana");
+    assert.equal(personalBudgetOwnerLabel("diana", "  ", "carlos"), "Personal");
+    assert.equal(personalBudgetOwnerLabel("diana", null, null), "Personal");
   });
 });
 

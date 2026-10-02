@@ -443,7 +443,7 @@ function DraftCard({
                 Archivado
               </span>
             ) : (
-              <ScopeTag kind={draft.personal ? "personal" : "nido"} />
+              <ScopeTag kind={draft.personal ? "personal" : "nido"} label={draft.personal ? "Mío" : undefined} />
             )}
           </div>
           {draft.archived ? (

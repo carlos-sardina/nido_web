@@ -15,6 +15,7 @@ import {
   formatMonthLabel,
   isNidoBudget,
   isPersonalBudget,
+  personalBudgetOwnerLabel,
   type BudgetCategoryView,
   type BudgetItemView,
 } from "@/lib/nido/financial";
@@ -33,14 +34,8 @@ function usageColor(item: BudgetItemView): string {
   return P.sageDk;
 }
 
-function firstName(name: string | null): string | null {
-  if (!name?.trim()) return null;
-  return name.trim().split(/\s+/).filter(Boolean)[0] ?? name;
-}
-
 function personalCaption(item: BudgetItemView, currentUserId: string | null): string {
-  if (item.memberId && item.memberId === currentUserId) return "Tú";
-  return firstName(item.memberName) ?? "Personal";
+  return personalBudgetOwnerLabel(item.memberId, item.memberName, currentUserId);
 }
 
 function consumptionCaption(item: BudgetItemView): string {
