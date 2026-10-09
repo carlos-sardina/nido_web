@@ -6,19 +6,22 @@ import { NavChevron } from "@/components/nido/ClickHint";
 import { P } from "@/lib/palette";
 
 const EMERALD = "linear-gradient(135deg, #255D4D 0%, #2F7D66 100%)";
+const EMERALD_DEEP = "linear-gradient(145deg, #1B3C32 0%, #2A6B56 100%)";
 const SAGE = "linear-gradient(135deg, #E8F4EF 0%, #F4EFE6 58%, #FAF4EC 100%)";
 
 export function EmeraldHero({
   children,
   className,
+  tone = "emerald",
 }: {
   children: ReactNode;
   className?: string;
+  tone?: "emerald" | "deep";
 }) {
   return (
     <div
       className={cn("rounded-[1.5rem] overflow-hidden", className)}
-      style={{ background: EMERALD }}
+      style={{ background: tone === "deep" ? EMERALD_DEEP : EMERALD }}
     >
       <div className="relative p-5">
         <div

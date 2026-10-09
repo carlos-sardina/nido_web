@@ -259,13 +259,38 @@ export type BudgetItemView = {
   memberName: string | null;
 };
 
-export type MonthBudgetView = {
+/**
+ * Aggregate of budget bars. `totalSpent` is consumption of those budgets,
+ * not every expense in the month.
+ */
+export type BudgetPlanSummary = {
   hasBudget: boolean;
   totalBudget: number;
   totalSpent: number;
   remaining: number;
   over: boolean;
   usagePercent: number | null;
+};
+
+export type MonthBudgetView = {
+  hasBudget: boolean;
+  /** Sum of Nido budget limits. */
+  totalBudget: number;
+  /** Every confirmed expense in the month, including unbudgeted spend. */
+  totalSpent: number;
+  remaining: number;
+  over: boolean;
+  usagePercent: number | null;
+  /**
+   * Progress of the Nido budget bars: their limits and their own consumption.
+   * Unbudgeted spend stays in `totalSpent`, not here.
+   */
+  nidoPlan: BudgetPlanSummary;
+  /**
+   * Nido plan plus personal budgets. A personal budget in a category that
+   * already has a Nido budget adds its limit, but not its spend again.
+   */
+  inclusivePlan: BudgetPlanSummary;
   categories: BudgetCategoryView[];
   /** Spend that counts in the monthly total but has no budget row. */
   unbudgetedCategories: BudgetCategoryView[];

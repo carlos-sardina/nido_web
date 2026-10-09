@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState, type ReactNode } from "react";
 import type { BudgetCreateTarget } from "@/components/flows/BudgetFlow";
 import { Button } from "@/components/nido/Button";
 import { ScopeTag } from "@/components/nido/ScopeTag";
@@ -18,6 +19,7 @@ import {
   personalBudgetOwnerLabel,
   type BudgetCategoryView,
   type BudgetItemView,
+  type BudgetPlanSummary,
 } from "@/lib/nido/financial";
 import type { DashboardQuery } from "@/lib/nido/use-dashboard";
 import { P } from "@/lib/palette";
@@ -128,62 +130,104 @@ export function BudgetScreen({
               </div>
             ) : null}
 
-            <EmeraldHero>
-              <HeroKicker trailing={model.range.label}>El plan del Nido</HeroKicker>
-              <div className="mb-3">
-                <HeroAmount
-                  value={formatCompactMoney(summary?.totalSpent ?? model.periodSpent)}
-                  caption={summary?.hasBudget ? `de ${formatCompactMoney(summary.totalBudget)}` : "gastados"}
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <HeroChip
-                  value={String(nidoBudgets.length)}
-                  label={nidoBudgets.length === 1 ? "presupuesto" : "presupuestos"}
-                />
-                {personalBudgets.length > 0 ? (
-                  <HeroChip
-                    value={String(personalBudgets.length)}
-                    label={personalBudgets.length === 1 ? "personal" : "personales"}
+            {nidoBudgets.length > 0 || personalBudgets.length > 0 ? (
+              <PlanSlider
+                label="Progreso de presupuestos"
+                slides={[
+                  {
+                    id: "nido",
+                    label: "Plan del Nido",
+                    card: (
+                      <PlanHero
+                        kicker="El plan del Nido"
+                        trailing={model.range.label}
+                        amount={
+                          summary?.nidoPlan.hasBudget
+                            ? summary.nidoPlan.totalSpent
+                            : 0
+                        }
+                        caption={
+                          summary?.nidoPlan.hasBudget
+                            ? `de ${formatCompactMoney(summary.nidoPlan.totalBudget)}`
+                            : "sin presupuestos del Nido"
+                        }
+                        plan={summary?.nidoPlan.hasBudget ? summary.nidoPlan : null}
+                        emptyHint={
+                          summary?.nidoPlan.hasBudget
+                            ? null
+                            : "Este mes el plan del Nido todavía no tiene límites."
+                        }
+                        chips={
+                          <>
+                            <HeroChip
+                              value={String(nidoBudgets.length)}
+                              label={nidoBudgets.length === 1 ? "presupuesto" : "presupuestos"}
+                            />
+                            {unbudgeted.length > 0 ? (
+                              <HeroChip
+                                value={String(unbudgeted.length)}
+                                label={unbudgeted.length === 1 ? "sin presupuesto" : "sin presupuesto"}
+                              />
+                            ) : null}
+                          </>
+                        }
+                      />
+                    ),
+                  },
+                  {
+                    id: "inclusive",
+                    label: "Plan con personales",
+                    card: (
+                      <PlanHero
+                        kicker="Nido y personales"
+                        trailing={model.range.label}
+                        tone="deep"
+                        amount={
+                          summary?.inclusivePlan.hasBudget
+                            ? summary.inclusivePlan.totalSpent
+                            : 0
+                        }
+                        caption={
+                          summary?.inclusivePlan.hasBudget
+                            ? `de ${formatCompactMoney(summary.inclusivePlan.totalBudget)}`
+                            : "sin presupuestos"
+                        }
+                        plan={summary?.inclusivePlan.hasBudget ? summary.inclusivePlan : null}
+                        emptyHint={null}
+                        chips={
+                          <>
+                            <HeroChip
+                              value={String(nidoBudgets.length)}
+                              label="del Nido"
+                            />
+                            <HeroChip
+                              value={String(personalBudgets.length)}
+                              label={personalBudgets.length === 1 ? "personal" : "personales"}
+                            />
+                          </>
+                        }
+                      />
+                    ),
+                  },
+                ]}
+              />
+            ) : (
+              <EmeraldHero>
+                <HeroKicker trailing={model.range.label}>El plan del Nido</HeroKicker>
+                <div className="mb-3">
+                  <HeroAmount
+                    value={formatCompactMoney(summary?.totalSpent ?? model.periodSpent)}
+                    caption="gastados"
                   />
-                ) : null}
+                </div>
                 {unbudgeted.length > 0 ? (
                   <HeroChip
                     value={String(unbudgeted.length)}
                     label={unbudgeted.length === 1 ? "sin presupuesto" : "sin presupuesto"}
                   />
                 ) : null}
-              </div>
-              {summary?.hasBudget ? (
-                <div className="mt-4">
-                  <div
-                    className="h-1.5 rounded-full overflow-hidden"
-                    style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
-                  >
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${Math.min(100, summary.usagePercent ?? 0)}%`,
-                        background: summary.over ? "#F0C4B4" : "rgba(255,255,255,0.85)",
-                      }}
-                    />
-                  </div>
-                  <div className="flex justify-between mt-1.5 text-[10px]">
-                    <span style={{ color: "rgba(255,255,255,0.4)" }}>
-                      {summary.over ? "Sobre el plan" : "Disponible"}
-                    </span>
-                    <span
-                      className="font-semibold"
-                      style={{ color: summary.over ? "#F0C4B4" : "rgba(255,255,255,0.7)" }}
-                    >
-                      {summary.over
-                        ? `${formatCompactMoney(Math.abs(summary.remaining))} de más`
-                        : formatCompactMoney(summary.remaining)}
-                    </span>
-                  </div>
-                </div>
-              ) : null}
-            </EmeraldHero>
+              </EmeraldHero>
+            )}
 
             {empty ? (
               <EmptyState
@@ -230,6 +274,170 @@ export function BudgetScreen({
           </div>
         ) : null}
       </PullToRefresh>
+    </div>
+  );
+}
+
+function PlanHero({
+  kicker,
+  trailing,
+  tone = "emerald",
+  amount,
+  caption,
+  plan,
+  emptyHint,
+  chips,
+}: {
+  kicker: string;
+  trailing: string;
+  tone?: "emerald" | "deep";
+  amount: number;
+  caption: string;
+  plan: BudgetPlanSummary | null;
+  emptyHint: string | null;
+  chips: ReactNode;
+}) {
+  return (
+    <EmeraldHero tone={tone} className="h-full">
+      <HeroKicker trailing={trailing}>{kicker}</HeroKicker>
+      <div className="mb-3">
+        <HeroAmount value={formatCompactMoney(amount)} caption={caption} />
+      </div>
+      <div className="flex flex-wrap gap-2">{chips}</div>
+      {plan ? <PlanProgress plan={plan} /> : null}
+      {emptyHint ? (
+        <p className="mt-3 text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
+          {emptyHint}
+        </p>
+      ) : null}
+    </EmeraldHero>
+  );
+}
+
+function PlanProgress({ plan }: { plan: BudgetPlanSummary }) {
+  const width = Math.min(100, Math.max(0, plan.usagePercent ?? 0));
+  return (
+    <div className="mt-4">
+      <div
+        className="h-1.5 w-full overflow-hidden rounded-full"
+        style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={width}
+        aria-label={plan.usagePercent != null ? `${plan.usagePercent}% del plan` : "Sin plan"}
+      >
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: `${width}%`,
+            background: plan.over ? "#F0C4B4" : "rgba(255,255,255,0.85)",
+          }}
+        />
+      </div>
+      <div className="mt-1.5 flex justify-between text-[10px]">
+        <span style={{ color: "rgba(255,255,255,0.4)" }}>
+          {plan.over ? "Sobre el plan" : "Disponible"}
+          {plan.usagePercent != null ? ` · ${plan.usagePercent}%` : ""}
+        </span>
+        <span
+          className="font-semibold"
+          style={{ color: plan.over ? "#F0C4B4" : "rgba(255,255,255,0.7)" }}
+        >
+          {plan.over
+            ? `${formatCompactMoney(Math.abs(plan.remaining))} de más`
+            : formatCompactMoney(plan.remaining)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function PlanSlider({
+  label,
+  slides,
+}: {
+  label: string;
+  slides: { id: string; label: string; card: ReactNode }[];
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [index, setIndex] = useState(0);
+
+  function syncIndex(el: HTMLDivElement) {
+    const cards = [...el.children] as HTMLElement[];
+    const center = el.scrollLeft + el.clientWidth / 2;
+    let nearest = 0;
+    let best = Number.POSITIVE_INFINITY;
+    cards.forEach((card, i) => {
+      const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+      const distance = Math.abs(cardCenter - center);
+      if (distance < best) {
+        best = distance;
+        nearest = i;
+      }
+    });
+    setIndex((current) => (current === nearest ? current : nearest));
+  }
+
+  function scrollToIndex(next: number) {
+    const el = scrollerRef.current;
+    const card = el?.children.item(next) as HTMLElement | null;
+    if (!el || !card) return;
+    el.scrollTo({ left: card.offsetLeft, behavior: "smooth" });
+    setIndex(next);
+  }
+
+  return (
+    <div>
+      <div
+        ref={scrollerRef}
+        className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{ touchAction: "pan-x" }}
+        role="region"
+        aria-roledescription="carrusel"
+        aria-label={label}
+        tabIndex={0}
+        onScroll={(event) => syncIndex(event.currentTarget)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            scrollToIndex(Math.min(index + 1, slides.length - 1));
+          } else if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            scrollToIndex(Math.max(index - 1, 0));
+          }
+        }}
+      >
+        {slides.map((slide) => (
+          <div
+            key={slide.id}
+            data-plan-slide=""
+            className="w-[88%] shrink-0 snap-start"
+            role="group"
+            aria-roledescription="diapositiva"
+            aria-label={slide.label}
+          >
+            {slide.card}
+          </div>
+        ))}
+      </div>
+      <div className="mt-2.5 flex justify-center gap-1.5" role="tablist" aria-label={label}>
+        {slides.map((slide, i) => (
+          <button
+            key={slide.id}
+            type="button"
+            role="tab"
+            aria-selected={i === index}
+            aria-label={slide.label}
+            onClick={() => scrollToIndex(i)}
+            className="h-1.5 rounded-full transition-all"
+            style={{
+              width: i === index ? 16 : 6,
+              backgroundColor: i === index ? P.sage : P.sub,
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -354,7 +562,7 @@ function UnbudgetedSection({
         Gastos sin presupuesto
       </p>
       <p className="text-[11px]" style={{ color: P.muted }}>
-        Cuentan en el total del mes. Créales un límite para verlos en el plan.
+        No entran en la barra del plan. Créales un límite para incluirlos.
       </p>
       {items.map((item) => (
         <UnbudgetedCard

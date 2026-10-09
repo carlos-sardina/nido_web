@@ -304,7 +304,14 @@ function DashboardBody({
 }) {
   const { health, budget, activeGoals, activity, empty, range, monthlyBalance, outstandingBalanceMonths } = model;
   const balanceCopy = compactBalanceCopy(monthlyBalance, currentUserId);
-  const diff = Math.abs(budget.remaining);
+  const plan = budget.nidoPlan.hasBudget ? budget.nidoPlan : null;
+  const planSpent = plan ? plan.totalSpent : budget.totalSpent;
+  const planBudget = plan ? plan.totalBudget : budget.totalBudget;
+  const planRemaining = plan ? plan.remaining : budget.remaining;
+  const planOver = plan ? plan.over : budget.over;
+  const planPercent = plan ? plan.usagePercent : budget.usagePercent;
+  const showPlanBar = plan ? plan.hasBudget : budget.hasBudget;
+  const diff = Math.abs(planRemaining);
   const healthChips = health.available ? healthMetricChips(health) : [];
 
   return (
@@ -471,11 +478,11 @@ function DashboardBody({
               <div className="flex items-center gap-2 mb-3">
                 <div className="flex items-baseline gap-2 min-w-0 flex-1">
                   <span className="text-[22px] font-bold font-sans" style={{ color: P.text }}>
-                    {formatCompactMoney(budget.totalSpent)}
+                    {formatCompactMoney(planSpent)}
                   </span>
-                  {budget.hasBudget ? (
+                  {showPlanBar ? (
                     <span className="text-xs" style={{ color: P.muted }}>
-                      de {formatCompactMoney(budget.totalBudget)}
+                      de {formatCompactMoney(planBudget)}
                     </span>
                   ) : (
                     <span className="text-xs" style={{ color: P.muted }}>
@@ -485,26 +492,36 @@ function DashboardBody({
                 </div>
                 <NavChevron />
               </div>
-              {budget.hasBudget ? (
+              {showPlanBar ? (
                 <>
-                  <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: P.sub }}>
+                  <div
+                    className="h-2 w-full rounded-full overflow-hidden mb-2"
+                    style={{ backgroundColor: P.sub }}
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.min(100, Math.max(0, planPercent ?? 0))}
+                    aria-label={planPercent != null ? `${planPercent}% del plan del Nido` : "Sin plan"}
+                  >
                     <div
                       className="h-full rounded-full"
                       style={{
-                        width: `${Math.min(100, budget.usagePercent ?? 0)}%`,
-                        background: budget.over
+                        width: `${Math.min(100, Math.max(0, planPercent ?? 0))}%`,
+                        background: planOver
                           ? P.danger
                           : `linear-gradient(90deg, ${P.sage}, ${P.sageDk})`,
                       }}
                     />
                   </div>
                   <div className="flex justify-between text-[10px]">
-                    <span style={{ color: P.muted }}>Gastado este mes</span>
+                    <span style={{ color: P.muted }}>
+                      {planPercent != null ? `${planPercent}% del plan` : "Gastado este mes"}
+                    </span>
                     <span
                       className="font-semibold"
-                      style={{ color: budget.over ? P.danger : P.sageDk }}
+                      style={{ color: planOver ? P.danger : P.sageDk }}
                     >
-                      {budget.over
+                      {planOver
                         ? `$${diff.toLocaleString("es-MX")} sobre el plan`
                         : `$${diff.toLocaleString("es-MX")} disponible`}
                     </span>

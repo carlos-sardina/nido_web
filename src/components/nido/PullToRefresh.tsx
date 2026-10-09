@@ -35,6 +35,7 @@ export function PullToRefresh({
   const localRef = useRef<HTMLDivElement>(null);
   const [pullDistance, setPullDistance] = useState(0);
   const trackingRef = useRef(false);
+  const startXRef = useRef(0);
   const startYRef = useRef(0);
   const pullRef = useRef(0);
   const refreshingRef = useRef(refreshing);
@@ -68,6 +69,7 @@ export function PullToRefresh({
         return;
       }
       trackingRef.current = true;
+      startXRef.current = event.touches[0].clientX;
       startYRef.current = event.touches[0].clientY;
       pullRef.current = 0;
     };
@@ -80,7 +82,12 @@ export function PullToRefresh({
         setPullDistance(0);
         return;
       }
+      const deltaX = event.touches[0].clientX - startXRef.current;
       const deltaY = event.touches[0].clientY - startYRef.current;
+      if (pullRef.current === 0 && Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 8) {
+        trackingRef.current = false;
+        return;
+      }
       if (deltaY <= 0) {
         pullRef.current = 0;
         setPullDistance(0);

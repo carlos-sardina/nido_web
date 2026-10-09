@@ -7,6 +7,7 @@ import type {
   BudgetCategoryView,
   BudgetConsumption,
   BudgetItemView,
+  BudgetPlanSummary,
   BudgetRow,
   ExpenseRow,
   ExpenseScope,
@@ -269,10 +270,53 @@ export function unbudgetedCategorySpend(
     .sort(sortCategorySpend);
 }
 
+function planFromTotals(totalBudget: number, totalSpent: number): BudgetPlanSummary {
+  const remaining = roundMoney(totalBudget - totalSpent);
+  return {
+    hasBudget: totalBudget > 0,
+    totalBudget,
+    totalSpent,
+    remaining,
+    over: totalBudget > 0 && totalSpent > totalBudget,
+    usagePercent: ratioPercent(totalSpent, totalBudget),
+  };
+}
+
+function planFromItems(
+  items: readonly Pick<BudgetItemView, "amount" | "spent">[],
+): BudgetPlanSummary {
+  return planFromTotals(
+    sumMoney(items.map((item) => item.amount)),
+    sumMoney(items.map((item) => item.spent)),
+  );
+}
+
+/**
+ * Personal limits always join the total. Their spend joins only when that
+ * category has no Nido budget — otherwise the Nido bar already includes it.
+ */
+function inclusivePlanFromItems(
+  nidoItems: readonly BudgetItemView[],
+  personalItems: readonly BudgetItemView[],
+): BudgetPlanSummary {
+  const nidoCategories = new Set(nidoItems.map((item) => item.categoryId));
+  const spentItems = [
+    ...nidoItems,
+    ...personalItems.filter((item) => !nidoCategories.has(item.categoryId)),
+  ];
+  return planFromTotals(
+    sumMoney([...nidoItems, ...personalItems].map((item) => item.amount)),
+    sumMoney(spentItems.map((item) => item.spent)),
+  );
+}
+
 /**
  * Budget.amount is a planning target, not a spending cap.
  * Spent is derived from confirmed expenses in the same category and period.
  * There is no current_spent column.
+ *
+ * `totalSpent` is every confirmed expense in the month.
+ * `nidoPlan` and `inclusivePlan` follow the individual budget bars.
  *
  * `categories` includes Nido-budgeted rows plus any other category with
  * spend, so unbudgeted outflow stays visible in the monthly plan.
@@ -283,8 +327,14 @@ export function buildMonthBudgetView(
   range: MonthRange,
 ): MonthBudgetView {
   const nidoBudgets = nidoBudgetsForMonth(budgets, range);
+  const personalBudgets = budgetsOverlappingRange(budgets, range).filter(isPersonalBudget);
   const items = nidoBudgets.map((budget) => buildBudgetItemView(budget, periodExpenses));
-  const totalBudget = sumMoney(nidoBudgets.map((budget) => budget.amount));
+  const personalItems = personalBudgets.map((budget) =>
+    buildBudgetItemView(budget, periodExpenses),
+  );
+  const nidoPlan = planFromItems(items);
+  const inclusivePlan = inclusivePlanFromItems(items, personalItems);
+  const totalBudget = nidoPlan.totalBudget;
   const totalSpent = sumMoney(
     periodExpenses
       .filter(isActiveExpense)
@@ -315,6 +365,8 @@ export function buildMonthBudgetView(
     remaining,
     over,
     usagePercent: ratioPercent(totalSpent, totalBudget),
+    nidoPlan,
+    inclusivePlan,
     categories,
     unbudgetedCategories: unbudgetedCategorySpend(periodExpenses, budgets, range),
     items,

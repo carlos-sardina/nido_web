@@ -288,6 +288,7 @@ export type {
   BudgetCategoryView,
   BudgetConsumption,
   BudgetItemView,
+  BudgetPlanSummary,
   BudgetRow,
   DashboardSnapshot,
   DashboardViewModel,

@@ -108,6 +108,8 @@ describe("month budget view", () => {
     assert.equal(view.hasBudget, false);
     assert.equal(view.totalSpent, 0);
     assert.equal(view.usagePercent, null);
+    assert.equal(view.nidoPlan.hasBudget, false);
+    assert.equal(view.inclusivePlan.hasBudget, false);
     assert.deepEqual(view.items, []);
   });
 
@@ -141,6 +143,11 @@ describe("month budget view", () => {
     assert.equal(view.totalSpent, 20700);
     assert.equal(view.totalBudget, 20000);
     assert.equal(view.over, true);
+    assert.equal(view.nidoPlan.totalSpent, 20000);
+    assert.equal(view.nidoPlan.totalBudget, 20000);
+    assert.equal(view.nidoPlan.usagePercent, 100);
+    assert.equal(view.nidoPlan.over, false);
+    assert.equal(view.inclusivePlan.totalSpent, 20000);
     assert.equal(view.items.length, 1);
     const extra = view.categories.find((category) => category.categoryId === "net");
     assert.equal(extra?.unbudgeted, true);
@@ -158,6 +165,79 @@ describe("month budget view", () => {
     assert.equal(view.hasBudget, false);
     assert.equal(view.categories[0].unbudgeted, true);
     assert.equal(view.unbudgetedCategories.length, 0);
+    assert.equal(view.nidoPlan.hasBudget, false);
+    assert.equal(view.inclusivePlan.hasBudget, true);
+    assert.equal(view.inclusivePlan.totalBudget, 5000);
+    assert.equal(view.inclusivePlan.totalSpent, 0);
+  });
+
+  it("builds plan bars from each budget, and adds personal budgets once", () => {
+    const view = buildMonthBudgetView(
+      [
+        budget({
+          amount: 1000,
+          categoryId: "food",
+          category: { id: "food", name: "Comida", icon: "🍽️" },
+        }),
+        budget({
+          id: "b-gym",
+          amount: 500,
+          categoryId: "gym",
+          memberId: "u1",
+          category: { id: "gym", name: "Gimnasio", icon: "🏋️" },
+        }),
+        budget({
+          id: "b-spot",
+          amount: 200,
+          categoryId: "spotify",
+          category: { id: "spotify", name: "Spotify", icon: "🎵" },
+        }),
+        budget({
+          id: "b-spot-me",
+          amount: 200,
+          categoryId: "spotify",
+          memberId: "u1",
+          category: { id: "spotify", name: "Spotify", icon: "🎵" },
+        }),
+      ],
+      [
+        expense({ amount: 400, categoryId: "food" }),
+        expense({
+          id: "e-gym",
+          amount: 100,
+          categoryId: "gym",
+          scope: "personal",
+          createdBy: "u1",
+          payerId: "u1",
+          category: { id: "gym", name: "Gimnasio", icon: "🏋️" },
+        }),
+        expense({
+          id: "e-spot-shared",
+          amount: 50,
+          categoryId: "spotify",
+          category: { id: "spotify", name: "Spotify", icon: "🎵" },
+        }),
+        expense({
+          id: "e-spot-me",
+          amount: 80,
+          categoryId: "spotify",
+          scope: "personal",
+          createdBy: "u1",
+          payerId: "u1",
+          category: { id: "spotify", name: "Spotify", icon: "🎵" },
+        }),
+      ],
+      range,
+    );
+
+    assert.equal(view.nidoPlan.totalBudget, 1200);
+    assert.equal(view.nidoPlan.totalSpent, 530);
+    assert.equal(view.nidoPlan.usagePercent, 44);
+    assert.equal(view.inclusivePlan.totalBudget, 1900);
+    assert.equal(view.inclusivePlan.totalSpent, 630);
+    assert.equal(view.inclusivePlan.usagePercent, 33);
+    assert.equal(view.inclusivePlan.remaining, 1270);
+    assert.equal(view.inclusivePlan.over, false);
   });
 
   it("excludes budgets that do not overlap the current month", () => {
