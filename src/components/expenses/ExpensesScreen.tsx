@@ -109,19 +109,29 @@ function ExpensesHero({
       {budget?.hasBudget ? (
         <div className="mt-4">
           <div
-            className="h-1.5 rounded-full overflow-hidden"
+            className="h-1.5 w-full overflow-hidden rounded-full"
             style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.min(100, Math.max(0, budget.usagePercent ?? 0))}
+            aria-label={
+              budget.usagePercent != null
+                ? `${budget.usagePercent}% del plan del Nido`
+                : "Sin plan"
+            }
           >
             <div
               className="h-full rounded-full"
               style={{
-                width: `${Math.min(100, budget.usagePercent ?? 0)}%`,
+                width: `${Math.min(100, Math.max(0, budget.usagePercent ?? 0))}%`,
                 background: budget.over ? "#F0C4B4" : "rgba(255,255,255,0.85)",
               }}
             />
           </div>
-          <div className="flex justify-between mt-1.5 text-[10px]">
+          <div className="mt-1.5 flex justify-between text-[10px]">
             <span style={{ color: "rgba(255,255,255,0.4)" }}>
+              {budget.usagePercent != null ? `${budget.usagePercent}% · ` : ""}
               de {formatCompactMoney(budget.totalBudget)} presupuestado
             </span>
             <span
@@ -336,7 +346,7 @@ export function ExpensesScreen({
             count={expenses.length}
             sharedSpent={sharedSpent}
             personalSpent={personalSpent}
-            budget={model.budget}
+            budget={model.budget.nidoPlan.hasBudget ? model.budget.nidoPlan : null}
           />
 
           {empty ? null : <DailySpendChart expenses={expenses} range={model.range} />}
