@@ -2,6 +2,7 @@
 
 import { Repeat } from "lucide-react";
 import type { BudgetCreateTarget } from "@/components/flows/BudgetFlow";
+import { DailySpendChart } from "@/components/expenses/DailySpendChart";
 import { Button } from "@/components/nido/Button";
 import { ScopeTag } from "@/components/nido/ScopeTag";
 import { NavChevron, SeeMoreHint, SeeMoreLink } from "@/components/nido/ClickHint";
@@ -337,6 +338,8 @@ export function ExpensesScreen({
             personalSpent={personalSpent}
             budget={model.budget}
           />
+
+          {empty ? null : <DailySpendChart expenses={expenses} range={model.range} />}
 
           {categories.length > 0 ? (
             <div className="mb-3">

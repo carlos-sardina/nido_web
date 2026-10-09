@@ -1,4 +1,4 @@
-import { isDateInRange, type MonthRange } from "./dates.ts";
+import { daysInMonth, isDateInRange, isoDate, type MonthRange } from "./dates.ts";
 import { roundMoney, sumMoney } from "./money.ts";
 import { expenseHasRefunds, netExpense } from "./refunds.ts";
 import type { ExpenseRow, ExpenseSplitRow } from "./types.ts";
@@ -65,6 +65,37 @@ export function householdSpent(expenses: ExpenseRow[]): number {
       .filter(isActiveExpense)
       .map((expense) => netExpense(expense.amount, expense.refunds)),
   );
+}
+
+export type DailySpendPoint = {
+  /** Inclusive calendar date, YYYY-MM-DD. */
+  date: string;
+  /** Day of month, 1–31. */
+  day: number;
+  /** Net spent that day, after refunds. Zero when nothing was recorded. */
+  amount: number;
+};
+
+/**
+ * One point per calendar day of `range`, including days with no expenses.
+ * Totals match `householdSpent`: confirmed expenses only, net of refunds,
+ * attributed to the expense date rather than the refund date.
+ */
+export function dailySpendSeries(expenses: ExpenseRow[], range: MonthRange): DailySpendPoint[] {
+  const totals = new Map<string, number>();
+  for (const expense of expenses) {
+    if (!isActiveExpense(expense) || !isDateInRange(expense.occurredAt, range)) continue;
+    const net = netExpense(expense.amount, expense.refunds);
+    totals.set(expense.occurredAt, sumMoney([totals.get(expense.occurredAt) ?? 0, net]));
+  }
+
+  const count = daysInMonth(range.year, range.month);
+  const series: DailySpendPoint[] = [];
+  for (let day = 1; day <= count; day += 1) {
+    const date = isoDate(range.year, range.month, day);
+    series.push({ date, day, amount: totals.get(date) ?? 0 });
+  }
+  return series;
 }
 
 /**

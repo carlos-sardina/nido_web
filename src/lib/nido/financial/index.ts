@@ -103,6 +103,7 @@ export {
   canEditExpense,
   canMutateExpense,
   canRefundExpense,
+  dailySpendSeries,
   expensePayerLabel,
   householdSpent,
   isActiveExpense,
@@ -115,6 +116,7 @@ export {
   memberPaid,
   memberRefundShare,
   visiblePeriodExpenses,
+  type DailySpendPoint,
 } from "./expenses.ts";
 export {
   activeExpenseCategories,

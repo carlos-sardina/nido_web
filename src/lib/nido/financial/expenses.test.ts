@@ -6,6 +6,7 @@ import {
   canMutateExpense,
   canRefundExpense,
   expensePayerLabel,
+  dailySpendSeries,
   householdSpent,
   memberBalance,
   memberOwed,
@@ -320,6 +321,64 @@ describe("visible period expenses", () => {
     assert.deepEqual(
       visiblePeriodExpenses(rows, range, "h1").map((row) => row.id),
       ["newer", "older", "earlier-day"],
+    );
+  });
+});
+
+describe("daily spend series", () => {
+  const range = getMonthRange(2026, 8);
+
+  it("includes every day of the month, even days without expenses", () => {
+    const series = dailySpendSeries([], range);
+    assert.equal(series.length, 31);
+    assert.deepEqual(series[0], { date: "2026-08-01", day: 1, amount: 0 });
+    assert.deepEqual(series[30], { date: "2026-08-31", day: 31, amount: 0 });
+  });
+
+  it("uses 28 days in a non-leap February", () => {
+    const february = getMonthRange(2026, 2);
+    const series = dailySpendSeries([], february);
+    assert.equal(series.length, 28);
+    assert.equal(series.at(-1)?.date, "2026-02-28");
+  });
+
+  it("sums same-day expenses net of refunds and ignores deleted or out-of-month rows", () => {
+    const rows = [
+      expense({ id: "a", amount: 100, payerId: "carlos", occurredAt: "2026-08-10" }),
+      expense({
+        id: "b",
+        amount: 40.5,
+        payerId: "carlos",
+        occurredAt: "2026-08-10",
+        refunds: [
+          {
+            id: "r1",
+            expenseId: "b",
+            amount: 10.5,
+            occurredAt: "2026-08-12",
+            createdBy: "carlos",
+            createdAt: "2026-08-12T12:00:00.000Z",
+            splits: [],
+          },
+        ],
+      }),
+      expense({ id: "c", amount: 20, payerId: "carlos", occurredAt: "2026-08-02" }),
+      expense({
+        id: "deleted",
+        amount: 999,
+        payerId: "carlos",
+        occurredAt: "2026-08-02",
+        deletedAt: "2026-08-03T00:00:00.000Z",
+      }),
+      expense({ id: "other-month", amount: 500, payerId: "carlos", occurredAt: "2026-07-31" }),
+    ];
+    const series = dailySpendSeries(rows, range);
+    assert.equal(series.find((point) => point.date === "2026-08-10")?.amount, 130);
+    assert.equal(series.find((point) => point.date === "2026-08-02")?.amount, 20);
+    assert.equal(series.find((point) => point.date === "2026-08-12")?.amount, 0);
+    assert.equal(
+      series.reduce((total, point) => total + point.amount, 0),
+      150,
     );
   });
 });
