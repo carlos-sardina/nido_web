@@ -13,6 +13,7 @@ import { TextLink } from "@/components/nido/TextLink";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
   formatCompactMoney,
+  formatExactMoney,
   formatMonthLabel,
   isNidoBudget,
   isPersonalBudget,
@@ -43,14 +44,14 @@ function personalCaption(item: BudgetItemView, currentUserId: string | null): st
 function consumptionCaption(item: BudgetItemView): string {
   const percent = item.usagePercent != null ? `${item.usagePercent}%` : null;
   if (item.over) {
-    const over = `Restante ${formatCompactMoney(item.remaining)}`;
+    const over = `Restante ${formatExactMoney(item.remaining)}`;
     return percent ? `${percent} · ${over}` : over;
   }
   if (item.nearLimit) {
-    const near = `Cerca del límite · ${formatCompactMoney(item.remaining)} restante`;
+    const near = `Cerca del límite · ${formatExactMoney(item.remaining)} restante`;
     return percent ? `${percent} · ${near}` : near;
   }
-  const rest = `${formatCompactMoney(item.remaining)} restante · ${periodLabel(item)}`;
+  const rest = `${formatExactMoney(item.remaining)} restante · ${periodLabel(item)}`;
   return percent ? `${percent} · ${rest}` : rest;
 }
 
@@ -523,10 +524,10 @@ function BudgetCard({
                 className="text-sm font-bold font-sans"
                 style={{ color: item.over ? P.danger : P.text }}
               >
-                {formatCompactMoney(item.spent)}
+                {formatExactMoney(item.spent)}
               </span>
               <span className="text-[9px]" style={{ color: P.muted }}>
-                / {formatCompactMoney(item.amount)}
+                / {formatExactMoney(item.amount)}
               </span>
             </div>
           </div>
@@ -619,7 +620,7 @@ function UnbudgetedCard({
               </span>
             </div>
             <span className="text-sm font-bold font-sans flex-shrink-0" style={{ color: P.warn }}>
-              {formatCompactMoney(item.spent)}
+              {formatExactMoney(item.spent)}
             </span>
           </div>
           <p className="text-[10px]" style={{ color: P.warn }}>

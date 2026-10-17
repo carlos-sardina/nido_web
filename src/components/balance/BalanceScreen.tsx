@@ -350,7 +350,7 @@ export function BalanceScreen({
               {balance.status === "unsettled" ? (
                 <div className="mb-2">
                   <HeroAmount
-                    value={formatCompactMoney(sumMoney(balance.settlements.map((row) => row.amount)))}
+                    value={formatExactMoney(sumMoney(balance.settlements.map((row) => row.amount)))}
                     caption="por saldar"
                   />
                 </div>

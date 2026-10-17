@@ -11,12 +11,11 @@ import { archiveGoal, canSubmitGoal } from "@/lib/nido/goals";
 import {
   canMutateContribution,
   canMutateGoal,
-  formatCompactMoney,
+  formatExactMoney,
   goalKindLabel,
   goalScopeLabel,
   formatGoalTargetDate,
   formatRelativeActivityDate,
-  formatWholeMoney,
   goalProgress,
   isFund,
   roundMoney,
@@ -215,7 +214,7 @@ export function GoalDetail({
                   />
                   <DetailRow
                     label="Objetivo"
-                    value={progress.invalidTarget ? "—" : formatCompactMoney(goal.targetAmount)}
+                    value={progress.invalidTarget ? "—" : formatExactMoney(goal.targetAmount)}
                   />
                   {targetLabel ? <DetailRow label="Fecha objetivo" value={targetLabel} /> : null}
                   {goal.description?.trim() ? (
@@ -260,7 +259,7 @@ export function GoalDetail({
                                 </Text>
                               </div>
                               <Text size="body-sm" className="font-semibold shrink-0 font-sans" style={{ color: P.sageDk }}>
-                                {formatCompactMoney(contribution.amount)}
+                                {formatExactMoney(contribution.amount)}
                               </Text>
                             </div>
                             {own ? (
@@ -315,7 +314,7 @@ function GoalProgressHero({
       ? "Fondo alcanzado"
       : "Meta alcanzada"
     : remaining != null
-      ? `Faltan ${formatCompactMoney(remaining)}`
+      ? `Faltan ${formatExactMoney(remaining)}`
       : null;
 
   return (
@@ -351,12 +350,12 @@ function GoalProgressHero({
               </p>
             </div>
             <p className="text-[28px] font-bold font-sans leading-none" style={{ color: "#FFFCFA" }}>
-              {formatWholeMoney(progress.contributed)}
+              {formatExactMoney(progress.contributed)}
             </p>
             <p className="mt-2 text-[11px]" style={{ color: "rgba(255,255,255,0.55)" }}>
               {progress.invalidTarget
                 ? "Sin objetivo definido"
-                : `de ${formatCompactMoney(progress.targetAmount)}`}
+                : `de ${formatExactMoney(progress.targetAmount)}`}
             </p>
           </div>
           <ProgressRing percent={percent} />

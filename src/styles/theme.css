@@ -240,4 +240,24 @@
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
   }
+
+  /* Native date controls have a large min-content width. Inside a flex
+     column that becomes wider than the screen unless the control can shrink. */
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="time"],
+  input[type="week"] {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="datetime-local"]::-webkit-datetime-edit,
+  input[type="datetime-local"]::-webkit-date-and-time-value {
+    min-width: 0;
+    overflow: hidden;
+  }
 }

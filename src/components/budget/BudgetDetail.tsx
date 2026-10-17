@@ -10,7 +10,7 @@ import { canSubmitBudget, deleteBudget } from "@/lib/nido/budgets";
 import {
   canMutateBudget,
   expensesConsumingBudget,
-  formatCompactMoney,
+  formatExactMoney,
   formatMonthLabel,
   formatRelativeActivityDate,
   isPersonalExpense,
@@ -147,7 +147,7 @@ export function BudgetDetail({
                     Límite
                   </Text>
                   <p className="mt-1 text-h2 font-bold font-sans" style={{ color: P.text }}>
-                    {formatCompactMoney(budget.amount)}
+                    {formatExactMoney(budget.amount)}
                   </p>
                 </div>
 
@@ -162,7 +162,7 @@ export function BudgetDetail({
                     className="mt-1 text-h2 font-bold font-sans"
                     style={{ color: budget.over ? P.danger : P.text }}
                   >
-                    {formatCompactMoney(budget.spent)}
+                    {formatExactMoney(budget.spent)}
                   </p>
                   <div
                     className="mt-3 h-1.5 rounded-full overflow-hidden"
@@ -188,8 +188,8 @@ export function BudgetDetail({
                   >
                     {budget.usagePercent != null ? `${budget.usagePercent}% · ` : ""}
                     {budget.over
-                      ? `Restante ${formatCompactMoney(budget.remaining)}`
-                      : `${formatCompactMoney(budget.remaining)} restante`}
+                      ? `Restante ${formatExactMoney(budget.remaining)}`
+                      : `${formatExactMoney(budget.remaining)} restante`}
                   </p>
                 </div>
 
@@ -261,7 +261,7 @@ export function BudgetDetail({
                               </div>
                             </div>
                             <span className="text-sm font-bold font-sans flex-shrink-0" style={{ color: P.text }}>
-                              {formatCompactMoney(net)}
+                              {formatExactMoney(net)}
                             </span>
                           </button>
                         );

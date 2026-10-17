@@ -9,7 +9,7 @@ import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/nido/Screen";
 import { Text } from "@/components/nido/Typography";
 import {
-  formatCompactMoney,
+  formatExactMoney,
   frequencyLabel,
   isRecurrenceDue,
   recurrenceStatus,
@@ -163,7 +163,7 @@ export function RecurringIncomesScreen({
                         ) : null}
                       </div>
                       <span className="text-sm font-bold flex-shrink-0 font-sans" style={{ color: P.sageDk }}>
-                        {formatCompactMoney(template.amount)}
+                        {formatExactMoney(template.amount)}
                       </span>
                       <NavChevron />
                     </button>

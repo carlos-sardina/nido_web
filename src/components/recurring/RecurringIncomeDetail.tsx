@@ -8,7 +8,7 @@ import { BackLink, FlowScreen, ScreenFooter, ScreenIntro } from "@/components/ni
 import { Text } from "@/components/nido/Typography";
 import {
   canMutateRecurrence,
-  formatCompactMoney,
+  formatExactMoney,
   frequencyLabel,
   isRecurrenceDue,
   recurrenceStatus,
@@ -100,7 +100,7 @@ export function RecurringIncomeDetail({
             <div className="rounded-2xl p-4" style={{ backgroundColor: P.card }}>
               <Text size="caption" tone="muted">Monto</Text>
               <p className="text-lg font-semibold" style={{ color: P.text }}>
-                {formatCompactMoney(template.amount)}
+                {formatExactMoney(template.amount)}
               </p>
               <Text size="caption" tone="muted" className="mt-3">
                 {template.category?.name ?? "Categoría"} · {frequencyLabel(template.frequency)} ·{" "}

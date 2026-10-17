@@ -7,7 +7,7 @@ import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { TextLink } from "@/components/nido/TextLink";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
-  formatCompactMoney,
+  formatExactMoney,
   formatGoalTargetDate,
   formatWholeMoney,
   goalScopeLabel,
@@ -277,7 +277,7 @@ function GoalCard({
         ? "Fondo alcanzado"
         : "Meta alcanzada"
       : remaining != null
-        ? `Faltan ${formatCompactMoney(remaining)}`
+        ? `Faltan ${formatExactMoney(remaining)}`
         : null;
 
   return (
@@ -320,10 +320,10 @@ function GoalCard({
       <div className="mt-3 flex items-baseline justify-between gap-2">
         <div className="flex items-baseline gap-1.5 min-w-0">
           <span className="text-xl font-bold font-sans" style={{ color: P.text }}>
-            {formatCompactMoney(progress.contributed)}
+            {formatExactMoney(progress.contributed)}
           </span>
           <span className="text-[10px] truncate" style={{ color: P.muted }}>
-            {progress.invalidTarget ? "ahorrados" : `de ${formatCompactMoney(progress.targetAmount)}`}
+            {progress.invalidTarget ? "ahorrados" : `de ${formatExactMoney(progress.targetAmount)}`}
           </span>
         </div>
         <span className="text-xs font-bold font-sans flex-shrink-0" style={{ color: visual.accentDk }}>

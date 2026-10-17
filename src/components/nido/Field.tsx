@@ -29,10 +29,15 @@ export function TextInput({
   invalid?: boolean;
   filled?: boolean;
 }) {
-  return (
+  const temporal = props.type === "date"
+    || props.type === "datetime-local"
+    || props.type === "month"
+    || props.type === "time"
+    || props.type === "week";
+  const input = (
     <input
       className={cn(
-        "w-full h-14 px-4 rounded-2xl text-body font-medium bg-card text-foreground border-2 outline-none transition-colors",
+        "w-full min-w-0 max-w-full h-14 px-4 rounded-2xl text-body font-medium bg-card text-foreground border-2 outline-none transition-colors",
         "placeholder:text-muted-foreground placeholder:font-normal",
         "focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/40",
         "disabled:cursor-not-allowed disabled:opacity-50",
@@ -46,6 +51,14 @@ export function TextInput({
       aria-invalid={invalid || undefined}
       {...props}
     />
+  );
+
+  if (!temporal) return input;
+
+  return (
+    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)]">
+      {input}
+    </div>
   );
 }
 

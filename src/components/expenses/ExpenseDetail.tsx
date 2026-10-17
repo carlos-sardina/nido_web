@@ -16,7 +16,7 @@ import {
   canMutateExpense,
   canRefundExpense,
   expensePayerLabel,
-  formatCompactMoney,
+  formatExactMoney,
   formatRelativeActivityDate,
   isPersonalExpense,
   netExpense,
@@ -217,7 +217,7 @@ export function ExpenseDetail({
                 ? "Esta acción quitará el gasto de tus totales y actividad."
                 : "Esta acción quitará el gasto de tus totales. El Nido verá en Actividad que lo eliminaste."
               : refunding
-                ? `Disponible para devolver: ${formatCompactMoney(remaining)}`
+                ? `Disponible para devolver: ${formatExactMoney(remaining)}`
                 : undefined
           }
         />
@@ -240,7 +240,7 @@ export function ExpenseDetail({
                   <FieldError id={`${ids}-refund-error`}>{refundFieldError}</FieldError>
                 ) : (
                   <HelperText id={`${ids}-refund-help`}>
-                    {`Disponible: ${formatCompactMoney(remaining)}`}
+                    {`Disponible: ${formatExactMoney(remaining)}`}
                   </HelperText>
                 )}
               </Field>
@@ -254,15 +254,15 @@ export function ExpenseDetail({
                     Gasto original
                   </Text>
                   <p className="mt-1 text-h2 font-bold font-sans" style={{ color: P.text }}>
-                    {formatCompactMoney(expense.amount)}
+                    {formatExactMoney(expense.amount)}
                   </p>
                   {refunded > 0 ? (
                     <div className="mt-3 space-y-1">
                       <Text size="caption" tone="muted">
-                        {`Ya reembolsado ${formatCompactMoney(refunded)}`}
+                        {`Ya reembolsado ${formatExactMoney(refunded)}`}
                       </Text>
                       <Text size="body-sm" className="font-semibold">
-                        {`Neto ${formatCompactMoney(net)}`}
+                        {`Neto ${formatExactMoney(net)}`}
                       </Text>
                     </div>
                   ) : null}
@@ -314,12 +314,12 @@ export function ExpenseDetail({
                                 {memberName(split.memberId, members)}
                               </Text>
                               <Text size="body-sm" className="font-semibold">
-                                {formatCompactMoney(split.amount)}
+                                {formatExactMoney(split.amount)}
                               </Text>
                             </div>
                             {refundShare > 0 ? (
                               <Text size="caption" tone="muted" className="mt-1">
-                                {`Original ${formatCompactMoney(split.amount)} · Devolución ${formatCompactMoney(refundShare)}`}
+                                {`Original ${formatExactMoney(split.amount)} · Devolución ${formatExactMoney(refundShare)}`}
                               </Text>
                             ) : null}
                           </div>
@@ -345,21 +345,21 @@ export function ExpenseDetail({
                             {formatRelativeActivityDate(refund.occurredAt, refund.createdAt)}
                           </Text>
                           <Text size="body-sm" className="font-semibold">
-                            {`− ${formatCompactMoney(refund.amount)}`}
+                            {`− ${formatExactMoney(refund.amount)}`}
                           </Text>
                         </div>
                       ))}
                     </div>
                     <div className="mt-3 space-y-1">
-                      <DetailRow label="Total refundado" value={formatCompactMoney(refunded)} />
-                      <DetailRow label="Neto" value={formatCompactMoney(net)} />
+                      <DetailRow label="Total refundado" value={formatExactMoney(refunded)} />
+                      <DetailRow label="Neto" value={formatExactMoney(net)} />
                       {remaining > 0 ? (
-                        <DetailRow label="Disponible para devolver" value={formatCompactMoney(remaining)} />
+                        <DetailRow label="Disponible para devolver" value={formatExactMoney(remaining)} />
                       ) : null}
                     </div>
                   </div>
                 ) : canRefund ? (
-                  <DetailRow label="Disponible para devolver" value={formatCompactMoney(remaining)} />
+                  <DetailRow label="Disponible para devolver" value={formatExactMoney(remaining)} />
                 ) : null}
               </>
             )}

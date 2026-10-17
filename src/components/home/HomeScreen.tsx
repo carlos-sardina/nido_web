@@ -6,6 +6,7 @@ import type { AuthIdentity } from "@/lib/auth/identity";
 import {
   compactBalanceCopy,
   formatCompactMoney,
+  formatExactMoney,
   formatHealthMonths,
   personalBudgetOwnerLabel,
   formatRelativeActivityDate,
@@ -522,8 +523,8 @@ function DashboardBody({
                       style={{ color: planOver ? P.danger : P.sageDk }}
                     >
                       {planOver
-                        ? `$${diff.toLocaleString("es-MX")} sobre el plan`
-                        : `$${diff.toLocaleString("es-MX")} disponible`}
+                        ? `${formatExactMoney(diff)} sobre el plan`
+                        : `${formatExactMoney(diff)} disponible`}
                     </span>
                   </div>
                 </>
@@ -749,7 +750,7 @@ function DashboardBody({
                   </p>
                 </div>
                 <span className="text-xs font-semibold flex-shrink-0 font-sans" style={{ color: P.text }}>
-                  {formatCompactMoney(item.amount)}
+                  {formatExactMoney(item.amount)}
                 </span>
               </div>
             ))}

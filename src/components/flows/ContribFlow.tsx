@@ -22,7 +22,7 @@ import {
   clampedPercent,
   contributionAmountMessage,
   contributionDateMessage,
-  formatCompactMoney,
+  formatExactMoney,
   canContributeToGoal,
   goalKindLabel,
   goalProgress,
@@ -474,9 +474,9 @@ function GoalMiniBar({
     <>
       <div className="mt-2.5 flex items-baseline justify-between gap-2">
         <span className="text-[11px] font-semibold font-sans" style={{ color: P.text }}>
-          {formatCompactMoney(progress.contributed)}
+          {formatExactMoney(progress.contributed)}
           <span className="font-medium" style={{ color: P.muted }}>
-            {progress.invalidTarget ? " ahorrados" : ` de ${formatCompactMoney(progress.targetAmount)}`}
+            {progress.invalidTarget ? " ahorrados" : ` de ${formatExactMoney(progress.targetAmount)}`}
           </span>
         </span>
         <span className="text-[11px] font-bold font-sans" style={{ color: accent }}>
@@ -541,9 +541,9 @@ function ContributionPreview({
         {reached ? (isFund(goal) ? "Fondo alcanzado" : "Meta alcanzada") : "Después de aportar"}
       </p>
       <p className="text-lg font-bold font-sans leading-none" style={{ color: P.text }}>
-        {formatCompactMoney(projected)}
+        {formatExactMoney(projected)}
         <span className="ml-1.5 text-[11px] font-medium" style={{ color: P.muted }}>
-          {progress.invalidTarget ? "ahorrados" : `de ${formatCompactMoney(progress.targetAmount)}`}
+          {progress.invalidTarget ? "ahorrados" : `de ${formatExactMoney(progress.targetAmount)}`}
         </span>
       </p>
       {projectedPercent != null ? (

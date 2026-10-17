@@ -8,7 +8,7 @@ import { Text } from "@/components/nido/Typography";
 import { canSubmitIncome, deleteIncome } from "@/lib/nido/incomes";
 import {
   canMutateIncome,
-  formatCompactMoney,
+  formatExactMoney,
   formatRelativeActivityDate,
   isSueldoIncomeCategory,
   type IncomeRow,
@@ -151,7 +151,7 @@ export function IncomeDetail({
                     Monto
                   </Text>
                   <p className="mt-1 text-h2 font-bold font-sans" style={{ color: P.text }}>
-                    {formatCompactMoney(income.amount)}
+                    {formatExactMoney(income.amount)}
                   </p>
                 </div>
 

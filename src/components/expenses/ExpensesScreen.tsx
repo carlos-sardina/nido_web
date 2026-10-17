@@ -20,6 +20,7 @@ import {
   expenseHasRefunds,
   expensePayerLabel,
   formatCompactMoney,
+  formatExactMoney,
   formatRelativeActivityDate,
   householdSpent,
   isPaidByAllMembers,
@@ -464,7 +465,7 @@ export function ExpensesScreen({
                       className="text-sm font-bold flex-shrink-0 font-sans"
                       style={{ color: P.text }}
                     >
-                      {formatCompactMoney(net)}
+                      {formatExactMoney(net)}
                     </span>
                     <NavChevron />
                   </button>

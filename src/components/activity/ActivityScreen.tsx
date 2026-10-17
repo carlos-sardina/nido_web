@@ -15,6 +15,7 @@ import {
   filterActivityByScope,
   findActivitySource,
   formatCompactMoney,
+  formatExactMoney,
   formatRelativeActivityDate,
   mutationActionLabel,
   type ActivityScopeFilter,
@@ -398,7 +399,7 @@ export function ActivityScreen({
                       const openable = source != null;
                       const amount = activityShowsAmount(item) ? (
                         <span className="text-[10px] font-bold font-sans" style={{ color: P.text }}>
-                          {formatCompactMoney(item.amount)}
+                          {formatExactMoney(item.amount)}
                         </span>
                       ) : null;
                       const body = (

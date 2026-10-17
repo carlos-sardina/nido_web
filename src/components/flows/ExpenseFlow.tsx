@@ -332,7 +332,7 @@ export function ExpenseFlow({
 
         <form
           id={`${ids}-form`}
-          className="space-y-4"
+          className="w-full min-w-0 max-w-full space-y-4"
             onSubmit={handleSubmit}
             noValidate
           >

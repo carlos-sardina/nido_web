@@ -17,6 +17,7 @@ import { TextLink } from "@/components/nido/TextLink";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
   formatCompactMoney,
+  formatExactMoney,
   formatRelativeActivityDate,
   isConfirmedFromRecurring,
   periodIncomeTotal,
@@ -213,7 +214,7 @@ export function IncomesScreen({
                         className="text-sm font-bold flex-shrink-0 font-sans"
                         style={{ color: P.sageDk }}
                       >
-                        {formatCompactMoney(income.amount)}
+                        {formatExactMoney(income.amount)}
                       </span>
                       <NavChevron />
                     </button>
