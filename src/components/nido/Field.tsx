@@ -2,7 +2,7 @@
 
 import type { InputHTMLAttributes, ReactNode } from "react";
 import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Calendar, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/app/components/ui/utils";
 import { Text } from "@/components/nido/Typography";
 
@@ -29,37 +29,72 @@ export function TextInput({
   invalid?: boolean;
   filled?: boolean;
 }) {
-  const temporal = props.type === "date"
-    || props.type === "datetime-local"
-    || props.type === "month"
-    || props.type === "time"
-    || props.type === "week";
-  const input = (
-    <input
-      className={cn(
-        "w-full min-w-0 max-w-full h-14 px-4 rounded-2xl text-body font-medium bg-card text-foreground border-2 outline-none transition-colors",
-        "placeholder:text-muted-foreground placeholder:font-normal",
-        "focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/40",
-        "disabled:cursor-not-allowed disabled:opacity-50",
-        invalid
-          ? "border-danger"
-          : filled
-            ? "border-primary"
-            : "border-muted",
-        className,
-      )}
-      aria-invalid={invalid || undefined}
-      {...props}
-    />
-  );
+  if (props.type !== "date") {
+    return (
+      <input
+        className={cn(
+          "w-full min-w-0 max-w-full h-14 px-4 rounded-2xl text-body font-medium bg-card text-foreground border-2 outline-none transition-colors",
+          "placeholder:text-muted-foreground placeholder:font-normal",
+          "focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/40",
+          "disabled:cursor-not-allowed disabled:opacity-50",
+          invalid
+            ? "border-danger"
+            : filled
+              ? "border-primary"
+              : "border-muted",
+          className,
+        )}
+        aria-invalid={invalid || undefined}
+        {...props}
+      />
+    );
+  }
 
-  if (!temporal) return input;
-
+  const shown = dateFieldLabel(props.value);
   return (
-    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)]">
-      {input}
+    <div
+      className={cn(
+        "w-full min-w-0 max-w-full rounded-2xl",
+        "focus-within:ring-2 focus-within:ring-ring/40",
+        props.disabled && "cursor-not-allowed opacity-50",
+      )}
+    >
+      <div
+        className={cn(
+          "relative h-14 w-full overflow-x-clip rounded-2xl border-2 bg-card transition-colors",
+          "focus-within:border-primary",
+          invalid
+            ? "border-danger"
+            : filled
+              ? "border-primary"
+              : "border-muted",
+        )}
+      >
+        <div className="pointer-events-none flex h-full min-w-0 items-center px-4 pr-11 text-body font-medium text-foreground">
+          <span className={cn("min-w-0 truncate", !shown && "font-normal text-muted-foreground")}>
+            {shown || "Selecciona una fecha"}
+          </span>
+          <Calendar className="absolute right-4 size-5 text-muted-foreground" aria-hidden="true" />
+        </div>
+        <input
+          className={cn(
+            "absolute inset-0 z-10 min-w-0 max-w-full cursor-pointer text-base opacity-0",
+            "disabled:cursor-not-allowed",
+            className,
+          )}
+          aria-invalid={invalid || undefined}
+          {...props}
+        />
+      </div>
     </div>
   );
+}
+
+function dateFieldLabel(value: unknown): string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}/.test(value)) return "";
+  const [year, month, day] = value.slice(0, 10).split("-");
+  if (!year || !month || !day) return "";
+  return `${day}/${month}/${year}`;
 }
 
 export function PasswordInput({
