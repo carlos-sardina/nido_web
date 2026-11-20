@@ -1102,6 +1102,450 @@ export type Database = {
           },
         ]
       }
+      payment_cards: {
+        Row: {
+          id: string
+          household_id: string
+          owner_member_id: string
+          label: string
+          bank: string | null
+          last_four: string | null
+          cut_day: number
+          payment_day: number
+          created_by: string
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          household_id: string
+          owner_member_id: string
+          label: string
+          bank?: string | null
+          last_four?: string | null
+          cut_day: number
+          payment_day: number
+          created_by: string
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          household_id?: string
+          owner_member_id?: string
+          label?: string
+          bank?: string | null
+          last_four?: string | null
+          cut_day?: number
+          payment_day?: number
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_cards_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_cards_owner_member_id_fkey"
+            columns: ["owner_member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_cards_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchases: {
+        Row: {
+          id: string
+          household_id: string
+          name: string
+          emoji: string | null
+          description: string | null
+          store: string | null
+          purchased_at: string
+          gross_amount: number
+          payment_method: Database["public"]["Enums"]["purchase_payment_method"]
+          msi_months: number | null
+          card_id: string | null
+          created_by: string
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          household_id: string
+          name: string
+          emoji?: string | null
+          description?: string | null
+          store?: string | null
+          purchased_at: string
+          gross_amount: number
+          payment_method: Database["public"]["Enums"]["purchase_payment_method"]
+          msi_months?: number | null
+          card_id?: string | null
+          created_by: string
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          household_id?: string
+          name?: string
+          emoji?: string | null
+          description?: string | null
+          store?: string | null
+          purchased_at?: string
+          gross_amount?: number
+          payment_method?: Database["public"]["Enums"]["purchase_payment_method"]
+          msi_months?: number | null
+          card_id?: string | null
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchases_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "payment_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_shares: {
+        Row: {
+          id: string
+          purchase_id: string
+          member_id: string
+          percent: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          purchase_id: string
+          member_id: string
+          percent: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          purchase_id?: string
+          member_id?: string
+          percent?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_shares_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_shares_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_installments: {
+        Row: {
+          id: string
+          purchase_id: string
+          installment_number: number
+          due_date: string
+          amount: number
+          paid_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          purchase_id: string
+          installment_number: number
+          due_date: string
+          amount: number
+          paid_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          purchase_id?: string
+          installment_number?: number
+          due_date?: string
+          amount?: number
+          paid_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_installments_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_bonuses: {
+        Row: {
+          id: string
+          purchase_id: string
+          bonus_type: Database["public"]["Enums"]["purchase_bonus_type"]
+          label: string
+          amount: number
+          expected_at: string
+          received_at: string | null
+          notes: string | null
+          created_by: string
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          purchase_id: string
+          bonus_type: Database["public"]["Enums"]["purchase_bonus_type"]
+          label: string
+          amount: number
+          expected_at: string
+          received_at?: string | null
+          notes?: string | null
+          created_by: string
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          purchase_id?: string
+          bonus_type?: Database["public"]["Enums"]["purchase_bonus_type"]
+          label?: string
+          amount?: number
+          expected_at?: string
+          received_at?: string | null
+          notes?: string | null
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_bonuses_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_bonuses_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_payments: {
+        Row: {
+          id: string
+          purchase_id: string
+          member_id: string
+          amount: number
+          paid_at: string
+          kind: Database["public"]["Enums"]["purchase_payment_kind"]
+          notes: string | null
+          created_by: string
+          created_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          purchase_id: string
+          member_id: string
+          amount: number
+          paid_at: string
+          kind: Database["public"]["Enums"]["purchase_payment_kind"]
+          notes?: string | null
+          created_by: string
+          created_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          purchase_id?: string
+          member_id?: string
+          amount?: number
+          paid_at?: string
+          kind?: Database["public"]["Enums"]["purchase_payment_kind"]
+          notes?: string | null
+          created_by?: string
+          created_at?: string
+          deleted_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_payments_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_payments_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_payment_installments: {
+        Row: {
+          payment_id: string
+          installment_id: string
+        }
+        Insert: {
+          payment_id: string
+          installment_id: string
+        }
+        Update: {
+          payment_id?: string
+          installment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_payment_installments_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_payment_installments_installment_id_fkey"
+            columns: ["installment_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_installments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_audit_events: {
+        Row: {
+          id: string
+          household_id: string
+          purchase_id: string | null
+          actor_id: string
+          action: Database["public"]["Enums"]["purchase_audit_action"]
+          entity_type: Database["public"]["Enums"]["purchase_audit_entity"]
+          entity_id: string
+          label: string
+          amount: number | null
+          icon: string | null
+          detail: string | null
+          meta: Json
+          occurred_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          household_id: string
+          purchase_id?: string | null
+          actor_id: string
+          action: Database["public"]["Enums"]["purchase_audit_action"]
+          entity_type: Database["public"]["Enums"]["purchase_audit_entity"]
+          entity_id: string
+          label: string
+          amount?: number | null
+          icon?: string | null
+          detail?: string | null
+          meta?: Json
+          occurred_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          household_id?: string
+          purchase_id?: string | null
+          actor_id?: string
+          action?: Database["public"]["Enums"]["purchase_audit_action"]
+          entity_type?: Database["public"]["Enums"]["purchase_audit_entity"]
+          entity_id?: string
+          label?: string
+          amount?: number | null
+          icon?: string | null
+          detail?: string | null
+          meta?: Json
+          occurred_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_audit_events_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_audit_events_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_audit_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1224,6 +1668,65 @@ export type Database = {
       }
       create_goal_contribution: {
         Args: { p_amount: number; p_contributed_at: string; p_goal_id: string }
+        Returns: string
+      }
+      create_payment_card: {
+        Args: {
+          p_bank: string | null
+          p_cut_day: number
+          p_household_id: string
+          p_label: string
+          p_last_four: string | null
+          p_owner_member_id: string
+          p_payment_day: number
+        }
+        Returns: string
+      }
+      create_purchase: {
+        Args: {
+          p_bonuses: Json
+          p_card_id: string | null
+          p_description: string | null
+          p_emoji?: string | null
+          p_first_due_date: string | null
+          p_gross_amount: number
+          p_household_id: string
+          p_msi_months: number | null
+          p_name: string
+          p_payment_method: Database["public"]["Enums"]["purchase_payment_method"]
+          p_purchased_at: string
+          p_shares: Json
+          p_store: string | null
+        }
+        Returns: string
+      }
+      create_purchase_bonus: {
+        Args: {
+          p_amount: number
+          p_bonus_type: Database["public"]["Enums"]["purchase_bonus_type"]
+          p_expected_at: string
+          p_label: string
+          p_notes: string | null
+          p_purchase_id: string
+        }
+        Returns: string
+      }
+      register_purchase_payments: {
+        Args: {
+          p_household_id: string
+          p_items: Json
+          p_member_id: string
+          p_notes: string | null
+          p_paid_at: string
+        }
+        Returns: string[]
+      }
+      soft_delete_purchase_payment: {
+        Args: { p_payment_id: string }
+        Returns: string
+      }
+      household_id_for_purchase_payment: {
+        Args: { p_payment_id: string }
         Returns: string
       }
       create_household: {
@@ -1402,6 +1905,52 @@ export type Database = {
       shares_household_with: { Args: { p_user_id: string }; Returns: boolean }
       soft_delete_budget: { Args: { p_budget_id: string }; Returns: string }
       soft_delete_expense: { Args: { p_expense_id: string }; Returns: string }
+      soft_delete_payment_card: { Args: { p_card_id: string }; Returns: string }
+      soft_delete_purchase: { Args: { p_purchase_id: string }; Returns: string }
+      soft_delete_purchase_bonus: { Args: { p_bonus_id: string }; Returns: string }
+      mark_purchase_installment_paid: {
+        Args: { p_installment_id: string; p_paid_at: string | null }
+        Returns: string
+      }
+      update_payment_card: {
+        Args: {
+          p_bank: string | null
+          p_card_id: string
+          p_cut_day: number
+          p_label: string
+          p_last_four: string | null
+          p_owner_member_id: string
+          p_payment_day: number
+        }
+        Returns: string
+      }
+      update_purchase: {
+        Args: {
+          p_card_id: string | null
+          p_description: string | null
+          p_first_due_date: string | null
+          p_gross_amount: number
+          p_msi_months: number | null
+          p_name: string
+          p_payment_method: Database["public"]["Enums"]["purchase_payment_method"]
+          p_purchase_id: string
+          p_purchased_at: string
+          p_shares: Json
+          p_store: string | null
+        }
+        Returns: string
+      }
+      update_purchase_bonus: {
+        Args: {
+          p_amount: number
+          p_bonus_id: string
+          p_expected_at: string
+          p_label: string
+          p_notes: string | null
+          p_received_at: string | null
+        }
+        Returns: string
+      }
       soft_delete_goal_contribution: {
         Args: { p_contribution_id: string }
         Returns: string
@@ -1574,6 +2123,25 @@ export type Database = {
       household_role: "owner" | "member"
       household_split_method: "equal" | "proportional"
       personal_visibility: "nido" | "private"
+      purchase_audit_action:
+        | "created"
+        | "updated"
+        | "deleted"
+        | "undone"
+        | "marked_paid"
+        | "marked_unpaid"
+        | "received"
+        | "unreceived"
+      purchase_audit_entity:
+        | "purchase"
+        | "payment_card"
+        | "purchase_payment"
+        | "purchase_installment"
+        | "purchase_bonus"
+        | "purchase_share"
+      purchase_bonus_type: "cashback" | "deferred_discount"
+      purchase_payment_kind: "installment" | "payoff" | "capital"
+      purchase_payment_method: "cash" | "msi"
       recurrence_frequency: "weekly" | "biweekly" | "monthly" | "yearly"
     }
     CompositeTypes: {
@@ -1721,6 +2289,27 @@ export const Constants = {
       household_role: ["owner", "member"],
       household_split_method: ["equal", "proportional"],
       personal_visibility: ["nido", "private"],
+      purchase_audit_action: [
+        "created",
+        "updated",
+        "deleted",
+        "undone",
+        "marked_paid",
+        "marked_unpaid",
+        "received",
+        "unreceived",
+      ],
+      purchase_audit_entity: [
+        "purchase",
+        "payment_card",
+        "purchase_payment",
+        "purchase_installment",
+        "purchase_bonus",
+        "purchase_share",
+      ],
+      purchase_bonus_type: ["cashback", "deferred_discount"],
+      purchase_payment_kind: ["installment", "payoff", "capital"],
+      purchase_payment_method: ["cash", "msi"],
       recurrence_frequency: ["weekly", "biweekly", "monthly", "yearly"],
     },
   },

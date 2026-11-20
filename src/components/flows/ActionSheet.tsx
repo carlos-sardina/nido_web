@@ -18,6 +18,7 @@ export function ActionSheet({
     { flow: "income", emoji: "💰", label: "Registrar un ingreso", sub: "Sueldo u extra" },
     { flow: "budget", emoji: "📊", label: "Crear un presupuesto", sub: "Nombre, tipo y límite de este mes" },
     { flow: "contrib", emoji: "🎯", label: "Registrar una aportación", sub: "Agrega a una meta o un fondo" },
+    { flow: "purchase", emoji: "🛋️", label: "Registrar compra a plazos", sub: "MSI, tarjeta y bonificaciones" },
   ];
 
   useEffect(() => {

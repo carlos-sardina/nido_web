@@ -80,6 +80,19 @@ export function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
+/** Clamp day into a real calendar day for year/month (e.g. 31 → 28/29/30). */
+export function clampMonthDay(year: number, month: number, day: number): string {
+  return isoDate(year, month, Math.min(day, daysInMonth(year, month)));
+}
+
+/** Add calendar months keeping the day clamped to the target month length. */
+export function addCalendarMonths(iso: string, months: number): string | null {
+  if (!isCalendarDate(iso)) return null;
+  const [year, month, day] = iso.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1 + months, 1));
+  return clampMonthDay(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, day);
+}
+
 export function formatMonthLabel(year: number, month: number): string {
   const utc = new Date(Date.UTC(year, month - 1, 1));
   const raw = new Intl.DateTimeFormat("es-MX", {

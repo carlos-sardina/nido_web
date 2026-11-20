@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart2, Clock, Home, Plus, Target,
 } from "lucide-react";
@@ -10,14 +10,29 @@ import { BudgetDetail } from "@/components/budget/BudgetDetail";
 import { BudgetScreen } from "@/components/budget/BudgetScreen";
 import { ExpenseDetail } from "@/components/expenses/ExpenseDetail";
 import { ExpensesScreen } from "@/components/expenses/ExpensesScreen";
+import { ComprasScreen } from "@/components/compras/ComprasScreen";
+import { PurchaseDetail } from "@/components/compras/PurchaseDetail";
 import { ActionSheet } from "@/components/flows/ActionSheet";
 import { BudgetFlow, type BudgetCreateTarget } from "@/components/flows/BudgetFlow";
+import { CardFlow } from "@/components/flows/CardFlow";
 import { CopyBudgetsFlow } from "@/components/flows/CopyBudgetsFlow";
 import { ContribFlow } from "@/components/flows/ContribFlow";
 import { ExpenseFlow } from "@/components/flows/ExpenseFlow";
 import { GoalFlow } from "@/components/flows/GoalFlow";
 import { IncomeFlow } from "@/components/flows/IncomeFlow";
 import { ProfilePanel } from "@/components/flows/ProfilePanel";
+import { PurchaseFlow } from "@/components/flows/PurchaseFlow";
+import { PurchasePaymentFlow } from "@/components/flows/PurchasePaymentFlow";
+import {
+  softDeletePaymentCard,
+} from "@/lib/nido/compras-actions";
+import {
+  getCurrentMonthRange,
+  nextPendingDuesMonth,
+  type PaymentCardRow,
+  type PurchaseRow,
+} from "@/lib/nido/financial";
+import { useCompras } from "@/lib/nido/use-compras";
 import { GoalDetail } from "@/components/goals/GoalDetail";
 import { GoalsScreen } from "@/components/goals/GoalsScreen";
 import { HomeScreen } from "@/components/home/HomeScreen";
@@ -97,7 +112,25 @@ export function MainApp({
   const [creatingRecurringIncome, setCreatingRecurringIncome] = useState(false);
   const [recurringRefresh, setRecurringRefresh] = useState(0);
   const [showCopyBudgets, setShowCopyBudgets] = useState(false);
+  const [showCompras, setShowCompras] = useState(false);
+  const [selectedPurchase, setSelectedPurchase] = useState<PurchaseRow | null>(null);
+  const [paymentPurchaseId, setPaymentPurchaseId] = useState<string | null>(null);
   const dashboard = useDashboard(household.id, members);
+  const compras = useCompras(household.id);
+  const liveSelectedPurchase = selectedPurchase
+    ? compras.purchases.find((row) => row.id === selectedPurchase.id) ?? selectedPurchase
+    : null;
+  const comprasPreview = useMemo(() => {
+    const current = getCurrentMonthRange();
+    const next = nextPendingDuesMonth(compras.purchases, current);
+    const monthName = next.range.label.split(" de ")[0]?.toLowerCase() ?? "";
+    return {
+      purchaseCount: compras.purchases.length,
+      dueAmount: next.amount,
+      dueCaption: next.isCurrent || next.amount === 0 ? "por depositar" : `en ${monthName}`,
+      emojis: compras.purchases.slice(0, 3).map((row) => row.emoji ?? ""),
+    };
+  }, [compras.purchases]);
   const liveSelectedExpense = selectedExpense
     ? dashboard.model?.recentExpenses.find((row) => row.id === selectedExpense.id)
       ?? dashboard.model?.periodExpenses.find((row) => row.id === selectedExpense.id)
@@ -137,8 +170,42 @@ export function MainApp({
     setCreatingBudgetCategory(null);
     setCreatingRecurringIncome(false);
     setEditingRecurringIncome(null);
+    setSelectedPurchase(null);
     setRecurringRefresh((value) => value + 1);
     void dashboard.refresh();
+    void compras.refresh();
+  };
+
+  const openPurchaseCreate = () => {
+    setShowSheet(false);
+    setSelectedPurchase(null);
+    setPaymentPurchaseId(null);
+    setShowCompras(true);
+    if (compras.cards.length === 0 && compras.purchases.length === 0) {
+      setActiveFlow(null);
+      return;
+    }
+    setActiveFlow("purchase");
+  };
+
+  const openPurchasePayment = (purchaseId?: string | null) => {
+    setShowSheet(false);
+    setSelectedPurchase(null);
+    setPaymentPurchaseId(purchaseId ?? null);
+    setShowCompras(true);
+    setActiveFlow("purchase_payment");
+  };
+
+  const openCardCreate = () => {
+    setShowSheet(false);
+    setShowCompras(true);
+    setActiveFlow("card");
+  };
+
+  const handleDeleteCard = async (card: PaymentCardRow) => {
+    const result = await softDeletePaymentCard(card.id);
+    if (result.ok) void compras.refresh();
+    return result;
   };
 
   const openFlow = (flow: Flow) => {
@@ -151,6 +218,18 @@ export function MainApp({
     setEditingBudget(null);
     setSelectedBudget(null);
     setCreatingBudgetCategory(null);
+    if (flow === "purchase") {
+      openPurchaseCreate();
+      return;
+    }
+    if (flow === "purchase_payment") {
+      openPurchasePayment();
+      return;
+    }
+    if (flow === "card") {
+      openCardCreate();
+      return;
+    }
     setActiveFlow(flow);
   };
 
@@ -226,6 +305,8 @@ export function MainApp({
                 setBalanceInitialRange(range);
                 setShowBalance(true);
               }}
+              onOpenCompras={() => setShowCompras(true)}
+              comprasPreview={comprasPreview}
               currentUserId={user?.id ?? null}
             />
           )}
@@ -414,6 +495,81 @@ export function MainApp({
             onOpenBudget={setSelectedBudget}
             onCreateBudget={openBudgetCreate}
             onCopyPreviousMonthBudgets={openCopyPreviousMonthBudgets}
+          />
+        )}
+
+        {showCompras ? (
+          <ComprasScreen
+            compras={compras}
+            members={members}
+            householdId={liveHousehold.id}
+            currentUserId={user?.id ?? null}
+            onClose={() => {
+              setSelectedPurchase(null);
+              setShowCompras(false);
+            }}
+            onOpenPurchase={setSelectedPurchase}
+            onCreatePurchase={openPurchaseCreate}
+            onCreatePayment={() => openPurchasePayment()}
+            onCreateCard={openCardCreate}
+            onDeleteCard={(card) => handleDeleteCard(card)}
+          />
+        ) : null}
+
+        {liveSelectedPurchase &&
+          activeFlow !== "purchase" &&
+          activeFlow !== "purchase_payment" && (
+          <PurchaseDetail
+            purchase={liveSelectedPurchase}
+            onClose={() => setSelectedPurchase(null)}
+            onChanged={() => void compras.refresh()}
+            onDeleted={() => {
+              setSelectedPurchase(null);
+              void compras.refresh();
+            }}
+            onRegisterPayment={() => openPurchasePayment(liveSelectedPurchase.id)}
+          />
+        )}
+
+        {activeFlow === "purchase" && (
+          <PurchaseFlow
+            householdId={liveHousehold.id}
+            members={members}
+            cards={compras.cards}
+            onClose={() => setActiveFlow(null)}
+            onDone={handleFlowDone}
+            onNeedCard={openCardCreate}
+          />
+        )}
+
+        {activeFlow === "purchase_payment" && (
+          <PurchasePaymentFlow
+            householdId={liveHousehold.id}
+            members={members}
+            currentUserId={user?.id ?? null}
+            purchases={compras.purchases}
+            initialPurchaseId={paymentPurchaseId}
+            onClose={() => {
+              setActiveFlow(null);
+              setPaymentPurchaseId(null);
+            }}
+            onDone={() => {
+              setPaymentPurchaseId(null);
+              handleFlowDone();
+            }}
+          />
+        )}
+
+        {activeFlow === "card" && (
+          <CardFlow
+            householdId={liveHousehold.id}
+            members={members}
+            currentUserId={user?.id ?? null}
+            onClose={() => setActiveFlow(null)}
+            onDone={() => {
+              setActiveFlow(null);
+              void compras.refresh();
+            }}
           />
         )}
 

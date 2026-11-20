@@ -95,5 +95,12 @@ export type NidoErrorCode =
   | "recurrence_inactive"
   | "recurrence_not_due"
   | "recurrence_requires_review"
+  | "purchase_not_found"
+  | "purchase_deleted"
+  | "card_not_found"
+  | "card_deleted"
+  | "card_in_use"
+  | "installment_not_found"
+  | "bonus_not_found"
   | "conflict"
   | "network";

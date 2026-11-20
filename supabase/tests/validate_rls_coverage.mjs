@@ -95,6 +95,13 @@ const expectedPolicies = {
   goals: ["SELECT", "INSERT", "UPDATE"],
   goal_contributions: ["SELECT", "INSERT", "UPDATE", "DELETE"],
   savings_balances: ["SELECT", "INSERT", "UPDATE"],
+  monthly_balance_confirmations: ["SELECT", "INSERT"],
+  household_mutation_events: ["SELECT"],
+  payment_cards: ["SELECT", "INSERT", "UPDATE"],
+  purchases: ["SELECT", "INSERT", "UPDATE"],
+  purchase_shares: ["SELECT", "INSERT", "UPDATE", "DELETE"],
+  purchase_installments: ["SELECT", "INSERT", "UPDATE", "DELETE"],
+  purchase_bonuses: ["SELECT", "INSERT", "UPDATE"],
 };
 
 const noClientWritePolicies = {
@@ -111,6 +118,11 @@ const noClientWritePolicies = {
   budgets: ["DELETE"],
   goals: ["DELETE"],
   savings_balances: ["DELETE"],
+  monthly_balance_confirmations: ["UPDATE", "DELETE"],
+  household_mutation_events: ["INSERT", "UPDATE", "DELETE"],
+  payment_cards: ["DELETE"],
+  purchases: ["DELETE"],
+  purchase_bonuses: ["DELETE"],
 };
 
 for (const table of tables) {

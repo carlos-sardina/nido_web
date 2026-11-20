@@ -14,17 +14,21 @@ export function CategoryEmojiPicker({
   value,
   onChange,
   disabled,
+  emojis = QUICK_CATEGORY_EMOJIS,
+  fallback = DEFAULT_CATEGORY_EMOJI,
 }: {
   value: string;
   onChange: (emoji: string) => void;
   disabled?: boolean;
+  emojis?: readonly string[];
+  fallback?: string;
 }) {
-  const selected = value || DEFAULT_CATEGORY_EMOJI;
-  const isQuick = isQuickCategoryEmoji(selected);
+  const selected = value || fallback;
+  const isQuick = (emojis as readonly string[]).includes(selected);
 
   return (
     <div className="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-      {QUICK_CATEGORY_EMOJIS.map((emoji) => {
+      {emojis.map((emoji) => {
         const pressed = selected === emoji;
         return (
           <button
@@ -58,7 +62,7 @@ export function CategoryEmojiPicker({
           !isQuick ? "bg-primary/20 border-primary" : "bg-card border-transparent",
         )}
         value={!isQuick ? selected : ""}
-        onChange={(event) => onChange(emojiFromInput(event.target.value))}
+        onChange={(event) => onChange(emojiFromInput(event.target.value, fallback))}
       />
     </div>
   );

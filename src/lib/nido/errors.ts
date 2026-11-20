@@ -39,6 +39,13 @@ const USER_MESSAGES: Record<NidoErrorCode, string> = {
   recurrence_inactive: "Esta recurrencia está pausada o ya no está activa.",
   recurrence_not_due: "Este periodo todavía no se puede registrar.",
   recurrence_requires_review: "Esta recurrencia no se puede registrar. Revisa el pagador, los participantes o la categoría.",
+  purchase_not_found: "No encontramos esta compra.",
+  purchase_deleted: "Esta compra ya fue eliminada.",
+  card_not_found: "No encontramos esta tarjeta.",
+  card_deleted: "Esta tarjeta ya fue eliminada.",
+  card_in_use: "No se puede eliminar: esta tarjeta tiene compras activas.",
+  installment_not_found: "No encontramos esta cuota.",
+  bonus_not_found: "No encontramos esta bonificación.",
   conflict: "Este registro ya existe o cambió. Inténtalo de nuevo.",
   network: "No pudimos completar la operación. Inténtalo de nuevo.",
 };
@@ -108,6 +115,13 @@ const MESSAGE_CODES: Record<string, NidoErrorCode> = {
   "nido.recurrence_inactive": "recurrence_inactive",
   "nido.recurrence_not_due": "recurrence_not_due",
   "nido.recurrence_requires_review": "recurrence_requires_review",
+  "nido.purchase_not_found": "purchase_not_found",
+  "nido.purchase_deleted": "purchase_deleted",
+  "nido.card_not_found": "card_not_found",
+  "nido.card_deleted": "card_deleted",
+  "nido.card_in_use": "card_in_use",
+  "nido.installment_not_found": "installment_not_found",
+  "nido.bonus_not_found": "bonus_not_found",
   "nido.conflict": "conflict",
 };
 
@@ -139,6 +153,9 @@ export function nidoErrorFromUnknown(error: unknown): NidoError {
     }
     if (/incomes_recurring_occurrence|expenses_recurring_occurrence/i.test(raw)) {
       return new NidoError("conflict");
+    }
+    if (/purchase_shares/i.test(raw)) {
+      return new NidoError("invalid_split");
     }
     if (/budget/i.test(raw)) {
       return new NidoError("conflict");

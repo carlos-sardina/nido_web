@@ -21,11 +21,17 @@ import type { Tab } from "@/lib/types";
 import { Button } from "@/components/nido/Button";
 import { ScopeTag } from "@/components/nido/ScopeTag";
 import { NavChevron, SeeMoreHint, SeeMoreLink } from "@/components/nido/ClickHint";
-import { EmptyState } from "@/components/nido/EmptyState";
 import { PullToRefresh } from "@/components/nido/PullToRefresh";
 import { TextLink } from "@/components/nido/TextLink";
 import { Text } from "@/components/nido/Typography";
+import {
+  ComprasHomeCard,
+  type ComprasHomePreview,
+} from "@/components/compras/ComprasHomeCard";
+import { HOME_CARD_SHADOW } from "@/components/home/home-card";
 import { HealthGauge } from "@/components/home/HealthGauge";
+import { HomeCashflowCard } from "@/components/home/HomeCashflowCard";
+import { HomeInviteCard } from "@/components/home/HomeInviteCard";
 
 const GOAL_STYLES = [
   { color: P.sage, bg: "#E8F4EF" },
@@ -89,7 +95,7 @@ function HealthHero({
   return (
     <div
       className="mx-6 mb-3 rounded-[1.5rem] overflow-hidden"
-      style={{ background: HEALTH_HERO_GRADIENT[tone] }}
+      style={{ background: HEALTH_HERO_GRADIENT[tone], boxShadow: HOME_CARD_SHADOW }}
     >
       <div className="relative p-5">
         <div
@@ -111,8 +117,11 @@ function HealthHero({
 function DashboardNidoMark({ name }: { name: string }) {
   return (
     <div
-      className="mx-6 mb-3 rounded-[1.5rem] overflow-hidden shadow-sm"
-      style={{ background: "linear-gradient(135deg, #E8F4EF 0%, #F4EFE6 58%, #FAF4EC 100%)" }}
+      className="mx-6 mb-3 rounded-[1.5rem] overflow-hidden"
+      style={{
+        background: "linear-gradient(135deg, #E8F4EF 0%, #F4EFE6 58%, #FAF4EC 100%)",
+        boxShadow: HOME_CARD_SHADOW,
+      }}
     >
       <div className="relative flex items-center gap-3 px-4 py-3.5">
         <div
@@ -178,6 +187,8 @@ export function HomeScreen({
   onCreateBudget,
   onCopyPreviousMonthBudgets,
   onOpenBalance,
+  onOpenCompras,
+  comprasPreview,
   currentUserId,
 }: {
   identity: AuthIdentity | null;
@@ -192,6 +203,8 @@ export function HomeScreen({
   onCreateBudget: (category?: { categoryId: string; name?: string; icon?: string | null }) => void;
   onCopyPreviousMonthBudgets?: () => void;
   onOpenBalance: (range?: MonthRange) => void;
+  onOpenCompras: () => void;
+  comprasPreview: ComprasHomePreview;
   currentUserId: string | null;
 }) {
   const { isLoading, refreshing, error, model, refresh } = dashboard;
@@ -269,6 +282,8 @@ export function HomeScreen({
           onCreateBudget={onCreateBudget}
           onCopyPreviousMonthBudgets={onCopyPreviousMonthBudgets}
           onOpenBalance={onOpenBalance}
+          onOpenCompras={onOpenCompras}
+          comprasPreview={comprasPreview}
           currentUserId={currentUserId}
         />
       ) : null}
@@ -288,6 +303,8 @@ function DashboardBody({
   onCreateBudget,
   onCopyPreviousMonthBudgets,
   onOpenBalance,
+  onOpenCompras,
+  comprasPreview,
   currentUserId,
 }: {
   model: NonNullable<DashboardQuery["model"]>;
@@ -301,6 +318,8 @@ function DashboardBody({
   onCreateBudget: (category?: { categoryId: string; name?: string; icon?: string | null }) => void;
   onCopyPreviousMonthBudgets?: () => void;
   onOpenBalance: (range?: MonthRange) => void;
+  onOpenCompras: () => void;
+  comprasPreview: ComprasHomePreview;
   currentUserId: string | null;
 }) {
   const { health, budget, activeGoals, activity, empty, range, monthlyBalance, outstandingBalanceMonths } = model;
@@ -419,214 +438,198 @@ function DashboardBody({
         </HealthHero>
       )}
 
-      <div className="mx-6 mb-3 rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold" style={{ color: P.text }}>
-            Ingresos del mes
-          </h3>
-          <SeeMoreLink onClick={onOpenIncomes}>Ver ingresos</SeeMoreLink>
-        </div>
-        {empty.incomes ? (
-          <EmptyState
-            plain
-            title="Aún no hay ingresos."
-            description="Registra un ingreso para ver el total de este mes."
-            actionLabel="Ver ingresos"
+      {empty.incomes && empty.expenses ? (
+        <div className="mx-6 mb-3">
+          <HomeInviteCard
+            title="Ingresos y balance"
+            hint="Sigue lo que entra y cómo se reparte el mes"
+            actionLabel="Registrar ingreso"
             onAction={onOpenIncomes}
+            onOpen={onOpenIncomes}
+            secondaryActionLabel="Ver balance"
+            onSecondaryAction={() => onOpenBalance()}
+            icon="💰"
           />
-        ) : (
-          <div className="flex items-baseline gap-2">
-            <span className="text-[22px] font-bold font-sans" style={{ color: P.text }}>
-              {formatCompactMoney(model.periodIncome)}
-            </span>
-            <span className="text-xs" style={{ color: P.muted }}>
-              este mes
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="mx-6 mb-3 rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold" style={{ color: P.text }}>
-            Presupuesto del mes
-          </h3>
-          {empty.budget ? (
-            <span className="text-[10px]" style={{ color: P.muted }}>
-              {range.label}
-            </span>
-          ) : (
-            <SeeMoreLink onClick={onOpenBudgets}>Ver presupuestos</SeeMoreLink>
-          )}
         </div>
-        {empty.budget ? (
-          <EmptyState
-            plain
-            title="Sin presupuesto este mes"
-            description="Cada presupuesto tiene nombre y límite. El gasto se calcula de tus gastos reales."
+      ) : (
+        <div className="mx-6 mb-3">
+          <HomeCashflowCard
+            range={range}
+            incomes={model.periodIncomes}
+            expenses={model.periodExpenses}
+            periodIncome={model.periodIncome}
+            periodSpent={model.periodSpent}
+            balanceHeadline={balanceCopy.headline}
+            onOpenIncomes={onOpenIncomes}
+            onOpenBalance={() => onOpenBalance()}
+          />
+        </div>
+      )}
+
+      {empty.budget ? (
+        <div className="mx-6 mb-3">
+          <HomeInviteCard
+            title="Presupuesto"
+            hint="Ponle límite a lo que gastan este mes"
             actionLabel="Crear un presupuesto"
             onAction={onCreateBudget}
+            onOpen={onOpenBudgets}
             secondaryActionLabel={onCopyPreviousMonthBudgets ? "Copiar del mes pasado" : undefined}
             onSecondaryAction={onCopyPreviousMonthBudgets}
+            icon="📊"
           />
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={onOpenBudgets}
-              className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <div className="flex items-baseline gap-2 min-w-0 flex-1">
-                  <span className="text-[22px] font-bold font-sans" style={{ color: P.text }}>
-                    {formatCompactMoney(planSpent)}
+        </div>
+      ) : (
+        <div
+          className="mx-6 mb-3 rounded-[1.5rem] p-5"
+          style={{ backgroundColor: P.card, boxShadow: HOME_CARD_SHADOW }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-semibold" style={{ color: P.text }}>
+              Presupuesto del mes
+            </h3>
+            <SeeMoreLink onClick={onOpenBudgets}>Ver presupuestos</SeeMoreLink>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenBudgets}
+            className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-baseline gap-2 min-w-0 flex-1">
+                <span className="text-[22px] font-bold font-sans" style={{ color: P.text }}>
+                  {formatCompactMoney(planSpent)}
+                </span>
+                {showPlanBar ? (
+                  <span className="text-xs" style={{ color: P.muted }}>
+                    de {formatCompactMoney(planBudget)}
                   </span>
-                  {showPlanBar ? (
-                    <span className="text-xs" style={{ color: P.muted }}>
-                      de {formatCompactMoney(planBudget)}
-                    </span>
-                  ) : (
-                    <span className="text-xs" style={{ color: P.muted }}>
-                      gastados este mes
-                    </span>
-                  )}
-                </div>
-                <NavChevron />
+                ) : (
+                  <span className="text-xs" style={{ color: P.muted }}>
+                    gastados este mes
+                  </span>
+                )}
               </div>
-              {showPlanBar ? (
-                <>
+              <NavChevron />
+            </div>
+            {showPlanBar ? (
+              <>
+                <div
+                  className="h-2 w-full rounded-full overflow-hidden mb-2"
+                  style={{ backgroundColor: P.sub }}
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.min(100, Math.max(0, planPercent ?? 0))}
+                  aria-label={planPercent != null ? `${planPercent}% del plan del Nido` : "Sin plan"}
+                >
                   <div
-                    className="h-2 w-full rounded-full overflow-hidden mb-2"
-                    style={{ backgroundColor: P.sub }}
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={Math.min(100, Math.max(0, planPercent ?? 0))}
-                    aria-label={planPercent != null ? `${planPercent}% del plan del Nido` : "Sin plan"}
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.min(100, Math.max(0, planPercent ?? 0))}%`,
+                      background: planOver
+                        ? P.danger
+                        : `linear-gradient(90deg, ${P.sage}, ${P.sageDk})`,
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span style={{ color: P.muted }}>
+                    {planPercent != null ? `${planPercent}% del plan` : "Gastado este mes"}
+                  </span>
+                  <span
+                    className="font-semibold"
+                    style={{ color: planOver ? P.danger : P.sageDk }}
                   >
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${Math.min(100, Math.max(0, planPercent ?? 0))}%`,
-                        background: planOver
-                          ? P.danger
-                          : `linear-gradient(90deg, ${P.sage}, ${P.sageDk})`,
-                      }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-[10px]">
-                    <span style={{ color: P.muted }}>
-                      {planPercent != null ? `${planPercent}% del plan` : "Gastado este mes"}
-                    </span>
-                    <span
-                      className="font-semibold"
-                      style={{ color: planOver ? P.danger : P.sageDk }}
-                    >
-                      {planOver
-                        ? `${formatExactMoney(diff)} sobre el plan`
-                        : `${formatExactMoney(diff)} disponible`}
-                    </span>
-                  </div>
-                </>
-              ) : null}
-            </button>
-            {budget.categories.length > 0 ? (
-              <div className="flex gap-2 mt-4 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-                {budget.categories.map((category) => {
-                  const item = budget.items.find((row) => row.categoryId === category.categoryId)
-                    ?? model.periodBudgets.find((row) => row.categoryId === category.categoryId);
-                  const unbudgeted = !item;
-                  return (
-                    <button
-                      key={category.categoryId}
-                      type="button"
-                      onClick={() => {
-                        if (item) onOpenBudget(item);
-                        else {
-                          onCreateBudget({
-                            categoryId: category.categoryId,
-                            name: category.name,
-                            icon: category.icon,
-                          });
-                        }
-                      }}
-                      title={category.name}
-                      aria-label={
-                        item
-                          ? item.memberId
-                            ? `Ver presupuesto personal de ${personalBudgetOwnerLabel(item.memberId, item.memberName, currentUserId)}: ${category.name}`
-                            : `Ver presupuesto del Nido de ${category.name}`
-                          : `Crear presupuesto de ${category.name}`
-                      }
-                      className="flex-none w-[4.75rem] rounded-xl px-1.5 py-2 text-center overflow-hidden active:scale-[0.97] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      style={{ backgroundColor: unbudgeted ? P.warnBg : P.sub }}
-                    >
-                      <div className="text-sm mb-0.5">{category.icon}</div>
-                      <div className="text-[9px] mb-0.5 truncate" style={{ color: P.muted }}>
-                        {category.name}
-                      </div>
-                      {item ? (
-                        <div className="flex justify-center mb-0.5">
-                          <ScopeTag
-                            compact
-                            kind={item.memberId ? "personal" : "nido"}
-                            label={
-                              item.memberId
-                                ? personalBudgetOwnerLabel(item.memberId, item.memberName, currentUserId)
-                                : undefined
-                            }
-                          />
-                        </div>
-                      ) : null}
-                      <div
-                        className="text-[10px] font-bold font-sans truncate"
-                        style={{
-                          color:
-                            category.budget > 0 && category.spent > category.budget
-                              ? P.danger
-                              : unbudgeted
-                                ? P.warn
-                                : P.text,
-                        }}
-                      >
-                        {formatCompactMoney(category.spent)}
-                      </div>
-                      <SeeMoreHint className="mt-1 text-[9px]">
-                        {item ? "Ver" : "Crear"}
-                      </SeeMoreHint>
-                    </button>
-                  );
-                })}
-              </div>
+                    {planOver
+                      ? `${formatExactMoney(diff)} sobre el plan`
+                      : `${formatExactMoney(diff)} disponible`}
+                  </span>
+                </div>
+              </>
             ) : null}
-          </>
-        )}
-      </div>
+          </button>
+          {budget.categories.length > 0 ? (
+            <div className="flex gap-2 mt-4 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+              {budget.categories.map((category) => {
+                const item = budget.items.find((row) => row.categoryId === category.categoryId)
+                  ?? model.periodBudgets.find((row) => row.categoryId === category.categoryId);
+                const unbudgeted = !item;
+                return (
+                  <button
+                    key={category.categoryId}
+                    type="button"
+                    onClick={() => {
+                      if (item) onOpenBudget(item);
+                      else {
+                        onCreateBudget({
+                          categoryId: category.categoryId,
+                          name: category.name,
+                          icon: category.icon,
+                        });
+                      }
+                    }}
+                    title={category.name}
+                    aria-label={
+                      item
+                        ? item.memberId
+                          ? `Ver presupuesto personal de ${personalBudgetOwnerLabel(item.memberId, item.memberName, currentUserId)}: ${category.name}`
+                          : `Ver presupuesto del Nido de ${category.name}`
+                        : `Crear presupuesto de ${category.name}`
+                    }
+                    className="flex-none w-[4.75rem] rounded-xl px-1.5 py-2 text-center overflow-hidden active:scale-[0.97] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    style={{ backgroundColor: unbudgeted ? P.warnBg : P.sub }}
+                  >
+                    <div className="text-sm mb-0.5">{category.icon}</div>
+                    <div className="text-[9px] mb-0.5 truncate" style={{ color: P.muted }}>
+                      {category.name}
+                    </div>
+                    {item ? (
+                      <div className="flex justify-center mb-0.5">
+                        <ScopeTag
+                          compact
+                          kind={item.memberId ? "personal" : "nido"}
+                          label={
+                            item.memberId
+                              ? personalBudgetOwnerLabel(item.memberId, item.memberName, currentUserId)
+                              : undefined
+                          }
+                        />
+                      </div>
+                    ) : null}
+                    <div
+                      className="text-[10px] font-bold font-sans truncate"
+                      style={{
+                        color:
+                          category.budget > 0 && category.spent > category.budget
+                            ? P.danger
+                            : unbudgeted
+                              ? P.warn
+                              : P.text,
+                      }}
+                    >
+                      {formatCompactMoney(category.spent)}
+                    </div>
+                    <SeeMoreHint className="mt-1 text-[9px]">
+                      {item ? "Ver" : "Crear"}
+                    </SeeMoreHint>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      )}
 
       <div className="mx-6 mb-3">
-      <button
-        type="button"
-        onClick={() => onOpenBalance()}
-        className="w-full rounded-[1.5rem] p-5 shadow-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        style={{ backgroundColor: P.card }}
-      >
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-xs font-semibold" style={{ color: P.text }}>
-            Balance
-          </h3>
-          <SeeMoreHint>Ver balance</SeeMoreHint>
-        </div>
-        <p
-          className="text-sm font-semibold"
-          style={{ color: balanceCopy.hasObligation ? P.text : P.muted }}
-        >
-          {balanceCopy.headline}
-        </p>
-      </button>
+        <ComprasHomeCard preview={comprasPreview} onOpen={onOpenCompras} />
       </div>
 
       {outstandingBalanceMonths.length > 0 ? (
-        <div className="mx-6 mb-3 rounded-[1.5rem] p-5 shadow-sm" style={{ backgroundColor: P.card }}>
+        <div
+          className="mx-6 mb-3 rounded-[1.5rem] p-5"
+          style={{ backgroundColor: P.card, boxShadow: HOME_CARD_SHADOW }}
+        >
           <h3 className="text-xs font-semibold mb-3" style={{ color: P.text }}>
             Meses con deuda
           </h3>
@@ -657,23 +660,25 @@ function DashboardBody({
         </div>
       ) : null}
 
-      <div className="mb-3">
-        <div className="flex items-center justify-between px-6 mb-2">
-          <h3 className="text-xs font-semibold" style={{ color: P.text }}>
-            Metas y fondos
-          </h3>
-          <SeeMoreLink onClick={() => onNavigate("goals")}>Ver todas</SeeMoreLink>
+      {empty.goals ? (
+        <div className="mx-6 mb-3">
+          <HomeInviteCard
+            title="Metas"
+            hint="Sigue tu progreso"
+            actionLabel="Añadir meta"
+            onAction={() => onNavigate("goals")}
+            onOpen={() => onNavigate("goals")}
+            icon="🎯"
+          />
         </div>
-        {empty.goals ? (
-          <div className="px-6">
-            <EmptyState
-              title="¿Tienen algo en mente?"
-              description="Crea un fondo para cubrir gastos o una meta para algo que quieren alcanzar."
-              actionLabel="Ver metas y fondos"
-              onAction={() => onNavigate("goals")}
-            />
+      ) : (
+        <div className="mb-3">
+          <div className="flex items-center justify-between px-6 mb-2">
+            <h3 className="text-xs font-semibold" style={{ color: P.text }}>
+              Metas y fondos
+            </h3>
+            <SeeMoreLink onClick={() => onNavigate("goals")}>Ver todas</SeeMoreLink>
           </div>
-        ) : (
           <div className="flex gap-3 px-6 overflow-x-auto [&::-webkit-scrollbar]:hidden pb-1">
             {activeGoals.map((goal, index) => {
               const style = GOAL_STYLES[index % GOAL_STYLES.length];
@@ -712,28 +717,34 @@ function DashboardBody({
               );
             })}
           </div>
-        )}
-      </div>
-
-      <div className="px-6 mb-2">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-xs font-semibold" style={{ color: P.text }}>
-            Actividad reciente
-          </h3>
-          <SeeMoreLink onClick={() => onNavigate("activity")}>Ver todo</SeeMoreLink>
         </div>
-        {empty.activity ? (
-          <EmptyState
-            title="Todo tranquilo por aquí."
-            description="Registra tu primer gasto para comenzar a ver tu actividad."
+      )}
+
+      {empty.activity ? (
+        <div className="mx-6 mb-2">
+          <HomeInviteCard
+            title="Actividad"
+            hint="Aquí verás lo que pasa en el Nido"
+            actionLabel="Registrar un gasto"
+            onAction={() => onNavigate("budget")}
+            onOpen={() => onNavigate("activity")}
+            icon="🧾"
           />
-        ) : (
+        </div>
+      ) : (
+        <div className="px-6 mb-2">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-semibold" style={{ color: P.text }}>
+              Actividad reciente
+            </h3>
+            <SeeMoreLink onClick={() => onNavigate("activity")}>Ver todo</SeeMoreLink>
+          </div>
           <div className="space-y-2">
             {activity.slice(0, 3).map((item) => (
               <div
                 key={item.id}
-                className="flex items-center gap-3 rounded-2xl p-3 shadow-sm"
-                style={{ backgroundColor: P.card }}
+                className="flex items-center gap-3 rounded-2xl p-3"
+                style={{ backgroundColor: P.card, boxShadow: HOME_CARD_SHADOW }}
               >
                 <div
                   className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0"
@@ -755,8 +766,8 @@ function DashboardBody({
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </>
   );
 }

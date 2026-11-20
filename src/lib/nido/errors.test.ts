@@ -56,6 +56,15 @@ describe("nidoErrorFromUnknown", () => {
     assert.equal(error.message.includes("duplicate key"), false);
   });
 
+  it("maps duplicate purchase shares to invalid_split", () => {
+    const error = nidoErrorFromUnknown({
+      message: "duplicate key value violates unique constraint \"purchase_shares_unique_member\"",
+      code: "23505",
+    });
+    assert.equal(error.code, "invalid_split");
+    assert.equal(error.message, userMessageFor("invalid_split"));
+  });
+
   it("does not expose raw Postgres text to users", () => {
     const error = nidoErrorFromUnknown({
       message: "duplicate key value violates unique constraint",
@@ -167,6 +176,11 @@ describe("nidoErrorFromUnknown", () => {
       "conflict",
     );
     assert.match(userMessageFor("recurrence_not_due"), /periodo/i);
+    assert.equal(
+      nidoErrorFromUnknown({ message: "nido.card_in_use" }).code,
+      "card_in_use",
+    );
+    assert.match(userMessageFor("card_in_use"), /compras activas/i);
     assert.equal(
       nidoErrorFromUnknown({ message: "nido.forbidden" }).message.includes("auth.uid"),
       false,

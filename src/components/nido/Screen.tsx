@@ -94,6 +94,7 @@ export function ScreenIntro({
   brand,
   description,
   emoji,
+  emojiPlacement = "above",
   align = "left",
   titleSize = "h1",
   className,
@@ -102,18 +103,32 @@ export function ScreenIntro({
   brand?: ReactNode;
   description?: ReactNode;
   emoji?: string;
+  /** `inline` alinea el emoji con el título; `above` lo deja encima. */
+  emojiPlacement?: "above" | "inline";
   align?: "left" | "center";
   titleSize?: "display" | "h1" | "h2";
   className?: string;
 }) {
+  const titleNode =
+    emoji && emojiPlacement === "inline" ? (
+      <span className="inline-flex items-center gap-2.5">
+        <span className="text-[1.35em] leading-none" aria-hidden="true">
+          {emoji}
+        </span>
+        <span>{title}</span>
+      </span>
+    ) : (
+      title
+    );
+
   return (
     <div className={cn(align === "center" ? "text-center" : "text-left", className)}>
-      {emoji && (
+      {emoji && emojiPlacement === "above" ? (
         <p className="text-h1 mb-2" aria-hidden="true">
           {emoji}
         </p>
-      )}
-      <Heading size={titleSize}>{title}</Heading>
+      ) : null}
+      <Heading size={titleSize}>{titleNode}</Heading>
       {brand && (
         <Text size="body-sm" tone="muted" className="mt-2 font-normal leading-relaxed">
           {brand}
