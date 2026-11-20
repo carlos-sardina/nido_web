@@ -221,7 +221,7 @@ export function buildCreatePurchasePayload(
     if (
       input.msiMonths == null ||
       !Number.isInteger(input.msiMonths) ||
-      input.msiMonths < 2 ||
+      input.msiMonths < 1 ||
       input.msiMonths > 48
     ) {
       return { ok: false, error: "invalid_amount" };

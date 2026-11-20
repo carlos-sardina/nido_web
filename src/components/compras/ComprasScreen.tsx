@@ -311,7 +311,11 @@ export function ComprasScreen({
                                     >
                                       {[
                                         paymentMethodLabel(purchase.paymentMethod),
-                                        purchase.msiMonths ? `${purchase.msiMonths} meses` : null,
+                                        purchase.msiMonths
+                                          ? purchase.msiMonths === 1
+                                            ? "1 mes"
+                                            : `${purchase.msiMonths} meses`
+                                          : null,
                                         remaining,
                                         formatRelativeActivityDate(
                                           purchase.purchasedAt,

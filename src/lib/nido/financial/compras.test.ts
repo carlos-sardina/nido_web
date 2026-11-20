@@ -39,6 +39,14 @@ describe("buildMsiInstallmentPlan", () => {
       ["2026-12-07", "2027-01-07", "2027-02-07"],
     );
   });
+
+  it("supports a single installment for the full amount", () => {
+    const plan = buildMsiInstallmentPlan(2500.5, 1, "2026-12-28");
+    assert.equal(plan.length, 1);
+    assert.deepEqual(plan, [
+      { installmentNumber: 1, dueDate: "2026-12-28", amount: 2500.5 },
+    ]);
+  });
 });
 
 describe("netPurchaseCost", () => {

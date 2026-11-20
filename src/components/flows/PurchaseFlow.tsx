@@ -87,7 +87,14 @@ export function PurchaseFlow({
   const preview = useMemo(() => {
     const parsed = parseMoney(amount);
     const months = Number(msiMonths);
-    if (method !== "msi" || parsed == null || !selectedCard || !Number.isInteger(months) || months < 2) {
+    if (
+      method !== "msi" ||
+      parsed == null ||
+      !selectedCard ||
+      !Number.isInteger(months) ||
+      months < 1 ||
+      months > 48
+    ) {
       return null;
     }
     const first = msiFirstDueDate(purchasedAt, selectedCard.cutDay, selectedCard.paymentDay);
@@ -125,8 +132,8 @@ export function PurchaseFlow({
     if (method === "msi") {
       if (!cardId) nextErrors.card = "Elige la tarjeta o agrega una.";
       const months = Number(msiMonths);
-      if (!Number.isInteger(months) || months < 2 || months > 48) {
-        nextErrors.months = "Los MSI deben ser entre 2 y 48 meses.";
+      if (!Number.isInteger(months) || months < 1 || months > 48) {
+        nextErrors.months = "Los MSI deben ser entre 1 y 48 meses.";
       }
     }
 
@@ -311,8 +318,9 @@ export function PurchaseFlow({
               {preview && preview.length > 0 ? (
                 <div className="rounded-2xl p-4" style={{ backgroundColor: P.sub }}>
                   <Text size="caption" tone="muted">
-                    Primera cuota {preview[0].dueDate} · {preview.length} pagos de aprox.{" "}
-                    ${preview[0].amount.toFixed(2)}
+                    {preview.length === 1
+                      ? `Un solo pago el ${preview[0].dueDate} · $${preview[0].amount.toFixed(2)}`
+                      : `Primera cuota ${preview[0].dueDate} · ${preview.length} pagos de aprox. $${preview[0].amount.toFixed(2)}`}
                   </Text>
                 </div>
               ) : null}

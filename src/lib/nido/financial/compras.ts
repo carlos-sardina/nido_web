@@ -156,7 +156,7 @@ export function buildMsiInstallmentPlan(
   firstDueDate: string,
 ): { installmentNumber: number; dueDate: string; amount: number }[] {
   if (!Number.isFinite(grossAmount) || grossAmount <= 0) return [];
-  if (!Number.isInteger(months) || months < 2) return [];
+  if (!Number.isInteger(months) || months < 1 || months > 48) return [];
   if (!isCalendarDate(firstDueDate)) return [];
 
   const cents = Math.round(roundMoney(grossAmount) * MONEY_CENTS);
