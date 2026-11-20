@@ -295,21 +295,24 @@ export async function fetchPurchaseAuditEvents(
   opts: {
     householdId: string;
     purchaseId?: string | null;
+    /** Page size (default 20). Fetches one extra row to detect hasMore. */
     limit?: number;
+    offset?: number;
   },
   supabase: NidoClient = nidoClient(),
-): Promise<NidoResult<PurchaseAuditEvent[]>> {
+): Promise<NidoResult<{ events: PurchaseAuditEvent[]; hasMore: boolean }>> {
   const auth = await requireUser(supabase);
   if (auth.ok === false) return nidoFail(auth.error.code);
 
-  const limit = opts.limit ?? 80;
+  const limit = Math.max(1, opts.limit ?? 20);
+  const offset = Math.max(0, opts.offset ?? 0);
   let query = auth.data.supabase
     .from("purchase_audit_events")
     .select(AUDIT_SELECT)
     .eq("household_id", opts.householdId)
     .order("occurred_at", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(offset, offset + limit);
 
   if (opts.purchaseId) {
     query = query.eq("purchase_id", opts.purchaseId);
@@ -318,5 +321,11 @@ export async function fetchPurchaseAuditEvents(
   const result = await query;
   if (result.error) return nidoFail(nidoErrorFromUnknown(result.error).code);
 
-  return nidoOk(((result.data ?? []) as unknown as AuditQueryRow[]).map(mapAuditEvent));
+  const rows = (result.data ?? []) as unknown as AuditQueryRow[];
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  return nidoOk({
+    events: page.map(mapAuditEvent),
+    hasMore,
+  });
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/nido/Button";
 import { Heading, Text } from "@/components/nido/Typography";
 import {
   formatExactMoney,
@@ -11,6 +12,8 @@ import {
 } from "@/lib/nido/financial";
 import { fetchPurchaseAuditEvents } from "@/lib/nido/queries/compras";
 import { P } from "@/lib/palette";
+
+const DEFAULT_PAGE_SIZE = 20;
 
 function metaLine(event: PurchaseAuditEvent): string | null {
   const meta = event.meta;
@@ -48,7 +51,8 @@ export function PurchaseAuditTimeline({
   refreshKey = 0,
   title = "Historial / auditoría",
   emptyLabel = "Todavía no hay movimientos registrados en esta compra.",
-  limit = 60,
+  pageSize = DEFAULT_PAGE_SIZE,
+  showHeading = true,
   onSelectPurchase,
 }: {
   householdId: string;
@@ -56,45 +60,68 @@ export function PurchaseAuditTimeline({
   refreshKey?: number;
   title?: string;
   emptyLabel?: string;
-  limit?: number;
+  pageSize?: number;
+  showHeading?: boolean;
   onSelectPurchase?: (purchaseId: string) => void;
 }) {
   const [events, setEvents] = useState<PurchaseAuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const loadPage = useCallback(
+    async (offset: number, append: boolean) => {
+      const result = await fetchPurchaseAuditEvents({
+        householdId,
+        purchaseId: purchaseId ?? null,
+        limit: pageSize,
+        offset,
+      });
+      if (result.ok === false) {
+        setError(result.error.message);
+        if (!append) setEvents([]);
+        setHasMore(false);
+        return;
+      }
+      setError(null);
+      setEvents((prev) => (append ? [...prev, ...result.data.events] : result.data.events));
+      setHasMore(result.data.hasMore);
+    },
+    [householdId, purchaseId, pageSize],
+  );
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    void fetchPurchaseAuditEvents({
-      householdId,
-      purchaseId: purchaseId ?? null,
-      limit,
-    }).then((result) => {
-      if (cancelled) return;
-      if (result.ok === false) {
-        setError(result.error.message);
-        setEvents([]);
-        setLoading(false);
-        return;
-      }
-      setEvents(result.data);
-      setLoading(false);
+    void loadPage(0, false).finally(() => {
+      if (!cancelled) setLoading(false);
     });
     return () => {
       cancelled = true;
     };
-  }, [householdId, purchaseId, refreshKey, limit]);
+  }, [loadPage, refreshKey]);
+
+  const onLoadMore = () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    void loadPage(events.length, true).finally(() => setLoadingMore(false));
+  };
 
   return (
-    <div className="mt-5">
-      <Heading as="h3" size="h3">
-        {title}
-      </Heading>
-      <Text size="caption" tone="muted" className="mt-1">
-        Solo lectura: altas, pagos, deshacer, bonos recibidos, cuotas, participaciones y ediciones. No se borra al deshacer.
-      </Text>
+    <div className={showHeading ? "mt-5" : undefined}>
+      {showHeading ? (
+        <>
+          <Heading as="h3" size="h3">
+            {title}
+          </Heading>
+          <Text size="caption" tone="muted" className="mt-1">
+            Solo lectura: altas, pagos, deshacer, bonos recibidos, cuotas, participaciones y
+            ediciones. No se borra al deshacer.
+          </Text>
+        </>
+      ) : null}
 
       {loading ? (
         <Text size="caption" tone="muted" className="mt-3">
@@ -176,6 +203,20 @@ export function PurchaseAuditTimeline({
               </div>
             );
           })}
+        </div>
+      ) : null}
+
+      {!loading && hasMore ? (
+        <div className="mt-4">
+          <Button
+            variant="secondary"
+            size="compact"
+            onClick={onLoadMore}
+            loading={loadingMore}
+            disabled={loadingMore}
+          >
+            Cargar más
+          </Button>
         </div>
       ) : null}
     </div>

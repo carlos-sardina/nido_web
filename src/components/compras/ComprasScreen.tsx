@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, CreditCard, Plus } from "lucide-react";
+import { ChevronRight, CreditCard, History, Plus } from "lucide-react";
 import { CardsManageScreen } from "@/components/compras/CardsManageScreen";
 import { ComprasActionSheet } from "@/components/compras/ComprasActionSheet";
 import { ComprasSetupFlow } from "@/components/compras/ComprasSetupFlow";
-import { PurchaseAuditTimeline } from "@/components/compras/PurchaseAuditTimeline";
+import { PurchaseAuditScreen } from "@/components/compras/PurchaseAuditScreen";
 import { MonthDueWidget, SpendWidget } from "@/components/compras/PaymentCardVisual";
 import { Button } from "@/components/nido/Button";
 import { EmptyState } from "@/components/nido/EmptyState";
@@ -91,6 +91,7 @@ export function ComprasScreen({
 }) {
   const [view, setView] = useState<View>("home");
   const [showCards, setShowCards] = useState(false);
+  const [showAudit, setShowAudit] = useState(false);
   const [showSheet, setShowSheet] = useState(false);
   const [month, setMonth] = useState(() => getCurrentMonthRange());
   const [forceSetup, setForceSetup] = useState(false);
@@ -164,6 +165,28 @@ export function ComprasScreen({
     );
   }
 
+  if (showAudit) {
+    return (
+      <PurchaseAuditScreen
+        householdId={householdId}
+        refreshKey={
+          purchases.length * 1000 +
+          purchases.reduce((sum, row) => sum + row.payments.length, 0) * 10 +
+          cards.length +
+          (refreshing ? 1 : 0)
+        }
+        onClose={() => setShowAudit(false)}
+        onSelectPurchase={(purchaseId) => {
+          const purchase = purchases.find((row) => row.id === purchaseId);
+          if (purchase) {
+            setShowAudit(false);
+            onOpenPurchase(purchase);
+          }
+        }}
+      />
+    );
+  }
+
   return (
     <div className="absolute inset-0 z-30 flex flex-col" style={{ backgroundColor: P.bgL }}>
       <PullToRefresh
@@ -180,15 +203,26 @@ export function ComprasScreen({
               }}
               label={view === "cuotas" ? "Atrás" : "Cerrar"}
             />
-            <button
-              type="button"
-              aria-label="Gestionar tarjetas"
-              onClick={() => setShowCards(true)}
-              className="mt-1 flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              style={{ backgroundColor: P.card }}
-            >
-              <CreditCard size={18} style={{ color: P.text }} aria-hidden="true" />
-            </button>
+            <div className="mt-1 flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Historial del módulo"
+                onClick={() => setShowAudit(true)}
+                className="flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                style={{ backgroundColor: P.card }}
+              >
+                <History size={18} style={{ color: P.text }} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                aria-label="Gestionar tarjetas"
+                onClick={() => setShowCards(true)}
+                className="flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                style={{ backgroundColor: P.card }}
+              >
+                <CreditCard size={18} style={{ color: P.text }} aria-hidden="true" />
+              </button>
+            </div>
           </div>
 
           <Heading as="h2" size="h2" className="mt-3">
@@ -338,23 +372,6 @@ export function ComprasScreen({
                       tone="sage"
                     />
                   </div>
-
-                  <PurchaseAuditTimeline
-                    householdId={householdId}
-                    refreshKey={
-                      compras.purchases.length * 1000 +
-                      compras.purchases.reduce((sum, row) => sum + row.payments.length, 0) * 10 +
-                      compras.cards.length +
-                      (compras.refreshing ? 1 : 0)
-                    }
-                    title="Historial del módulo"
-                    emptyLabel="Cuando registres pagos o cambios, quedarán aquí para auditar."
-                    limit={12}
-                    onSelectPurchase={(purchaseId) => {
-                      const purchase = purchases.find((row) => row.id === purchaseId);
-                      if (purchase) onOpenPurchase(purchase);
-                    }}
-                  />
                 </>
               )}
             </>
